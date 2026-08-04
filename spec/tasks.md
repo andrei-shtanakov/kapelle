@@ -62,7 +62,7 @@ explicit rules, per DESIGN-002.
 **Blocks:** [TASK-004]
 
 ### TASK-004: Fake executor + fake judge, synchronous e2e
-🔴 P0 | ⬜ TODO | Est: 0.5d
+🔴 P0 | 🔄 IN_PROGRESS | Est: 0.5d
 
 **Description:**
 `Executor.Adapter` and `Evaluator.Judge` behaviours with fake implementations;
