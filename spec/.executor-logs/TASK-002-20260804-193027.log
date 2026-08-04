@@ -1,0 +1,129 @@
+=== PROMPT ===
+# Task Execution Request
+
+## Task: TASK-002 — Contract structs Decision, Result, Verdict
+
+**Priority:** P0
+**Estimate:** 0.5d
+**Milestone:** Milestone 1: Vertical Slice
+
+## Checklist (implement ALL items):
+
+- [ ] `Kapelle.Router.Decision` (`lib/kapelle/router/decision.ex`): enforced keys decision_id/task_id/target/decided_at, features map, `@type t`, `new!/1` validating target shape
+- [ ] `Kapelle.Executor.Result` (`lib/kapelle/executor/result.ex`): status limited to :pass | :fail | :error, `new!/1` rejects unknown status
+- [ ] `Kapelle.Evaluator.Verdict` (`lib/kapelle/evaluator/verdict.ex`): enforced decision_id/task_id/total_score, score_components map defaults to %{} but is never dropped by any function
+- [ ] Unit tests for all three: happy path + missing key raises + invalid status/target raises
+- [ ] `mix format --check-formatted` and `mix credo` clean
+
+## Related Requirements:
+
+#### REQ-001: Contract structs
+**As a** developer of any kapelle context
+**I want** `Decision`, `Result`, `Verdict` as typed structs with validating constructors
+**So that** contexts communicate only through explicit contracts
+
+**Acceptance Criteria:**
+```gherkin
+GIVEN valid attributes for Decision/Result/Verdict
+WHEN new!/1 is called
+THEN a struct with enforced keys is returned
+
+GIVEN an invalid status or missing key
+WHEN new!/1 is called
+THEN an error is raised (no silent defaults)
+```
+
+**Priority:** P0
+**Traces to:** [TASK-002], [DESIGN-001]
+
+## Related Design:
+
+### DESIGN-001: Contract structs
+
+`lib/kapelle/router/decision.ex`, `lib/kapelle/executor/result.ex`,
+`lib/kapelle/evaluator/verdict.ex`. Plain structs (not Ecto schemas — persistence
+arrives in TASK-005 as separate schemas mapped from these structs).
+
+```elixir
+defmodule Kapelle.Router.Decision do
+  @enforce_keys [:decision_id, :task_id, :target, :decided_at]
+  defstruct [:decision_id, :task_id, :target, :decided_at, features: %{}]
+  # target: %{provider: String.t(), model: String.t()}
+  @spec new!(map()) :: t()  # raises on missing keys / bad types
+end
+
+defmodule Kapelle.Executor.Result do
+  @enforce_keys [:task_id, :status]
+  defstruct [:task_id, :status, :output, :duration_ms, artifacts: []]
+  # status: :pass | :fail | :error  (mirrors spec-runner exit 0/1/2)
+end
+
+defmodule Kapelle.Evaluator.Verdict do
+  @enforce_keys [:decision_id, :task_id, :total_score]
+  defstruct [:decision_id, :task_id, :total_score, score_components: %{}]
+  # score_components must never be dropped (ATP `total_score`-only gap lesson)
+end
+```
+
+Each struct: `@type t`, `new!/1` with validation, unit tests incl. invalid input.
+**Traces to:** [REQ-001], [REQ-006 NFR-003]
+
+## Instructions:
+
+1. Implement ALL checklist items for this task
+2. Write unit tests for new code (coverage ≥80%)
+3. Follow the design patterns from /Users/Andrei_Shtanakov/labs/kapelle/spec/design.md
+4. Use existing code style and conventions
+5. Create/update files as needed
+
+## Dependencies:
+
+- To add a new dependency: `uv add <package>`
+- To add a dev dependency: `uv add --dev <package>`
+- NEVER edit pyproject.toml manually for dependencies
+- After adding dependencies, they are available immediately
+
+## Success Criteria:
+
+- All checklist items implemented
+- All tests pass (`uv run pytest`)
+- No lint errors (`uv run ruff check .`)
+- Code follows project conventions
+
+## Output:
+
+When complete, respond with:
+- Summary of changes made
+- Files created/modified
+- Any issues or notes
+- "TASK_COMPLETE" if successful, or "TASK_FAILED: <reason>" if not
+
+
+Begin implementation:
+
+
+=== OUTPUT ===
+All checklist items are implemented, tested, and verified clean.
+
+## Summary
+
+Implemented the three contract structs per DESIGN-001, test-first:
+
+- **`lib/kapelle/router/decision.ex`** — `Kapelle.Router.Decision` with enforced keys `decision_id/task_id/target/decided_at`, `features` defaulting to `%{}`, `@type t`, and `new!/1` that raises `ArgumentError` on missing keys (via `struct!/2`) or a malformed `target` (must be `%{provider: String.t(), model: String.t()}`).
+- **`lib/kapelle/executor/result.ex`** — `Kapelle.Executor.Result` with enforced keys `task_id/status`, `new!/1` raising on missing keys or any status outside `:pass | :fail | :error`.
+- **`lib/kapelle/evaluator/verdict.ex`** — `Kapelle.Evaluator.Verdict` with enforced keys `decision_id/task_id/total_score`, `score_components` defaulting to `%{}` and always preserved, `new!/1` raising on missing keys or non-numeric `total_score`.
+- **`test/kapelle/router/decision_test.exs`**, **`test/kapelle/executor/result_test.exs`**, **`test/kapelle/evaluator/verdict_test.exs`** — 15 new unit tests covering happy path, defaults, missing-key raises, and invalid-shape/status raises.
+- **`spec/tasks.md`** — marked TASK-002 checklist and status as done.
+
+Verification: `mix test` → 20 tests, 0 failures; `mix format --check-formatted` → clean; `mix credo` → no issues.
+
+Files created: the three `lib/` structs and three `test/` files listed above. Files modified: `spec/tasks.md`.
+
+No issues encountered.
+
+TASK_COMPLETE
+
+=== STDERR ===
+
+
+=== RETURN CODE: 0 ===
