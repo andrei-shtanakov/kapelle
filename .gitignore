@@ -35,3 +35,11 @@ kapelle-*.tar
 npm-debug.log
 /assets/node_modules/
 
+# spec-runner runtime state and agent session logs — never commit
+spec/.executor-state.db*
+spec/.executor-state.lock
+spec/.executor-progress.txt
+spec/.executor-logs/
+spec/.task-history.log
+/logs/
+
