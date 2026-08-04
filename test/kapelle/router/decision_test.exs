@@ -63,4 +63,12 @@ defmodule Kapelle.Router.DecisionTest do
 
     assert_raise ArgumentError, fn -> Decision.new!(attrs) end
   end
+
+  test "new!/1 raises when features is not a map" do
+    for bad <- [nil, [], "features", 42] do
+      attrs = Map.put(@valid_attrs, :features, bad)
+
+      assert_raise ArgumentError, fn -> Decision.new!(attrs) end
+    end
+  end
 end

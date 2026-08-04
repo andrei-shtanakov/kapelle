@@ -18,13 +18,15 @@ defmodule Kapelle.Evaluator.Verdict do
 
   @doc """
   Builds a `Verdict`, raising `ArgumentError` if a required key is missing,
-  `attrs` has an unknown key, or `total_score` is not a number.
+  `attrs` has an unknown key, `total_score` is not a number, or
+  `score_components` is not a map.
   """
   @spec new!(map()) :: t()
   def new!(attrs) when is_map(attrs) do
     __MODULE__
     |> build!(attrs)
     |> validate_total_score!()
+    |> validate_score_components!()
   end
 
   defp build!(module, attrs) do
@@ -41,5 +43,14 @@ defmodule Kapelle.Evaluator.Verdict do
 
   defp validate_total_score!(%__MODULE__{}) do
     raise ArgumentError, "total_score must be a number"
+  end
+
+  defp validate_score_components!(%__MODULE__{score_components: components} = verdict)
+       when is_map(components) do
+    verdict
+  end
+
+  defp validate_score_components!(%__MODULE__{score_components: components}) do
+    raise ArgumentError, "score_components must be a map, got: #{inspect(components)}"
   end
 end

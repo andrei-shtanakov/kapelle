@@ -43,4 +43,12 @@ defmodule Kapelle.Evaluator.VerdictTest do
 
     assert_raise ArgumentError, fn -> Verdict.new!(attrs) end
   end
+
+  test "new!/1 raises when score_components is not a map" do
+    for bad <- [nil, [], "components", 42] do
+      attrs = Map.put(@valid_attrs, :score_components, bad)
+
+      assert_raise ArgumentError, fn -> Verdict.new!(attrs) end
+    end
+  end
 end

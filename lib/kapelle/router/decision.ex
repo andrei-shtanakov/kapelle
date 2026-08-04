@@ -21,14 +21,16 @@ defmodule Kapelle.Router.Decision do
 
   @doc """
   Builds a `Decision`, raising `ArgumentError` if a required key is missing,
-  `attrs` has an unknown key, or `target` is not a
-  `%{provider: String.t(), model: String.t()}` map with exactly those keys.
+  `attrs` has an unknown key, `target` is not a
+  `%{provider: String.t(), model: String.t()}` map with exactly those keys,
+  or `features` is not a map.
   """
   @spec new!(map()) :: t()
   def new!(attrs) when is_map(attrs) do
     __MODULE__
     |> build!(attrs)
     |> validate_target!()
+    |> validate_features!()
   end
 
   defp build!(module, attrs) do
@@ -48,5 +50,13 @@ defmodule Kapelle.Router.Decision do
   defp validate_target!(%__MODULE__{}) do
     raise ArgumentError,
           "target must be a map with exactly string :provider and :model keys"
+  end
+
+  defp validate_features!(%__MODULE__{features: features} = decision) when is_map(features) do
+    decision
+  end
+
+  defp validate_features!(%__MODULE__{features: features}) do
+    raise ArgumentError, "features must be a map, got: #{inspect(features)}"
   end
 end

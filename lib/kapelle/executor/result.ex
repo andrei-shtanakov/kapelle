@@ -22,14 +22,15 @@ defmodule Kapelle.Executor.Result do
 
   @doc """
   Builds a `Result`, raising `ArgumentError` if a required key is missing,
-  `attrs` has an unknown key, or `status` is not one of
-  `#{inspect(@valid_statuses)}`.
+  `attrs` has an unknown key, `status` is not one of
+  `#{inspect(@valid_statuses)}`, or `artifacts` is not a list.
   """
   @spec new!(map()) :: t()
   def new!(attrs) when is_map(attrs) do
     __MODULE__
     |> build!(attrs)
     |> validate_status!()
+    |> validate_artifacts!()
   end
 
   defp build!(module, attrs) do
@@ -46,5 +47,13 @@ defmodule Kapelle.Executor.Result do
   defp validate_status!(%__MODULE__{status: status}) do
     raise ArgumentError,
           "status must be one of #{inspect(@valid_statuses)}, got: #{inspect(status)}"
+  end
+
+  defp validate_artifacts!(%__MODULE__{artifacts: artifacts} = result) when is_list(artifacts) do
+    result
+  end
+
+  defp validate_artifacts!(%__MODULE__{artifacts: artifacts}) do
+    raise ArgumentError, "artifacts must be a list, got: #{inspect(artifacts)}"
   end
 end

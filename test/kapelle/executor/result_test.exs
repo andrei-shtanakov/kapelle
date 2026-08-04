@@ -51,4 +51,12 @@ defmodule Kapelle.Executor.ResultTest do
 
     assert_raise ArgumentError, fn -> Result.new!(attrs) end
   end
+
+  test "new!/1 raises when artifacts is not a list" do
+    for bad <- [nil, %{}, "artifact", 42] do
+      attrs = Map.put(@valid_attrs, :artifacts, bad)
+
+      assert_raise ArgumentError, fn -> Result.new!(attrs) end
+    end
+  end
 end
