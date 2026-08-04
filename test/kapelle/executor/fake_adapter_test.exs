@@ -42,6 +42,21 @@ defmodule Kapelle.Executor.FakeAdapterTest do
     assert {:ok, %Result{status: :error}} = FakeAdapter.execute(task, decision())
   end
 
+  test "execute/2 treats an explicit nil fake_result as no overrides" do
+    task = %{id: "task-4", type: :general, fake_result: nil}
+
+    assert {:ok, %Result{task_id: "task-4", status: :pass}} =
+             FakeAdapter.execute(task, decision())
+  end
+
+  test "execute/2 returns a clear error for a non-map non-error fake_result" do
+    for bad <- ["oops", 42, [status: :pass]] do
+      task = %{id: "task-5", type: :general, fake_result: bad}
+
+      assert {:error, {:invalid_fake_result, ^bad}} = FakeAdapter.execute(task, decision())
+    end
+  end
+
   test "FakeAdapter implements the Kapelle.Executor.Adapter behaviour" do
     assert Kapelle.Executor.Adapter in (FakeAdapter.module_info(:attributes)
                                         |> Keyword.get_values(:behaviour)

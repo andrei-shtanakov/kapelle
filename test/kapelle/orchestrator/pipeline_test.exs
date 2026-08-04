@@ -3,23 +3,8 @@ defmodule Kapelle.Orchestrator.PipelineTest do
 
   alias Kapelle.Evaluator.Verdict
   alias Kapelle.Orchestrator.Pipeline
-  alias Kapelle.Router.Decision
-
-  defmodule StubPolicy do
-    @moduledoc false
-    @behaviour Kapelle.Router.Policy
-
-    @impl true
-    def route(%{id: task_id}, _opts) do
-      {:ok,
-       Decision.new!(%{
-         decision_id: "stub-decision-id",
-         task_id: task_id,
-         target: %{provider: "anthropic", model: "claude-sonnet-5"},
-         decided_at: DateTime.utc_now()
-       })}
-    end
-  end
+  alias Kapelle.Test.ExplodingJudge
+  alias Kapelle.Test.StubPolicy
 
   test "run_sync/2 takes a submitted task through route -> execute -> evaluate to a Verdict" do
     task = %{id: "task-1", type: :code_gen}
@@ -58,14 +43,6 @@ defmodule Kapelle.Orchestrator.PipelineTest do
     task = %{id: "task-5", type: :unsupported}
 
     assert {:error, _reason} = Pipeline.run_sync(task, [])
-  end
-
-  defmodule ExplodingJudge do
-    @moduledoc false
-    @behaviour Kapelle.Evaluator.Judge
-
-    @impl true
-    def evaluate(_task, _result), do: raise("evaluate/2 must not be called")
   end
 
   test "run_sync/2 propagates an execution error without evaluating" do
