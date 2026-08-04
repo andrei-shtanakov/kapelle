@@ -62,7 +62,7 @@ explicit rules, per DESIGN-002.
 **Blocks:** [TASK-004]
 
 ### TASK-004: Fake executor + fake judge, synchronous e2e
-🔴 P0 | 🔄 IN_PROGRESS | Est: 0.5d
+🔴 P0 | ✅ DONE | Est: 0.5d
 
 **Description:**
 `Executor.Adapter` and `Evaluator.Judge` behaviours with fake implementations;
@@ -70,11 +70,11 @@ one synchronous pipeline function proving submit → verdict without network,
 per DESIGN-003/004.
 
 **Checklist:**
-- [ ] `Kapelle.Executor.Adapter` behaviour + `FakeAdapter` (configurable canned Result)
-- [ ] `Kapelle.Evaluator.Judge` behaviour + `FakeJudge` (score from Result.status, non-empty score_components)
-- [ ] `Kapelle.Orchestrator.Pipeline.run_sync/2`: route → execute → evaluate, returns {:ok, Verdict}
-- [ ] e2e test: submitted task yields Verdict referencing the originating decision_id; zero network
-- [ ] format + credo clean
+- [x] `Kapelle.Executor.Adapter` behaviour + `FakeAdapter` (configurable canned Result)
+- [x] `Kapelle.Evaluator.Judge` behaviour + `FakeJudge` (score from Result.status, non-empty score_components)
+- [x] `Kapelle.Orchestrator.Pipeline.run_sync/2`: route → execute → evaluate, returns {:ok, Verdict}
+- [x] e2e test: submitted task yields Verdict referencing the originating decision_id; zero network
+- [x] format + credo clean
 
 **Traces to:** [REQ-003], [DESIGN-003], [DESIGN-004]
 **Depends on:** [TASK-002], [TASK-003]
