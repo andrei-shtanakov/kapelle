@@ -45,17 +45,17 @@ context builds on.
 **Blocks:** [TASK-003], [TASK-004]
 
 ### TASK-003: RulesPolicy with deterministic routing
-🔴 P0 | 🔄 IN_PROGRESS | Est: 0.5d
+🔴 P0 | ✅ DONE | Est: 0.5d
 
 **Description:**
 `Router.Policy` behaviour + `RulesPolicy` v1 returning a `Decision` from
 explicit rules, per DESIGN-002.
 
 **Checklist:**
-- [ ] `Kapelle.Router.Policy` behaviour (`route/2` callback)
-- [ ] `Kapelle.Router.RulesPolicy`: explicit rules → deterministic target; `decision_id` unique per call (Ecto.UUID)
-- [ ] Table-driven tests: same task → same target; decision_id differs; unknown task shape → {:error, _}
-- [ ] format + credo clean
+- [x] `Kapelle.Router.Policy` behaviour (`route/2` callback)
+- [x] `Kapelle.Router.RulesPolicy`: explicit rules → deterministic target; `decision_id` unique per call (Ecto.UUID)
+- [x] Table-driven tests: same task → same target; decision_id differs; unknown task shape → {:error, _}
+- [x] format + credo clean
 
 **Traces to:** [REQ-002], [DESIGN-002]
 **Depends on:** [TASK-002]
