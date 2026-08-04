@@ -45,7 +45,7 @@ context builds on.
 **Blocks:** [TASK-003], [TASK-004]
 
 ### TASK-003: RulesPolicy with deterministic routing
-🔴 P0 | ⬜ TODO | Est: 0.5d
+🔴 P0 | 🔄 IN_PROGRESS | Est: 0.5d
 
 **Description:**
 `Router.Policy` behaviour + `RulesPolicy` v1 returning a `Decision` from
