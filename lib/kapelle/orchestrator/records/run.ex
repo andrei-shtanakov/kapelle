@@ -49,4 +49,18 @@ defmodule Kapelle.Orchestrator.Records.Run do
     |> cast(attrs, [:task_id, :status, :payload])
     |> validate_required([:task_id, :status])
   end
+
+  @doc """
+  Builds a changeset that updates only `run`'s `:status`, for the terminal
+  writes (`"completed"`/`"failed"`) made once a pipeline stage finishes.
+
+  Guarded by a function-head match on the allowed statuses rather than
+  `validate_inclusion/3` — an unrecognized status is a caller bug, not a
+  recoverable validation error, so it raises `FunctionClauseError`
+  immediately instead of silently producing an invalid changeset.
+  """
+  @spec status_changeset(t(), String.t()) :: Ecto.Changeset.t()
+  def status_changeset(run, status) when status in ~w(pending completed failed) do
+    cast(run, %{status: status}, [:status])
+  end
 end
