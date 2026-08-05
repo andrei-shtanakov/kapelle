@@ -15,6 +15,7 @@ Application.put_env(:kapelle, :orchestrator_overrides, %{
   judge: %{
     "failing_judge" => Kapelle.Test.FailingJudge,
     "exploding_judge" => Kapelle.Test.ExplodingJudge,
-    "mismatched_judge" => Kapelle.Test.MismatchedJudge
+    "mismatched_judge" => Kapelle.Test.MismatchedJudge,
+    "echoing_judge" => Kapelle.Test.EchoingJudge
   }
 })

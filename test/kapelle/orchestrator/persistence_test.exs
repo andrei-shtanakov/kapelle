@@ -151,6 +151,31 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
     end
   end
 
+  describe "pending_run_changeset/1" do
+    test "builds a valid changeset with status pending and payload set to the task" do
+      task = %{id: "task-1", type: :code_gen}
+
+      changeset = Persistence.pending_run_changeset(task)
+
+      assert %Ecto.Changeset{valid?: true} = changeset
+      assert Ecto.Changeset.get_field(changeset, :task_id) == "task-1"
+      assert Ecto.Changeset.get_field(changeset, :status) == "pending"
+      assert Ecto.Changeset.get_field(changeset, :payload) == task
+    end
+
+    test "raises KeyError when the task map has no :id key" do
+      assert_raise KeyError, fn ->
+        Persistence.pending_run_changeset(%{type: :code_gen})
+      end
+    end
+
+    test "does not touch run_attrs/1 or create_run/1 behavior" do
+      task = %{id: "task-1", type: :code_gen}
+
+      assert Persistence.run_attrs(task) == %{task_id: "task-1", status: "completed"}
+    end
+  end
+
   describe "create_run/1" do
     test "inserts a Records.Run row for the submitted task map" do
       assert {:ok, %Run{} = run} = Persistence.create_run(%{id: "task-1", type: :code_gen})
