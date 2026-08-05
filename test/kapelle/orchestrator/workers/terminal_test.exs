@@ -1,6 +1,7 @@
 defmodule Kapelle.Orchestrator.Workers.TerminalTest do
   use Kapelle.DataCase, async: true
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias Ecto.Multi
   alias Kapelle.Orchestrator.Records.Run
   alias Kapelle.Orchestrator.Workers.Terminal
@@ -17,6 +18,24 @@ defmodule Kapelle.Orchestrator.Workers.TerminalTest do
       job = %Oban.Job{attempt: 3, max_attempts: 3}
 
       assert {:discard, :boom} = Terminal.fail(run, job, :boom)
+      assert Repo.get!(Run, run.id).status == "failed"
+    end
+
+    test "on a genuine (non-terminal) run, the final attempt actually performs the transition, not a no-op" do
+      run = insert_run!()
+      job = %Oban.Job{attempt: 3, max_attempts: 3}
+
+      assert {:discard, :boom} = Terminal.fail(run, job, :boom)
+
+      # A follow-up transition finding 0 rows proves the row was already
+      # terminal after `fail/3` ran — i.e. `fail/3`'s own update affected
+      # exactly 1 row, not 0. If TASK-002 regressed `fail/3` into a no-op,
+      # this follow-up would instead find the row still pending (count 1).
+      assert {:ok, %{run: {0, nil}}} =
+               Multi.new()
+               |> Terminal.terminal_transition(:run, run.id, "failed")
+               |> Repo.transaction()
+
       assert Repo.get!(Run, run.id).status == "failed"
     end
 
@@ -87,6 +106,24 @@ defmodule Kapelle.Orchestrator.Workers.TerminalTest do
       assert Repo.get!(Run, run.id).status == "failed"
     end
 
+    test "repeated success is idempotent: a second completion transition against an already-completed run is a no-op" do
+      run = insert_run!("pending")
+
+      assert {:ok, %{run: {1, nil}}} =
+               Multi.new()
+               |> Terminal.terminal_transition(:run, run.id, "completed")
+               |> Repo.transaction()
+
+      completed = Repo.get!(Run, run.id)
+
+      assert {:ok, %{run: {0, nil}}} =
+               Multi.new()
+               |> Terminal.terminal_transition(:run, run.id, "completed")
+               |> Repo.transaction()
+
+      assert Repo.get!(Run, run.id) == completed
+    end
+
     test "updates updated_at alongside status" do
       run = insert_run!("pending")
       stale = ~N[2020-01-01 00:00:00]
@@ -116,6 +153,46 @@ defmodule Kapelle.Orchestrator.Workers.TerminalTest do
                |> Terminal.terminal_transition(:run, run.id, "completed")
                |> Multi.run(:other, fn _repo, _changes -> {:ok, :marker} end)
                |> Repo.transaction()
+    end
+  end
+
+  describe "concurrent finalizers" do
+    test "a failure and a success racing on the same run: exactly one transition wins, and the run ends in exactly one terminal status" do
+      run = insert_run!("pending")
+      job = %Oban.Job{attempt: 3, max_attempts: 3}
+      owner = self()
+
+      [fail_result, success_result] =
+        [
+          fn ->
+            Sandbox.allow(Repo, owner, self())
+            Terminal.fail(run, job, :boom)
+          end,
+          fn ->
+            Sandbox.allow(Repo, owner, self())
+
+            Multi.new()
+            |> Terminal.terminal_transition(:run, run.id, "completed")
+            |> Repo.transaction()
+          end
+        ]
+        |> Enum.map(&Task.async/1)
+        |> Task.await_many(5_000)
+
+      # `fail_count`/`success_count` are the row counts each finalizer's
+      # conditional UPDATE affected — the DB-state proof that exactly one
+      # of the two writes committed, rather than relying on which
+      # `Task.async` happened to run first.
+      fail_count =
+        case fail_result do
+          {:discard, :boom} -> 1
+          {:discard, :already_terminal} -> 0
+        end
+
+      assert {:ok, %{run: {success_count, nil}}} = success_result
+
+      assert fail_count + success_count == 1
+      assert Repo.get!(Run, run.id).status in ["completed", "failed"]
     end
   end
 
