@@ -8,6 +8,7 @@ defmodule Kapelle.Orchestrator.Pipeline do
   alias Kapelle.Evaluator.FakeJudge
   alias Kapelle.Evaluator.Verdict
   alias Kapelle.Executor.FakeAdapter
+  alias Kapelle.Orchestrator.Persistence
   alias Kapelle.Router.RulesPolicy
 
   @default_policy RulesPolicy
@@ -32,7 +33,11 @@ defmodule Kapelle.Orchestrator.Pipeline do
     with {:ok, decision} <- policy.route(task, opts),
          {:ok, result} <- adapter.execute(task, decision) do
       task_with_decision = Map.put(task, :decision_id, decision.decision_id)
-      judge.evaluate(task_with_decision, result)
+
+      with {:ok, verdict} <- judge.evaluate(task_with_decision, result),
+           {:ok, _records} <- Persistence.record_run(task, decision, result, verdict) do
+        {:ok, verdict}
+      end
     end
   end
 end
