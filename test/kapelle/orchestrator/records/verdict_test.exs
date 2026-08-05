@@ -3,20 +3,14 @@ defmodule Kapelle.Orchestrator.Records.VerdictTest do
 
   alias Kapelle.Orchestrator.Records.Decision
   alias Kapelle.Orchestrator.Records.Run
-  alias Kapelle.Orchestrator.Records.RunTask
   alias Kapelle.Orchestrator.Records.Verdict
 
   setup do
     {:ok, run} = Repo.insert(Run.changeset(%Run{}, %{task_id: "task-1"}))
 
-    {:ok, run_task} =
-      Repo.insert(
-        RunTask.changeset(%RunTask{}, %{run_id: run.id, task_id: "task-1", status: "pass"})
-      )
-
     decision_attrs = %{
       id: Ecto.UUID.generate(),
-      run_task_id: run_task.id,
+      run_id: run.id,
       task_id: "task-1",
       target: %{"provider" => "openai", "model" => "gpt-5"},
       decided_at: DateTime.utc_now()

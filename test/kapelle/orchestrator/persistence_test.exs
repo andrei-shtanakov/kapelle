@@ -26,8 +26,8 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
     end
   end
 
-  describe "run_task_attrs/2" do
-    test "builds Records.RunTask attrs from an Executor.Result, linked to run_id" do
+  describe "run_task_attrs/3" do
+    test "builds Records.RunTask attrs from an Executor.Result, linked to run_id and decision_id" do
       result =
         Result.new!(%{
           task_id: "task-1",
@@ -37,8 +37,9 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
           artifacts: [%{path: "report.json"}]
         })
 
-      assert Persistence.run_task_attrs("run-1", result) == %{
+      assert Persistence.run_task_attrs("run-1", "dec-1", result) == %{
                run_id: "run-1",
+               decision_id: "dec-1",
                task_id: "task-1",
                status: "pass",
                output: %{stdout: "ok"},
@@ -57,7 +58,7 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
           artifacts: [%{"path" => "a.txt"}, %{"path" => "b.txt"}]
         })
 
-      attrs = Persistence.run_task_attrs("run-1", result)
+      attrs = Persistence.run_task_attrs("run-1", "dec-1", result)
 
       assert attrs.output == result.output
       assert attrs.artifacts == result.artifacts
@@ -66,7 +67,7 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
   end
 
   describe "decision_attrs/2" do
-    test "builds Records.Decision attrs from a Router.Decision, linked to run_task_id" do
+    test "builds Records.Decision attrs from a Router.Decision, linked to run_id" do
       decision =
         Decision.new!(%{
           decision_id: "dec-1",
@@ -76,9 +77,9 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
           features: %{temperature: 0.2}
         })
 
-      assert Persistence.decision_attrs("run-task-1", decision) == %{
+      assert Persistence.decision_attrs("run-1", decision) == %{
                id: "dec-1",
-               run_task_id: "run-task-1",
+               run_id: "run-1",
                task_id: "task-1",
                target: %{provider: "anthropic", model: "claude-sonnet-5"},
                features: %{temperature: 0.2},
@@ -95,7 +96,7 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
           decided_at: ~U[2026-08-04 12:00:00Z]
         })
 
-      attrs = Persistence.decision_attrs("run-task-1", decision)
+      attrs = Persistence.decision_attrs("run-1", decision)
 
       assert attrs.id == decision.decision_id
     end
@@ -208,7 +209,8 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
       assert %VerdictRecord{} = verdict_row
 
       assert run_task.run_id == run.id
-      assert decision_row.run_task_id == run_task.id
+      assert run_task.decision_id == decision_row.id
+      assert decision_row.run_id == run.id
       assert decision_row.id == decision.decision_id
       assert verdict_row.decision_id == decision_row.id
 
@@ -271,7 +273,7 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
       assert Repo.aggregate(VerdictRecord, :count, :id) == 0
     end
 
-    test "rolls back the run insert when the run_task step fails", %{
+    test "rolls back the run and decision inserts when the run_task step fails", %{
       task: task,
       decision: decision,
       verdict: verdict
@@ -294,6 +296,7 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
 
       assert Repo.aggregate(Run, :count, :id) == 0
       assert Repo.aggregate(RunTask, :count, :id) == 0
+      assert Repo.aggregate(DecisionRecord, :count, :id) == 0
     end
 
     test "rejects a verdict whose decision_id doesn't match the decision, without touching the DB",

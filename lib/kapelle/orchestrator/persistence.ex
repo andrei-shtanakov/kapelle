@@ -28,13 +28,14 @@ defmodule Kapelle.Orchestrator.Persistence do
 
   @doc """
   Builds insert attrs for `Records.RunTask` from an `Executor.Result`,
-  linked to `run_id`. `output`, `duration_ms`, and `artifacts` are
-  carried over verbatim.
+  linked to `run_id` and `decision_id`. `output`, `duration_ms`, and
+  `artifacts` are carried over verbatim.
   """
-  @spec run_task_attrs(Ecto.UUID.t(), Result.t()) :: map()
-  def run_task_attrs(run_id, %Result{} = result) do
+  @spec run_task_attrs(Ecto.UUID.t(), Ecto.UUID.t(), Result.t()) :: map()
+  def run_task_attrs(run_id, decision_id, %Result{} = result) do
     %{
       run_id: run_id,
+      decision_id: decision_id,
       task_id: result.task_id,
       status: to_string(result.status),
       output: result.output,
@@ -45,14 +46,14 @@ defmodule Kapelle.Orchestrator.Persistence do
 
   @doc """
   Builds insert attrs for `Records.Decision` from a `Router.Decision`,
-  linked to `run_task_id`. `id` is set to `decision.decision_id` so the
-  row's primary key matches the contract struct verbatim.
+  linked to `run_id`. `id` is set to `decision.decision_id` so the row's
+  primary key matches the contract struct verbatim.
   """
   @spec decision_attrs(Ecto.UUID.t(), Decision.t()) :: map()
-  def decision_attrs(run_task_id, %Decision{} = decision) do
+  def decision_attrs(run_id, %Decision{} = decision) do
     %{
       id: decision.decision_id,
-      run_task_id: run_task_id,
+      run_id: run_id,
       task_id: decision.task_id,
       target: decision.target,
       features: decision.features,
@@ -100,11 +101,11 @@ defmodule Kapelle.Orchestrator.Persistence do
     if verdict.decision_id == decision.decision_id do
       Multi.new()
       |> Multi.insert(:run, Run.changeset(%Run{}, run_attrs(task)))
-      |> Multi.insert(:run_task, fn %{run: run} ->
-        RunTask.changeset(%RunTask{}, run_task_attrs(run.id, result))
+      |> Multi.insert(:decision, fn %{run: run} ->
+        DecisionRecord.changeset(%DecisionRecord{}, decision_attrs(run.id, decision))
       end)
-      |> Multi.insert(:decision, fn %{run_task: run_task} ->
-        DecisionRecord.changeset(%DecisionRecord{}, decision_attrs(run_task.id, decision))
+      |> Multi.insert(:run_task, fn %{run: run, decision: decision_record} ->
+        RunTask.changeset(%RunTask{}, run_task_attrs(run.id, decision_record.id, result))
       end)
       |> Multi.insert(:verdict, fn %{decision: decision_record} ->
         VerdictRecord.changeset(%VerdictRecord{}, verdict_attrs(decision_record.id, verdict))

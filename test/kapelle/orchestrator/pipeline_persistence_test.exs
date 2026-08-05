@@ -16,12 +16,12 @@ defmodule Kapelle.Orchestrator.PipelinePersistenceTest do
     assert {:ok, %Verdict{} = verdict} = Pipeline.run_sync(task, [])
 
     run = Repo.get_by!(Run, task_id: "task-persist-1")
-    run_task = Repo.get_by!(RunTask, run_id: run.id)
-    decision = Repo.get_by!(DecisionRecord, run_task_id: run_task.id)
+    decision = Repo.get_by!(DecisionRecord, run_id: run.id)
+    run_task = Repo.get_by!(RunTask, decision_id: decision.id)
     verdict_row = Repo.get_by!(VerdictRecord, decision_id: decision.id)
 
     assert run_task.run_id == run.id
-    assert decision.run_task_id == run_task.id
+    assert run_task.decision_id == decision.id
     assert verdict_row.decision_id == decision.id
     assert decision.id == verdict.decision_id
     assert verdict_row.total_score == verdict.total_score
