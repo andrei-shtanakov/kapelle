@@ -72,9 +72,19 @@ defmodule Kapelle.Orchestrator.Persistence do
   @spec record_decision(Ecto.UUID.t(), Decision.t()) ::
           {:ok, DecisionRecord.t()} | {:error, Ecto.Changeset.t()}
   def record_decision(run_id, %Decision{} = decision) do
-    %DecisionRecord{}
-    |> DecisionRecord.changeset(decision_attrs(run_id, decision))
+    run_id
+    |> decision_changeset(decision)
     |> Repo.insert()
+  end
+
+  @doc """
+  Builds an `Ecto.Changeset` for a `Records.Decision` insert, without
+  touching the DB — for composing into an `Ecto.Multi` alongside other
+  operations (e.g. atomically with an Oban job insert).
+  """
+  @spec decision_changeset(Ecto.UUID.t(), Decision.t()) :: Ecto.Changeset.t()
+  def decision_changeset(run_id, %Decision{} = decision) do
+    DecisionRecord.changeset(%DecisionRecord{}, decision_attrs(run_id, decision))
   end
 
   @doc """
@@ -198,10 +208,6 @@ defmodule Kapelle.Orchestrator.Persistence do
   end
 
   defp atomize_target(%{"provider" => provider, "model" => model}) do
-    %{provider: provider, model: model}
-  end
-
-  defp atomize_target(%{provider: provider, model: model}) do
     %{provider: provider, model: model}
   end
 end
