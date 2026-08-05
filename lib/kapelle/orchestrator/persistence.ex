@@ -63,6 +63,22 @@ defmodule Kapelle.Orchestrator.Persistence do
   end
 
   @doc """
+  Builds a `Records.Run` changeset for a pending run, same as
+  `pending_run_changeset/1`, but also setting `overrides` — the
+  `policy`/`adapter`/`judge` selection persisted on the run row so
+  workers resolve it from `Persistence.get_run!/1` instead of job args.
+  """
+  @spec pending_run_changeset(map(), map()) :: Ecto.Changeset.t()
+  def pending_run_changeset(task, overrides) when is_map(task) and is_map(overrides) do
+    Run.changeset(%Run{}, %{
+      task_id: Map.fetch!(task, :id),
+      status: "pending",
+      payload: task,
+      overrides: overrides
+    })
+  end
+
+  @doc """
   Builds insert attrs for `Records.Decision` from a `Router.Decision`,
   linked to `run_id`. `id` is set to `decision.decision_id` so the row's
   primary key matches the contract struct verbatim.
@@ -114,6 +130,18 @@ defmodule Kapelle.Orchestrator.Persistence do
   end
 
   @doc """
+  Looks up the `Records.Decision` row linked to `run_id`, or `nil` if none
+  exists yet. `unique_index(:decisions, [:run_id])` makes this an
+  idempotency check: a non-`nil` result means `run_id` has already been
+  routed, so a replayed `RouteWorker` job can skip re-routing instead of
+  hitting the unique constraint.
+  """
+  @spec get_decision_by_run(Ecto.UUID.t()) :: DecisionRecord.t() | nil
+  def get_decision_by_run(run_id) do
+    Repo.get_by(DecisionRecord, run_id: run_id)
+  end
+
+  @doc """
   Builds insert attrs for `Records.RunTask` from an `Executor.Result`,
   linked to `run_id` and `decision_id`. `output`, `duration_ms`, and
   `artifacts` are carried over verbatim.
@@ -157,6 +185,18 @@ defmodule Kapelle.Orchestrator.Persistence do
   end
 
   @doc """
+  Looks up the `Records.RunTask` row linked to `decision_id`, or `nil` if
+  none exists yet. `unique_index(:run_tasks, [:decision_id])` makes this
+  an idempotency check: a non-`nil` result means `decision_id` has
+  already been executed, so a replayed `ExecuteWorker` job can skip
+  re-execution instead of hitting the unique constraint.
+  """
+  @spec get_run_task_by_decision(Ecto.UUID.t()) :: RunTask.t() | nil
+  def get_run_task_by_decision(decision_id) do
+    Repo.get_by(RunTask, decision_id: decision_id)
+  end
+
+  @doc """
   Builds insert attrs for `Records.Verdict` from an `Evaluator.Verdict`,
   linked to `decision_id`. `score_components` is never dropped, matching
   the invariant `Evaluator.Verdict` itself enforces.
@@ -191,6 +231,18 @@ defmodule Kapelle.Orchestrator.Persistence do
     else
       {:error, :verdict_decision_mismatch}
     end
+  end
+
+  @doc """
+  Looks up the `Records.Verdict` row linked to `decision_id`, or `nil` if
+  none exists yet. `unique_index(:verdicts, [:decision_id])` makes this
+  an idempotency check: a non-`nil` result means `decision_id` has
+  already been evaluated, so a replayed `EvaluateWorker` job can skip
+  re-evaluation instead of hitting the unique constraint.
+  """
+  @spec get_verdict_by_decision(Ecto.UUID.t()) :: VerdictRecord.t() | nil
+  def get_verdict_by_decision(decision_id) do
+    Repo.get_by(VerdictRecord, decision_id: decision_id)
   end
 
   @doc """
