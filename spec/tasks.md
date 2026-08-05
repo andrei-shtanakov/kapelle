@@ -132,19 +132,40 @@ test suite stays network-free (NFR-002).
 - [ ] format + credo clean
 
 **Traces to:** [REQ-006], [DESIGN-007], NFR-002
-**Depends on:** [TASK-006]
+**Depends on:** [TASK-006], [TASK-008]
 **Blocks:** —
+
+### TASK-008: Providers catalog from models.toml
+🟠 P1 | ⬜ TODO | Est: 0.5d
+
+**Description:**
+`Kapelle.Providers.Catalog` loading `priv/catalog/models.toml`
+(id convention `"<provider>@<model>"`), per DESIGN-008. Independent of the
+persistence chain — S2 parallel branch.
+
+**Checklist:**
+- [ ] `priv/catalog/models.toml` with at least an anthropic entry and one more provider, id `"<provider>@<model>"`, per-entry params
+- [ ] TOML parser dep in mix.exs
+- [ ] `Kapelle.Providers.Catalog` (`lib/kapelle/providers/catalog.ex`): `load/0` with validation and clear errors, `get/1` by id, `list/0`
+- [ ] Unit tests: happy path, unknown id, malformed toml
+- [ ] format + credo clean
+
+**Traces to:** [REQ-007], [DESIGN-008]
+**Depends on:** —
+**Blocks:** [TASK-007]
 
 ## Dependency Graph
 
 ```
 TASK-001 ✅
    └─► TASK-002 ──► TASK-003 ──► TASK-004 ──► TASK-005 ──► TASK-006 ──► TASK-007
-              └───────────────────►┘
+              └───────────────────►┘                                  ▲
+TASK-008 ─────────────────────────────────────────────────────────────┘
+(independent — S2 parallel branch)
 ```
 
 ## Summary
 
 | Milestone | Tasks | Ready now |
 |---|---|---|
-| M1 Vertical Slice | TASK-002..TASK-007 (6 open, 1 done manual) | TASK-002 |
+| M1 Vertical Slice | TASK-002..TASK-008 (4 open, 3 done, 1 done manual) | TASK-005, TASK-008 |
