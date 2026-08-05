@@ -176,6 +176,34 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
     end
   end
 
+  describe "atomize_task/1" do
+    test "atomizes string keys and restores the :type value to an atom" do
+      payload = %{"id" => "task-1", "type" => "code_gen"}
+
+      assert {:ok, %{id: "task-1", type: :code_gen}} = Persistence.atomize_task(payload)
+    end
+
+    test "leaves an already atom-keyed map unchanged" do
+      payload = %{id: "task-1", type: :code_gen}
+
+      assert {:ok, ^payload} = Persistence.atomize_task(payload)
+    end
+
+    test "leaves :type as a string if it isn't a known atom, matching RulesPolicy's unroutable fallback" do
+      payload = %{"id" => "task-1", "type" => "not_a_real_atom_anywhere_xyz"}
+
+      assert {:ok, %{id: "task-1", type: "not_a_real_atom_anywhere_xyz"}} =
+               Persistence.atomize_task(payload)
+    end
+
+    test "returns {:error, {:unknown_task_key, key}} instead of raising for an unrecognized key" do
+      payload = %{"id" => "task-1", "not_a_real_atom_anywhere_xyz" => "value"}
+
+      assert {:error, {:unknown_task_key, "not_a_real_atom_anywhere_xyz"}} =
+               Persistence.atomize_task(payload)
+    end
+  end
+
   describe "create_run/1" do
     test "inserts a Records.Run row for the submitted task map" do
       assert {:ok, %Run{} = run} = Persistence.create_run(%{id: "task-1", type: :code_gen})

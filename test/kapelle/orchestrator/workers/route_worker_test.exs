@@ -55,5 +55,23 @@ defmodule Kapelle.Orchestrator.Workers.RouteWorkerTest do
       refute Repo.get_by(DecisionRecord, run_id: run.id)
       refute_enqueued(worker: ExecuteWorker)
     end
+
+    test "routes with the real default RulesPolicy against a jsonb-reloaded, string-keyed payload" do
+      run = insert_run!(%{"id" => "task-1", "type" => "code_gen"})
+
+      args = %{
+        "run_id" => run.id,
+        "policy" => "rules_policy",
+        "adapter" => "fake_adapter",
+        "judge" => "fake_judge"
+      }
+
+      assert :ok = perform_job(RouteWorker, args)
+
+      decision = Repo.get_by!(DecisionRecord, run_id: run.id)
+      assert decision.task_id == "task-1"
+
+      assert_enqueued(worker: ExecuteWorker, queue: :executor, args: %{"run_id" => run.id})
+    end
   end
 end

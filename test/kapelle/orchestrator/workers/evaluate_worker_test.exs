@@ -71,7 +71,25 @@ defmodule Kapelle.Orchestrator.Workers.EvaluateWorkerTest do
       assert :ok = perform_job(EvaluateWorker, args)
 
       assert_received {:evaluate_task, task}
-      assert task == %{id: "task-1", type: "code_gen", decision_id: decision.id}
+      assert task == %{id: "task-1", type: :code_gen, decision_id: decision.id}
+    end
+
+    test "an unrecognized run.payload key returns {:error, _} without persisting a Verdict or crashing" do
+      run = insert_run!(%{"id" => "task-1", "not_a_real_atom_anywhere_xyz" => "value"})
+      decision = insert_decision!(run.id, "task-1")
+      run_task = insert_run_task!(run.id, decision.id, "task-1")
+
+      args = %{
+        "run_id" => run.id,
+        "run_task_id" => run_task.id,
+        "decision_id" => decision.id,
+        "judge" => "fake_judge"
+      }
+
+      assert {:error, {:unknown_task_key, "not_a_real_atom_anywhere_xyz"}} =
+               perform_job(EvaluateWorker, args)
+
+      refute Repo.get_by(VerdictRecord, decision_id: decision.id)
     end
 
     test "a judge error returns {:error, _} without persisting a Verdict" do

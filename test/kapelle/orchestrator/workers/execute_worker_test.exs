@@ -73,5 +73,22 @@ defmodule Kapelle.Orchestrator.Workers.ExecuteWorkerTest do
       refute Repo.get_by(RunTask, decision_id: decision.id)
       refute_enqueued(worker: EvaluateWorker)
     end
+
+    test "executes with the real default FakeAdapter against a jsonb-reloaded, string-keyed payload" do
+      run = insert_run!(%{"id" => "task-1", "type" => "code_gen"})
+      decision = insert_decision!(run.id, "task-1")
+
+      args = %{
+        "run_id" => run.id,
+        "decision_id" => decision.id,
+        "adapter" => "fake_adapter",
+        "judge" => "fake_judge"
+      }
+
+      assert :ok = perform_job(ExecuteWorker, args)
+
+      run_task = Repo.get_by!(RunTask, decision_id: decision.id)
+      assert run_task.status == "pass"
+    end
   end
 end
