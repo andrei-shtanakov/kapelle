@@ -43,3 +43,11 @@ spec/.executor-logs/
 spec/.task-history.log
 /logs/
 
+# maestro-generated harness specs (per-worktree, not product artifacts)
+spec/maestro-*
+
+# untracked on purpose: Maestro regenerates it per worktree from project.yaml;
+# tracking it turns every workstream into an ex-post scope violation.
+# spec-runner >= 2.15.0 warns loudly when it is missing (issues #63/#69).
+spec-runner.config.yaml
+

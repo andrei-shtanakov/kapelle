@@ -126,6 +126,25 @@ THEN it passes with zero network calls
 **Priority:** P1
 **Traces to:** [TASK-007], [DESIGN-007]
 
+#### REQ-007: Providers catalog
+**As an** operator
+**I want** available models declared in `priv/catalog/models.toml` and loaded by a catalog module
+**So that** adding or switching a model is a config change, not a code change
+
+**Acceptance Criteria:**
+```gherkin
+GIVEN a models.toml with provider entries
+WHEN Catalog.get("anthropic@<model>") is called
+THEN {:ok, entry} with provider, model and params is returned
+
+GIVEN an unknown id or a malformed models.toml
+WHEN the catalog is queried or loaded
+THEN a clear error is returned (no silent empty catalog)
+```
+
+**Priority:** P1
+**Traces to:** [TASK-008], [DESIGN-008]
+
 ## Non-Functional Requirements
 
 #### NFR-001: Quality gate

@@ -126,6 +126,16 @@ tasks only. Smoke test `@tag :provider_smoke`, excluded by default in
 `test_helper.exs`.
 **Traces to:** [REQ-006], NFR-002
 
+### DESIGN-008: Providers catalog
+
+`priv/catalog/models.toml` — id convention `"<provider>@<model>"` (mirrors the
+ecosystem agents-catalog convention), per-entry params (temperature, max_tokens).
+`Kapelle.Providers.Catalog`: `load/0` (validated, clear errors on malformed
+file), `get/1` by id, `list/0`. Consumed later by `ModelFactory` (DESIGN-007 /
+TASK-007). Needs a TOML dep in mix.exs. Independent of the persistence chain —
+the S2 parallel branch.
+**Traces to:** [REQ-007]
+
 ## Key Decisions (from product plan, restated)
 
 - Contracts as structs before persistence (ADR-style: contracts-first) — TASK-002

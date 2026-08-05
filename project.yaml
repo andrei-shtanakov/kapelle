@@ -1,0 +1,95 @@
+# Maestro S2 pilot DAG — battle-testing (ecosystem pilot, stage S2).
+#
+# base_branch is the pilot INTEGRATION branch, never master: Maestro always
+# merges a finished workstream into base_branch locally (auto_pr only controls
+# leaf PRs), so the human gate lives on the final PR pilot/s2-maestro -> master.
+#
+# Canonical backlog: spec/tasks.md (TASK-005/006/008). Maestro generates its
+# own spec/maestro-* specs per workstream; canonical statuses are reconciled
+# manually after the final PR merges.
+
+project: kapelle-s2
+description: |
+  Kapelle M1 completion via a small DAG: Postgres persistence, Oban pipeline
+  (depends on persistence), and the independent providers catalog branch.
+  Canonical backlog and acceptance criteria: spec/tasks.md TASK-005/006/008.
+
+repo_url: https://github.com/andrei-shtanakov/kapelle
+repo_path: /Users/Andrei_Shtanakov/labs/kapelle
+workspace_base: /Users/Andrei_Shtanakov/labs/kapelle-maestro-ws
+
+max_concurrent: 2
+base_branch: pilot/s2-maestro
+branch_prefix: "ws/"
+auto_pr: false
+
+spec_runner:
+  max_retries: 2
+  task_timeout_minutes: 30
+  claude_command: claude
+  claude_model: sonnet # fixed S1/S2 agent
+  auto_commit: true
+  create_git_branch: true
+  run_tests_on_done: true
+  test_command: "mix test"
+  run_lint_on_done: true
+  lint_command: "mix format --check-formatted && mix credo"
+
+workstreams:
+  - id: task-005-persistence
+    title: "TASK-005: Persist run/task/decision/verdict in Postgres"
+    description: |
+      Canonical task spec/tasks.md TASK-005 (REQ-004, DESIGN-005) in an
+      Elixir/Phoenix app. Ecto schemas + one migration for runs, run_tasks,
+      decisions, verdicts; verdicts.decision_id FK NOT NULL. Mapping functions
+      between the persistence schemas and the existing contract structs
+      (Kapelle.Router.Decision, Kapelle.Executor.Result,
+      Kapelle.Evaluator.Verdict). Kapelle.Orchestrator.Pipeline.run_sync/2
+      persists decision, result summary and verdict per step. Ecto schemas live
+      under lib/kapelle/orchestrator/. Integration test on the Ecto sandbox:
+      after an e2e run all rows exist and are linked by ids. Gate: mix test,
+      mix format --check-formatted, mix credo.
+    scope:
+      - "lib/kapelle/orchestrator/**"
+      - "priv/repo/migrations/**"
+      - "test/kapelle/orchestrator/**"
+    depends_on: []
+    priority: 10
+
+  - id: task-006-oban
+    title: "TASK-006: Move pipeline into Oban"
+    description: |
+      Canonical task spec/tasks.md TASK-006 (REQ-005, DESIGN-006). Three Oban
+      workers (RouteWorker, ExecuteWorker, EvaluateWorker) across the already
+      configured queues orchestrator/executor/evaluator; each worker enqueues
+      the next; job args carry ids only, state is reloaded from Postgres
+      (persistence layer from TASK-005 is present on this branch).
+      Kapelle.Orchestrator.Pipeline.submit/2 enqueues RouteWorker and returns
+      the run id immediately. Async integration test via Oban.Testing
+      (testing: :manual): drain queues -> verdict persisted; plus one retry
+      path test. Gate: mix test, mix format --check-formatted, mix credo.
+    scope:
+      - "lib/kapelle/orchestrator/**"
+      - "test/kapelle/orchestrator/**"
+    depends_on: [task-005-persistence]
+    priority: 5
+
+  - id: task-008-providers-catalog
+    title: "TASK-008: Providers catalog from models.toml"
+    description: |
+      Canonical task spec/tasks.md TASK-008 (REQ-007, DESIGN-008). Independent
+      of the persistence chain. priv/catalog/models.toml with at least an
+      anthropic entry and one more provider, id convention
+      "<provider>@<model>", per-entry params. TOML parser dependency added to
+      mix.exs. Kapelle.Providers.Catalog (lib/kapelle/providers/catalog.ex):
+      load/0 with validation and clear errors on malformed file, get/1 by id,
+      list/0. Unit tests: happy path, unknown id, malformed toml. Gate:
+      mix test, mix format --check-formatted, mix credo.
+    scope:
+      - "lib/kapelle/providers/**"
+      - "priv/catalog/**"
+      - "test/kapelle/providers/**"
+      - "mix.exs"
+      - "mix.lock"
+    depends_on: []
+    priority: 8
