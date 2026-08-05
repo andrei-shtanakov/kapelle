@@ -7,6 +7,7 @@ defmodule Kapelle.Orchestrator.PipelinePersistenceTest do
   alias Kapelle.Orchestrator.Records.Run
   alias Kapelle.Orchestrator.Records.RunTask
   alias Kapelle.Orchestrator.Records.Verdict, as: VerdictRecord
+  alias Kapelle.Test.BadDurationAdapter
   alias Kapelle.Test.FailingJudge
   alias Kapelle.Test.MismatchedJudge
   alias Kapelle.Test.StubPolicy
@@ -36,7 +37,7 @@ defmodule Kapelle.Orchestrator.PipelinePersistenceTest do
     assert {:error, %Ecto.Changeset{valid?: false}} =
              Pipeline.run_sync(task, policy: StubPolicy)
 
-    assert Repo.aggregate(Run, :count, :id) == 2
+    assert Repo.aggregate(Run, :count, :id) == 1
     assert Repo.aggregate(RunTask, :count, :id) == 1
     assert Repo.aggregate(DecisionRecord, :count, :id) == 1
     assert Repo.aggregate(VerdictRecord, :count, :id) == 1
@@ -67,10 +68,21 @@ defmodule Kapelle.Orchestrator.PipelinePersistenceTest do
     assert {:error, :verdict_decision_mismatch} =
              Pipeline.run_sync(task, judge: MismatchedJudge)
 
-    run = Repo.get_by!(Run, task_id: "task-persist-5")
-    decision = Repo.get_by!(DecisionRecord, run_id: run.id)
+    assert Repo.aggregate(Run, :count, :id) == 0
+    assert Repo.aggregate(DecisionRecord, :count, :id) == 0
+    assert Repo.aggregate(RunTask, :count, :id) == 0
+    assert Repo.aggregate(VerdictRecord, :count, :id) == 0
+  end
 
-    assert Repo.get_by(RunTask, decision_id: decision.id)
+  test "run_sync/2 rolls back the run and decision when the run_task insert fails" do
+    task = %{id: "task-persist-6", type: :code_gen}
+
+    assert {:error, %Ecto.Changeset{valid?: false}} =
+             Pipeline.run_sync(task, adapter: BadDurationAdapter)
+
+    assert Repo.aggregate(Run, :count, :id) == 0
+    assert Repo.aggregate(DecisionRecord, :count, :id) == 0
+    assert Repo.aggregate(RunTask, :count, :id) == 0
     assert Repo.aggregate(VerdictRecord, :count, :id) == 0
   end
 end

@@ -10,6 +10,7 @@ defmodule Kapelle.Orchestrator.Pipeline do
   alias Kapelle.Evaluator.Verdict
   alias Kapelle.Executor.FakeAdapter
   alias Kapelle.Orchestrator.Persistence
+  alias Kapelle.Orchestrator.Records.Run
   alias Kapelle.Orchestrator.Workers.OverrideRegistry
   alias Kapelle.Orchestrator.Workers.RouteWorker
   alias Kapelle.Repo
@@ -35,16 +36,24 @@ defmodule Kapelle.Orchestrator.Pipeline do
     judge = Keyword.get(opts, :judge, @default_judge)
 
     with {:ok, decision} <- policy.route(task, opts),
-         {:ok, result} <- adapter.execute(task, decision) do
-      task_with_decision = Map.put(task, :decision_id, decision.decision_id)
-
-      with {:ok, verdict} <- judge.evaluate(task_with_decision, result),
-           {:ok, run} <- Persistence.create_run(task),
-           {:ok, _decision_record} <- Persistence.record_decision(run.id, decision),
-           {:ok, _run_task_record} <-
-             Persistence.record_run_task(run.id, decision.decision_id, result),
-           {:ok, _verdict_record} <- Persistence.record_verdict(decision.decision_id, verdict) do
-        {:ok, verdict}
+         {:ok, result} <- adapter.execute(task, decision),
+         task_with_decision = Map.put(task, :decision_id, decision.decision_id),
+         {:ok, verdict} <- judge.evaluate(task_with_decision, result) do
+      Multi.new()
+      |> Multi.insert(:run, Run.changeset(%Run{}, Persistence.run_attrs(task)))
+      |> Multi.run(:decision, fn _repo, %{run: run} ->
+        Persistence.record_decision(run.id, decision)
+      end)
+      |> Multi.run(:run_task, fn _repo, %{run: run, decision: decision_record} ->
+        Persistence.record_run_task(run.id, decision_record.id, result)
+      end)
+      |> Multi.run(:verdict, fn _repo, %{decision: decision_record} ->
+        Persistence.record_verdict(decision_record.id, verdict)
+      end)
+      |> Repo.transaction()
+      |> case do
+        {:ok, %{}} -> {:ok, verdict}
+        {:error, _step, reason, _changes_so_far} -> {:error, reason}
       end
     end
   end
