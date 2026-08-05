@@ -160,24 +160,34 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
           task_id: "task-1",
           target: %{provider: "anthropic", model: "claude-sonnet-5"},
           decided_at: DateTime.utc_now(),
-          features: %{temperature: 0.2}
+          features: %{"temperature" => 0.2}
         })
 
       result =
         Result.new!(%{
           task_id: "task-1",
           status: :pass,
-          output: %{stdout: "ok"},
+          output: %{
+            "stdout" => "ok",
+            "nested" => %{"exit_code" => 0, "warnings" => []}
+          },
           duration_ms: 1234,
-          artifacts: [%{path: "report.json"}]
+          artifacts: [
+            %{"path" => "report.json", "size_bytes" => 512},
+            %{"path" => "log.txt", "size_bytes" => 0}
+          ]
         })
 
       verdict =
         Verdict.new!(%{
           decision_id: decision.decision_id,
           task_id: "task-1",
-          total_score: 1.0,
-          score_components: %{status_match: 1.0}
+          total_score: 0.825,
+          score_components: %{
+            "status_match" => 1.0,
+            "latency" => -0.175,
+            "details" => %{"rubric" => "v2"}
+          }
         })
 
       %{task: task, decision: decision, result: result, verdict: verdict}
@@ -206,6 +216,40 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
       assert Repo.aggregate(RunTask, :count, :id) == 1
       assert Repo.aggregate(DecisionRecord, :count, :id) == 1
       assert Repo.aggregate(VerdictRecord, :count, :id) == 1
+    end
+
+    test "round-trips score_components, artifacts, and output losslessly through the DB", %{
+      task: task,
+      decision: decision,
+      result: result,
+      verdict: verdict
+    } do
+      assert {:ok, %{run: run, run_task: run_task, decision: decision_row, verdict: verdict_row}} =
+               Persistence.record_run(task, decision, result, verdict)
+
+      reloaded_run = Repo.get!(Run, run.id)
+      reloaded_run_task = Repo.get!(RunTask, run_task.id)
+      reloaded_decision = Repo.get!(DecisionRecord, decision_row.id)
+      reloaded_verdict = Repo.get!(VerdictRecord, verdict_row.id)
+
+      assert reloaded_run.task_id == task.id
+      assert reloaded_run.status == "completed"
+
+      assert reloaded_run_task.status == "pass"
+      assert reloaded_run_task.duration_ms == 1234
+      assert reloaded_run_task.output == result.output
+      assert reloaded_run_task.artifacts == result.artifacts
+
+      assert reloaded_decision.target == %{
+               "provider" => "anthropic",
+               "model" => "claude-sonnet-5"
+             }
+
+      assert reloaded_decision.features == decision.features
+      assert reloaded_decision.decided_at == decision.decided_at
+
+      assert reloaded_verdict.total_score == verdict.total_score
+      assert reloaded_verdict.score_components == verdict.score_components
     end
 
     test "rolls back all four inserts when a later step fails", %{
