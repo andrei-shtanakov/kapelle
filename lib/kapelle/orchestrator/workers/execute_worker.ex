@@ -21,7 +21,8 @@ defmodule Kapelle.Orchestrator.Workers.ExecuteWorker do
     decision = Persistence.get_decision!(decision_id)
     adapter = OverrideRegistry.resolve!(:adapter, args["adapter"])
 
-    with {:ok, result} <- adapter.execute(run.payload, decision),
+    with {:ok, task} <- Persistence.atomize_task(run.payload),
+         {:ok, result} <- adapter.execute(task, decision),
          {:ok, run_task} <- Persistence.record_run_task(run.id, decision.decision_id, result) do
       %{
         run_id: run.id,

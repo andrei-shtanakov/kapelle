@@ -22,7 +22,8 @@ defmodule Kapelle.Orchestrator.Workers.RouteWorker do
     run = Persistence.get_run!(run_id)
     policy = OverrideRegistry.resolve!(:policy, args["policy"])
 
-    with {:ok, decision} <- policy.route(run.payload, []) do
+    with {:ok, task} <- Persistence.atomize_task(run.payload),
+         {:ok, decision} <- policy.route(task, []) do
       execute_job =
         ExecuteWorker.new(%{
           run_id: run.id,

@@ -194,6 +194,53 @@ defmodule Kapelle.Orchestrator.Persistence do
   end
 
   @doc """
+  Restores the atom-keyed shape `Pipeline.run_sync/2`'s in-memory `task`
+  map has, from a `Run.payload` reloaded off a jsonb column (string keys,
+  and `:type`'s value serialized to a string). Used by `RouteWorker`,
+  `ExecuteWorker`, and `EvaluateWorker` so a submitted task is routed,
+  executed, and evaluated identically whether it took the sync or async
+  path.
+
+  Returns `{:error, {:unknown_task_key, key}}` instead of raising if
+  `payload` carries a key that isn't an existing atom anywhere in the app.
+  `:type`'s value is left as a string if it isn't a known atom either,
+  which policies already treat as an unroutable task shape.
+  """
+  @spec atomize_task(map()) :: {:ok, map()} | {:error, {:unknown_task_key, String.t()}}
+  def atomize_task(payload) when is_map(payload) do
+    payload
+    |> Enum.reduce_while({:ok, %{}}, fn
+      {key, value}, {:ok, acc} when is_atom(key) ->
+        {:cont, {:ok, Map.put(acc, key, value)}}
+
+      {key, value}, {:ok, acc} ->
+        case safe_to_existing_atom(key) do
+          {:ok, atom_key} -> {:cont, {:ok, Map.put(acc, atom_key, value)}}
+          :error -> {:halt, {:error, {:unknown_task_key, key}}}
+        end
+    end)
+    |> case do
+      {:ok, task} -> {:ok, atomize_type(task)}
+      error -> error
+    end
+  end
+
+  defp atomize_type(%{type: type} = task) when is_binary(type) do
+    case safe_to_existing_atom(type) do
+      {:ok, atom} -> %{task | type: atom}
+      :error -> task
+    end
+  end
+
+  defp atomize_type(task), do: task
+
+  defp safe_to_existing_atom(string) do
+    {:ok, String.to_existing_atom(string)}
+  rescue
+    ArgumentError -> :error
+  end
+
+  @doc """
   Converts a `Records.Decision` row back to the `Router.Decision` contract
   struct, or a `Records.RunTask` row back to the `Executor.Result` contract
   struct.
