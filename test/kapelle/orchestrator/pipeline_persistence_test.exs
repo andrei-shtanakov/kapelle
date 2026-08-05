@@ -37,6 +37,10 @@ defmodule Kapelle.Orchestrator.PipelinePersistenceTest do
     assert {:error, %Ecto.Changeset{valid?: false}} =
              Pipeline.run_sync(task, policy: StubPolicy)
 
+    # TASK-003/DESIGN-002: the second call's Multi fails at the :decision step
+    # (unique constraint on StubPolicy's fixed decision id) and now rolls back
+    # its own Run insert too, so only the first call's Run row survives.
+    # The old expectation of `2` asserted the orphan-row bug this task fixes.
     assert Repo.aggregate(Run, :count, :id) == 1
     assert Repo.aggregate(RunTask, :count, :id) == 1
     assert Repo.aggregate(DecisionRecord, :count, :id) == 1
@@ -68,6 +72,10 @@ defmodule Kapelle.Orchestrator.PipelinePersistenceTest do
     assert {:error, :verdict_decision_mismatch} =
              Pipeline.run_sync(task, judge: MismatchedJudge)
 
+    # TASK-003/DESIGN-002: under the single Multi, a verdict mismatch rolls
+    # back the run/decision/run_task rows too, so nothing for this task
+    # persists. Asserting a surviving RunTask (the old assertion) would now
+    # assert the orphan-row bug this task fixes, not the fix itself.
     assert Repo.aggregate(Run, :count, :id) == 0
     assert Repo.aggregate(DecisionRecord, :count, :id) == 0
     assert Repo.aggregate(RunTask, :count, :id) == 0
