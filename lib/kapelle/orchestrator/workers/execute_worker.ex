@@ -97,8 +97,7 @@ defmodule Kapelle.Orchestrator.Workers.ExecuteWorker do
         %{
           run_id: run.id,
           run_task_id: run_task.id,
-          decision_id: decision.decision_id,
-          judge: run.overrides["judge"]
+          decision_id: decision.decision_id
         },
         evaluate_opts
       )

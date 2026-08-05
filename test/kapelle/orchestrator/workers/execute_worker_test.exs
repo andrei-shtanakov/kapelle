@@ -57,10 +57,17 @@ defmodule Kapelle.Orchestrator.Workers.ExecuteWorkerTest do
         args: %{
           "run_id" => run.id,
           "run_task_id" => run_task.id,
-          "decision_id" => decision.id,
-          "judge" => "fake_judge"
+          "decision_id" => decision.id
         }
       )
+
+      assert [%{args: enqueued_args}] = all_enqueued(worker: EvaluateWorker)
+
+      assert Map.keys(enqueued_args) |> Enum.sort() == [
+               "decision_id",
+               "run_id",
+               "run_task_id"
+             ]
     end
 
     test "an adapter error returns {:error, _} without persisting a RunTask or enqueueing EvaluateWorker" do
