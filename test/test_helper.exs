@@ -9,6 +9,9 @@ Application.put_env(:kapelle, :orchestrator_overrides, %{
     "stub_policy" => Kapelle.Test.StubPolicy,
     "route_policy" => Kapelle.Test.RoutePolicy
   },
+  adapter: %{
+    "execute_adapter" => Kapelle.Test.ExecuteAdapter
+  },
   judge: %{
     "failing_judge" => Kapelle.Test.FailingJudge,
     "exploding_judge" => Kapelle.Test.ExplodingJudge
