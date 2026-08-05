@@ -1,8 +1,14 @@
 defmodule Kapelle.Orchestrator.PipelineTest do
-  use ExUnit.Case, async: true
+  use Kapelle.DataCase, async: true
+  use Oban.Testing, repo: Kapelle.Repo
 
   alias Kapelle.Evaluator.Verdict
   alias Kapelle.Orchestrator.Pipeline
+  alias Kapelle.Orchestrator.Records.Decision, as: DecisionRecord
+  alias Kapelle.Orchestrator.Records.Run
+  alias Kapelle.Orchestrator.Records.RunTask
+  alias Kapelle.Orchestrator.Records.Verdict, as: VerdictRecord
+  alias Kapelle.Orchestrator.Workers.RouteWorker
   alias Kapelle.Test.ExplodingJudge
   alias Kapelle.Test.StubPolicy
 
@@ -21,7 +27,7 @@ defmodule Kapelle.Orchestrator.PipelineTest do
 
     assert {:ok, %Verdict{} = verdict} = Pipeline.run_sync(task, policy: StubPolicy)
 
-    assert verdict.decision_id == "stub-decision-id"
+    assert verdict.decision_id == "11111111-1111-1111-1111-111111111111"
   end
 
   test "run_sync/2 with the default RulesPolicy still yields a valid decision_id" do
@@ -57,5 +63,83 @@ defmodule Kapelle.Orchestrator.PipelineTest do
     task = %{id: "task-6", type: :code_gen}
 
     assert {:ok, %Verdict{}} = Pipeline.run_sync(task, [])
+  end
+
+  describe "submit/2" do
+    test "returns {:ok, run_id} and persists a pending Run carrying the task payload" do
+      task = %{id: "task-submit-1", type: :code_gen}
+
+      assert {:ok, run_id} = Pipeline.submit(task, [])
+
+      run = Repo.get!(Run, run_id)
+      assert run.task_id == "task-submit-1"
+      assert run.status == "pending"
+      assert run.payload == %{"id" => "task-submit-1", "type" => "code_gen"}
+    end
+
+    test "enqueues a RouteWorker job carrying only run_id" do
+      task = %{id: "task-submit-2", type: :code_gen}
+
+      assert {:ok, run_id} = Pipeline.submit(task, [])
+
+      assert_enqueued(
+        worker: RouteWorker,
+        queue: :orchestrator,
+        args: %{"run_id" => run_id}
+      )
+    end
+
+    test "resolves a :policy override to its OverrideRegistry key on the Run's overrides" do
+      task = %{id: "task-submit-3", type: :code_gen}
+
+      assert {:ok, run_id} = Pipeline.submit(task, policy: StubPolicy)
+
+      assert Repo.get!(Run, run_id).overrides["policy"] == "stub_policy"
+    end
+
+    test "resolves an :adapter override to its OverrideRegistry key on the Run's overrides" do
+      task = %{id: "task-submit-3b", type: :code_gen}
+
+      assert {:ok, run_id} = Pipeline.submit(task, adapter: Kapelle.Test.ExecuteAdapter)
+
+      assert Repo.get!(Run, run_id).overrides["adapter"] == "execute_adapter"
+    end
+
+    test "resolves a :judge override to its OverrideRegistry key on the Run's overrides" do
+      task = %{id: "task-submit-3c", type: :code_gen}
+
+      assert {:ok, run_id} = Pipeline.submit(task, judge: Kapelle.Test.FailingJudge)
+
+      assert Repo.get!(Run, run_id).overrides["judge"] == "failing_judge"
+    end
+
+    test "persists all three OverrideRegistry keys on the Run's overrides at once" do
+      task = %{id: "task-submit-3d", type: :code_gen}
+
+      assert {:ok, run_id} = Pipeline.submit(task, [])
+
+      assert Repo.get!(Run, run_id).overrides == %{
+               "policy" => "rules_policy",
+               "adapter" => "fake_adapter",
+               "judge" => "fake_judge"
+             }
+    end
+
+    test "never invokes routing, execution, or evaluation synchronously" do
+      task = %{id: "task-submit-4", type: :unsupported}
+
+      assert {:ok, _run_id} = Pipeline.submit(task, [])
+
+      refute Repo.get_by(DecisionRecord, task_id: "task-submit-4")
+      refute Repo.get_by(RunTask, task_id: "task-submit-4")
+      refute Repo.get_by(VerdictRecord, task_id: "task-submit-4")
+      assert [%{worker: "Kapelle.Orchestrator.Workers.RouteWorker"}] = all_enqueued()
+    end
+
+    test "returns {:error, changeset} without enqueueing a job when the Run insert fails" do
+      assert {:error, %Ecto.Changeset{valid?: false}} = Pipeline.submit(%{id: 123}, [])
+
+      refute_enqueued(worker: RouteWorker)
+    end
   end
 end

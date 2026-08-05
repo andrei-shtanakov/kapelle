@@ -1,0 +1,15 @@
+[[models]]
+provider = "anthropic"
+model = "claude-sonnet-5"
+
+[models.params]
+temperature = 0.7
+max_tokens = 4096
+
+[[models]]
+provider = "openai"
+model = "gpt-5"
+
+[models.params]
+temperature = 0.5
+max_tokens = 8192
