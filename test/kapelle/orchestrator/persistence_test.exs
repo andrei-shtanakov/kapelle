@@ -202,6 +202,29 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
       assert {:error, {:unknown_task_key, "not_a_real_atom_anywhere_xyz"}} =
                Persistence.atomize_task(payload)
     end
+
+    test "returns {:ok, %{}} for an empty map" do
+      assert {:ok, %{}} = Persistence.atomize_task(%{})
+    end
+
+    test "leaves the task unchanged when the payload has no \"type\" key" do
+      payload = %{"id" => "task-1"}
+
+      assert {:ok, %{id: "task-1"}} = Persistence.atomize_task(payload)
+    end
+
+    test "atomizes only top-level keys, passing nested map/list values through untouched" do
+      payload = %{
+        "id" => "task-1",
+        "type" => "code_gen",
+        "fake_result" => %{"status" => "fail", "tags" => ["a", "b"]}
+      }
+
+      assert {:ok, %{id: "task-1", type: :code_gen, fake_result: nested}} =
+               Persistence.atomize_task(payload)
+
+      assert nested == %{"status" => "fail", "tags" => ["a", "b"]}
+    end
   end
 
   describe "create_run/1" do
