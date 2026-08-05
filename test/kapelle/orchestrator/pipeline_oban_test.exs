@@ -62,7 +62,7 @@ defmodule Kapelle.Orchestrator.PipelineObanTest do
       )
 
     assert job.attempt == 1
-    assert job.state in ["retryable", "scheduled"]
+    assert job.state == "retryable"
     assert job.max_attempts > job.attempt
 
     refute Repo.get_by(VerdictRecord, decision_id: decision.id)
