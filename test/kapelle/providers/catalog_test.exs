@@ -5,7 +5,7 @@ defmodule Kapelle.Providers.CatalogTest do
   alias Kapelle.Providers.Catalog.Entry
 
   defp fixture(name) do
-    Path.join([__DIR__, "..", "..", "support", "fixtures", "catalog", name])
+    Path.join([__DIR__, "catalog", "fixtures", name])
   end
 
   describe "load/1" do
