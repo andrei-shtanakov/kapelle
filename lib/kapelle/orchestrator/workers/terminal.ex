@@ -31,4 +31,23 @@ defmodule Kapelle.Orchestrator.Workers.Terminal do
       {:error, reason}
     end
   end
+
+  @doc """
+  True if `changeset` failed on a unique constraint for `field`.
+
+  Lets a worker tell a genuine failure apart from losing a race to a
+  concurrent duplicate delivery of the same job: both deliveries can pass
+  an idempotency check before either commits, so the loser's insert hits
+  the field's unique index rather than a real error. The winner already
+  persisted the stage's state and enqueued the successor job, so the
+  loser should treat this as success rather than routing through `fail/3`
+  and marking `run` `"failed"` despite the pipeline having progressed.
+  """
+  @spec unique_violation?(Ecto.Changeset.t(), atom()) :: boolean()
+  def unique_violation?(%Ecto.Changeset{errors: errors}, field) do
+    Enum.any?(errors, fn
+      {^field, {_message, opts}} -> Keyword.get(opts, :constraint) == :unique
+      _ -> false
+    end)
+  end
 end

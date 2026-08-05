@@ -2,6 +2,7 @@ defmodule Kapelle.Orchestrator.Workers.RouteWorkerTest do
   use Kapelle.DataCase, async: true
   use Oban.Testing, repo: Kapelle.Repo
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias Kapelle.Orchestrator.Records.Decision, as: DecisionRecord
   alias Kapelle.Orchestrator.Records.Run
   alias Kapelle.Orchestrator.Workers.{ExecuteWorker, RouteWorker}
@@ -36,13 +37,11 @@ defmodule Kapelle.Orchestrator.Workers.RouteWorkerTest do
       assert_enqueued(
         worker: ExecuteWorker,
         queue: :executor,
-        args: %{
-          "run_id" => run.id,
-          "decision_id" => decision.id,
-          "adapter" => "fake_adapter",
-          "judge" => "fake_judge"
-        }
+        args: %{"run_id" => run.id, "decision_id" => decision.id}
       )
+
+      assert [%{args: enqueued_args}] = all_enqueued(worker: ExecuteWorker)
+      assert Map.keys(enqueued_args) |> Enum.sort() == ["decision_id", "run_id"]
     end
 
     test "a routing error returns {:error, _} without persisting a Decision or enqueueing ExecuteWorker" do
@@ -96,6 +95,41 @@ defmodule Kapelle.Orchestrator.Workers.RouteWorkerTest do
 
       assert Repo.aggregate(DecisionRecord, :count, run_id: run.id) == 1
 
+      assert [_single_job] = all_enqueued(worker: ExecuteWorker)
+    end
+
+    test "a Run whose overrides are missing the policy key fails cleanly through Terminal.fail instead of raising" do
+      run =
+        insert_run!(%{"id" => "task-1"}, %{"adapter" => "fake_adapter", "judge" => "fake_judge"})
+
+      args = %{"run_id" => run.id}
+
+      assert {:discard, {:unknown_policy, nil}} =
+               perform_job(RouteWorker, args, attempt: 1, max_attempts: 1)
+
+      refute Repo.get_by(DecisionRecord, run_id: run.id)
+      refute_enqueued(worker: ExecuteWorker)
+      assert Repo.get!(Run, run.id).status == "failed"
+    end
+
+    test "two deliveries racing on the same run_id: the loser treats the unique-constraint collision as success, not a failure" do
+      run = insert_run!(%{"id" => "task-1"}, default_overrides())
+      args = %{"run_id" => run.id}
+      owner = self()
+
+      results =
+        1..2
+        |> Enum.map(fn _ ->
+          Task.async(fn ->
+            Sandbox.allow(Repo, owner, self())
+            perform_job(RouteWorker, args)
+          end)
+        end)
+        |> Task.await_many(5_000)
+
+      assert Enum.all?(results, &(&1 == :ok))
+      assert Repo.aggregate(DecisionRecord, :count, run_id: run.id) == 1
+      assert Repo.get!(Run, run.id).status != "failed"
       assert [_single_job] = all_enqueued(worker: ExecuteWorker)
     end
   end

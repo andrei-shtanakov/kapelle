@@ -11,7 +11,11 @@ defmodule Kapelle.Orchestrator.Workers.RouteWorker do
 
   Idempotent under replay: if `run_id` already has a persisted `Decision`
   (a prior delivery of this job already routed it), `perform/1` returns
-  `:ok` without re-routing or re-enqueueing `ExecuteWorker`.
+  `:ok` without re-routing or re-enqueueing `ExecuteWorker`. If two
+  deliveries race past that check concurrently, the loser's insert hits
+  `decisions`' unique index on `run_id` instead — that's treated as
+  success too, since the winner already persisted the `Decision` and
+  enqueued `ExecuteWorker`.
   """
 
   use Oban.Worker, queue: :orchestrator
@@ -37,19 +41,38 @@ defmodule Kapelle.Orchestrator.Workers.RouteWorker do
   end
 
   defp route(run, job) do
-    policy = OverrideRegistry.resolve!(:policy, run.overrides["policy"])
-
-    with {:ok, task} <- Persistence.atomize_task(run.payload),
+    with {:ok, policy} <- resolve_policy(run),
+         {:ok, task} <- Persistence.atomize_task(run.payload),
          {:ok, decision} <- policy.route(task, []) do
       run
       |> build_multi(decision)
       |> Repo.transaction()
       |> case do
-        {:ok, _changes} -> :ok
-        {:error, _step, reason, _changes_so_far} -> Terminal.fail(run, job, reason)
+        {:ok, _changes} ->
+          :ok
+
+        {:error, :decision, %Ecto.Changeset{} = changeset, _changes_so_far} ->
+          handle_decision_conflict(run, job, changeset)
+
+        {:error, _step, reason, _changes_so_far} ->
+          Terminal.fail(run, job, reason)
       end
     else
       {:error, reason} -> Terminal.fail(run, job, reason)
+    end
+  end
+
+  defp resolve_policy(run) do
+    {:ok, OverrideRegistry.resolve!(:policy, run.overrides["policy"])}
+  rescue
+    ArgumentError -> {:error, {:unknown_policy, run.overrides["policy"]}}
+  end
+
+  defp handle_decision_conflict(run, job, changeset) do
+    if Terminal.unique_violation?(changeset, :run_id) do
+      :ok
+    else
+      Terminal.fail(run, job, changeset)
     end
   end
 
@@ -60,12 +83,7 @@ defmodule Kapelle.Orchestrator.Workers.RouteWorker do
 
     execute_job =
       ExecuteWorker.new(
-        %{
-          run_id: run.id,
-          decision_id: decision.decision_id,
-          adapter: run.overrides["adapter"],
-          judge: run.overrides["judge"]
-        },
+        %{run_id: run.id, decision_id: decision.decision_id},
         execute_opts
       )
 
