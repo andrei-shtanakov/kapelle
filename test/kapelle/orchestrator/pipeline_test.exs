@@ -77,7 +77,7 @@ defmodule Kapelle.Orchestrator.PipelineTest do
       assert run.payload == %{"id" => "task-submit-1", "type" => "code_gen"}
     end
 
-    test "enqueues a RouteWorker job carrying only run_id and OverrideRegistry keys" do
+    test "enqueues a RouteWorker job carrying only run_id" do
       task = %{id: "task-submit-2", type: :code_gen}
 
       assert {:ok, run_id} = Pipeline.submit(task, [])
@@ -85,43 +85,44 @@ defmodule Kapelle.Orchestrator.PipelineTest do
       assert_enqueued(
         worker: RouteWorker,
         queue: :orchestrator,
-        args: %{
-          "run_id" => run_id,
-          "policy" => "rules_policy",
-          "adapter" => "fake_adapter",
-          "judge" => "fake_judge"
-        }
+        args: %{"run_id" => run_id}
       )
     end
 
-    test "resolves a :policy override to its OverrideRegistry key" do
+    test "resolves a :policy override to its OverrideRegistry key on the Run's overrides" do
       task = %{id: "task-submit-3", type: :code_gen}
 
       assert {:ok, run_id} = Pipeline.submit(task, policy: StubPolicy)
 
-      assert_enqueued(worker: RouteWorker, args: %{"run_id" => run_id, "policy" => "stub_policy"})
+      assert Repo.get!(Run, run_id).overrides["policy"] == "stub_policy"
     end
 
-    test "resolves an :adapter override to its OverrideRegistry key" do
+    test "resolves an :adapter override to its OverrideRegistry key on the Run's overrides" do
       task = %{id: "task-submit-3b", type: :code_gen}
 
       assert {:ok, run_id} = Pipeline.submit(task, adapter: Kapelle.Test.ExecuteAdapter)
 
-      assert_enqueued(
-        worker: RouteWorker,
-        args: %{"run_id" => run_id, "adapter" => "execute_adapter"}
-      )
+      assert Repo.get!(Run, run_id).overrides["adapter"] == "execute_adapter"
     end
 
-    test "resolves a :judge override to its OverrideRegistry key" do
+    test "resolves a :judge override to its OverrideRegistry key on the Run's overrides" do
       task = %{id: "task-submit-3c", type: :code_gen}
 
       assert {:ok, run_id} = Pipeline.submit(task, judge: Kapelle.Test.FailingJudge)
 
-      assert_enqueued(
-        worker: RouteWorker,
-        args: %{"run_id" => run_id, "judge" => "failing_judge"}
-      )
+      assert Repo.get!(Run, run_id).overrides["judge"] == "failing_judge"
+    end
+
+    test "persists all three OverrideRegistry keys on the Run's overrides at once" do
+      task = %{id: "task-submit-3d", type: :code_gen}
+
+      assert {:ok, run_id} = Pipeline.submit(task, [])
+
+      assert Repo.get!(Run, run_id).overrides == %{
+               "policy" => "rules_policy",
+               "adapter" => "fake_adapter",
+               "judge" => "fake_judge"
+             }
     end
 
     test "never invokes routing, execution, or evaluation synchronously" do

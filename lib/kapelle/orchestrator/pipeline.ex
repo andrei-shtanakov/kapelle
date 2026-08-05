@@ -66,8 +66,10 @@ defmodule Kapelle.Orchestrator.Pipeline do
   are durably inserted, without waiting on any worker to run.
 
   `opts` mirrors `run_sync/2`'s `:policy`/`:adapter`/`:judge` overrides; each
-  is translated to its `OverrideRegistry` string key before being placed in
-  the job args, since Oban job args must be plain JSON.
+  is translated to its `OverrideRegistry` string key and persisted on the
+  `Run` row's `overrides` field, not the job args — `RouteWorker` and the
+  workers downstream of it resolve their policy/adapter/judge from
+  `run.overrides`, keeping job args down to ids only.
   """
   @spec submit(map(), keyword()) :: {:ok, Ecto.UUID.t()} | {:error, term()}
   def submit(task, opts \\ []) when is_map(task) do
@@ -75,18 +77,15 @@ defmodule Kapelle.Orchestrator.Pipeline do
     adapter = Keyword.get(opts, :adapter, @default_adapter)
     judge = Keyword.get(opts, :judge, @default_judge)
 
-    route_job_attrs = fn run_id ->
-      %{
-        run_id: run_id,
-        policy: OverrideRegistry.key_for(:policy, policy),
-        adapter: OverrideRegistry.key_for(:adapter, adapter),
-        judge: OverrideRegistry.key_for(:judge, judge)
-      }
-    end
+    overrides = %{
+      "policy" => OverrideRegistry.key_for(:policy, policy),
+      "adapter" => OverrideRegistry.key_for(:adapter, adapter),
+      "judge" => OverrideRegistry.key_for(:judge, judge)
+    }
 
     Multi.new()
-    |> Multi.insert(:run, Persistence.pending_run_changeset(task))
-    |> Oban.insert(:route_job, fn %{run: run} -> RouteWorker.new(route_job_attrs.(run.id)) end)
+    |> Multi.insert(:run, Persistence.pending_run_changeset(task, overrides))
+    |> Oban.insert(:route_job, fn %{run: run} -> RouteWorker.new(%{run_id: run.id}) end)
     |> Repo.transaction()
     |> case do
       {:ok, %{run: run}} -> {:ok, run.id}
