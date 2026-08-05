@@ -81,36 +81,36 @@ per DESIGN-003/004.
 **Blocks:** [TASK-005]
 
 ### TASK-005: Persist run/task/decision/verdict in Postgres
-🔴 P0 | ⬜ TODO | Est: 1d
+🔴 P0 | ✅ DONE | Est: 1d
 
 **Description:**
 Ecto schemas + migration for runs, run_tasks, decisions, verdicts; pipeline
 persists each step, per DESIGN-005. Verdict→decision FK NOT NULL (NFR-003).
 
 **Checklist:**
-- [ ] Migration: runs, run_tasks, decisions, verdicts with FKs; verdict.decision_id NOT NULL
-- [ ] Ecto schemas + mapping functions from/to contract structs
-- [ ] Pipeline persists decision, result summary, verdict per step
-- [ ] Integration test (Ecto sandbox): after e2e run all rows exist and are linked by ids
-- [ ] format + credo clean
+- [x] Migration: runs, run_tasks, decisions, verdicts with FKs; verdict.decision_id NOT NULL
+- [x] Ecto schemas + mapping functions from/to contract structs
+- [x] Pipeline persists decision, result summary, verdict per step
+- [x] Integration test (Ecto sandbox): after e2e run all rows exist and are linked by ids
+- [x] format + credo clean
 
 **Traces to:** [REQ-004], [DESIGN-005]
 **Depends on:** [TASK-004]
 **Blocks:** [TASK-006]
 
 ### TASK-006: Move pipeline into Oban
-🔴 P0 | ⬜ TODO | Est: 1d
+🔴 P0 | ✅ DONE | Est: 1d
 
 **Description:**
 RouteWorker → ExecuteWorker → EvaluateWorker across the configured queues; args
 carry ids only, state reloaded from DB, per DESIGN-006.
 
 **Checklist:**
-- [ ] Three Oban workers, each enqueues the next; queues orchestrator/executor/evaluator
-- [ ] `Pipeline.submit/2` enqueues RouteWorker and returns run id immediately
-- [ ] Async integration test via Oban.Testing (testing: :manual): drain queues → verdict persisted
-- [ ] Worker failure is retried by Oban policy (test one retry path)
-- [ ] format + credo clean
+- [x] Three Oban workers, each enqueues the next; queues orchestrator/executor/evaluator
+- [x] `Pipeline.submit/2` enqueues RouteWorker and returns run id immediately
+- [x] Async integration test via Oban.Testing (testing: :manual): drain queues → verdict persisted
+- [x] Worker failure is retried by Oban policy (test one retry path)
+- [x] format + credo clean
 
 **Traces to:** [REQ-005], [DESIGN-006]
 **Depends on:** [TASK-005]
@@ -136,7 +136,7 @@ test suite stays network-free (NFR-002).
 **Blocks:** —
 
 ### TASK-008: Providers catalog from models.toml
-🟠 P1 | ⬜ TODO | Est: 0.5d
+🟠 P1 | ✅ DONE | Est: 0.5d
 
 **Description:**
 `Kapelle.Providers.Catalog` loading `priv/catalog/models.toml`
@@ -144,11 +144,11 @@ test suite stays network-free (NFR-002).
 persistence chain — S2 parallel branch.
 
 **Checklist:**
-- [ ] `priv/catalog/models.toml` with at least an anthropic entry and one more provider, id `"<provider>@<model>"`, per-entry params
-- [ ] TOML parser dep in mix.exs
-- [ ] `Kapelle.Providers.Catalog` (`lib/kapelle/providers/catalog.ex`): `load/0` with validation and clear errors, `get/1` by id, `list/0`
-- [ ] Unit tests: happy path, unknown id, malformed toml
-- [ ] format + credo clean
+- [x] `priv/catalog/models.toml` with at least an anthropic entry and one more provider, id `"<provider>@<model>"`, per-entry params
+- [x] TOML parser dep in mix.exs
+- [x] `Kapelle.Providers.Catalog` (`lib/kapelle/providers/catalog.ex`): `load/0` with validation and clear errors, `get/1` by id, `list/0`
+- [x] Unit tests: happy path, unknown id, malformed toml
+- [x] format + credo clean
 
 **Traces to:** [REQ-007], [DESIGN-008]
 **Depends on:** —
@@ -168,4 +168,4 @@ TASK-008 ───────────────────────�
 
 | Milestone | Tasks | Ready now |
 |---|---|---|
-| M1 Vertical Slice | TASK-002..TASK-008 (4 open, 3 done, 1 done manual) | TASK-005, TASK-008 |
+| M1 Vertical Slice | TASK-002..TASK-008 (1 open, 6 done, 1 done manual) | TASK-007 |
