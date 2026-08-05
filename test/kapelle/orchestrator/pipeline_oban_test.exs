@@ -39,6 +39,8 @@ defmodule Kapelle.Orchestrator.PipelineObanTest do
 
     assert verdict.decision_id == decision.id
     assert verdict.task_id == "task-oban-1"
+
+    assert Repo.get!(Run, run_id).status == "completed"
   end
 
   test "a judge failure in :evaluator leaves the job retryable and persists no Verdict" do
@@ -66,5 +68,33 @@ defmodule Kapelle.Orchestrator.PipelineObanTest do
     assert job.max_attempts > job.attempt
 
     refute Repo.get_by(VerdictRecord, decision_id: decision.id)
+  end
+
+  test "a judge failure on :evaluator's final attempt fails the Run and persists no Verdict" do
+    assert {:ok, run_id} =
+             Pipeline.submit(%{id: "task-oban-final-fail", type: :code_gen}, judge: FailingJudge)
+
+    assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :orchestrator)
+    decision = Repo.get_by!(DecisionRecord, run_id: run_id)
+
+    assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :executor)
+    assert Repo.get_by!(RunTask, decision_id: decision.id)
+
+    evaluate_job =
+      Repo.one!(
+        from j in Oban.Job,
+          where:
+            j.worker == ^Oban.Worker.to_string(EvaluateWorker) and
+              fragment("?->>'decision_id' = ?", j.args, ^decision.id)
+      )
+
+    evaluate_job
+    |> Ecto.Changeset.change(max_attempts: 1)
+    |> Repo.update!()
+
+    assert %{discard: 1, failure: 0} = Oban.drain_queue(queue: :evaluator)
+
+    refute Repo.get_by(VerdictRecord, decision_id: decision.id)
+    assert Repo.get!(Run, run_id).status == "failed"
   end
 end
