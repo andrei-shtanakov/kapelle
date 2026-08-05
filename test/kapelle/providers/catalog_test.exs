@@ -82,4 +82,23 @@ defmodule Kapelle.Providers.CatalogTest do
                Catalog.load(fixture("short_circuit.toml"))
     end
   end
+
+  describe "list/0" do
+    test "returns {:ok, entries} for the real priv/catalog/models.toml" do
+      assert {:ok, entries} = Catalog.list()
+      assert Enum.any?(entries, &(&1.id == "anthropic@claude-sonnet-5"))
+      assert length(entries) >= 2
+    end
+  end
+
+  describe "get/1" do
+    test "returns {:ok, entry} for a known id" do
+      assert {:ok, entry} = Catalog.get("anthropic@claude-sonnet-5")
+      assert %Entry{id: "anthropic@claude-sonnet-5", provider: "anthropic"} = entry
+    end
+
+    test "returns {:error, {:unknown_model_id, id}} for an unknown id" do
+      assert {:error, {:unknown_model_id, "nope@nope"}} = Catalog.get("nope@nope")
+    end
+  end
 end
