@@ -64,15 +64,45 @@ workstreams:
       Canonical task spec/tasks.md TASK-006 (REQ-005, DESIGN-006). Three Oban
       workers (RouteWorker, ExecuteWorker, EvaluateWorker) across the already
       configured queues orchestrator/executor/evaluator; each worker enqueues
-      the next; job args carry ids only, state is reloaded from Postgres
-      (persistence layer from TASK-005 is present on this branch).
+      the next; state is reloaded from Postgres (persistence layer from
+      TASK-005 is present on this branch).
       Kapelle.Orchestrator.Pipeline.submit/2 enqueues RouteWorker and returns
       the run id immediately. Async integration test via Oban.Testing
       (testing: :manual): drain queues -> verdict persisted; plus one retry
       path test. Gate: mix test, mix format --check-formatted, mix credo.
+
+      REWORK after a two-agent review of the first attempt. The following are
+      MANDATORY acceptance criteria (each with tests):
+      1. Pipeline.run_sync/2 stays atomic via a single Ecto.Multi. Restore the
+         original no-orphan-rows test semantics; never weaken an existing
+         assertion to accept partial commits.
+      2. Every worker is idempotent under Oban at-least-once delivery:
+         replaying an already-completed job creates no duplicates, does not
+         crash on unique constraints, does not re-enqueue the next stage, and
+         returns a successful already-completed outcome. Replay tests for all
+         three workers.
+      3. Stage state write and next-job enqueue are atomic: Oban.insert runs
+         inside the same Ecto.Multi transaction as the stage's DB writes. A
+         test models an enqueue failure and proves no partially persisted
+         stage remains.
+      4. The schema migration is data-preserving: add new FK columns nullable
+         -> backfill -> verify -> only then NOT NULL -> drop the old column;
+         use a correct non-future timestamp; define honest rollback semantics.
+         Rewriting the not-yet-released migration in place is acceptable ONLY
+         as an explicitly stated decision in the migration's moduledoc.
+      5. Run reaches a terminal status: completed after successful evaluation,
+         failed after final failure; tests for both paths.
+      6. Oban job args carry ids only. Policy/adapter/judge are resolved from
+         persisted run configuration or application config; a profile id is
+         acceptable, registry key sets per job are not.
+      7. Existing tests keep their meaning; any changed assertion must be
+         separately justified in the task notes.
     scope:
       - "lib/kapelle/orchestrator/**"
       - "test/kapelle/orchestrator/**"
+      - "test/support/**"
+      - "priv/repo/migrations/**"
+      - "spec/.gitignore"
     depends_on: [task-005-persistence]
     priority: 5
 
