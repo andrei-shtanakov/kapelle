@@ -7,6 +7,7 @@ defmodule Kapelle.Orchestrator.PipelinePersistenceTest do
   alias Kapelle.Orchestrator.Records.Run
   alias Kapelle.Orchestrator.Records.RunTask
   alias Kapelle.Orchestrator.Records.Verdict, as: VerdictRecord
+  alias Kapelle.Test.FailingJudge
   alias Kapelle.Test.StubPolicy
 
   test "run_sync/2 persists a run/run_task/decision/verdict chain linked by FK" do
@@ -46,5 +47,16 @@ defmodule Kapelle.Orchestrator.PipelinePersistenceTest do
     assert {:error, _reason} = Pipeline.run_sync(task, [])
 
     assert Repo.aggregate(Run, :count, :id) == 0
+  end
+
+  test "run_sync/2 skips persistence when the judge returns an error" do
+    task = %{id: "task-persist-4", type: :code_gen}
+
+    assert {:error, :judge_failed} = Pipeline.run_sync(task, judge: FailingJudge)
+
+    assert Repo.aggregate(Run, :count, :id) == 0
+    assert Repo.aggregate(RunTask, :count, :id) == 0
+    assert Repo.aggregate(DecisionRecord, :count, :id) == 0
+    assert Repo.aggregate(VerdictRecord, :count, :id) == 0
   end
 end
