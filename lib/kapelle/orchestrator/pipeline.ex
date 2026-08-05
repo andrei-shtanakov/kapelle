@@ -35,7 +35,11 @@ defmodule Kapelle.Orchestrator.Pipeline do
       task_with_decision = Map.put(task, :decision_id, decision.decision_id)
 
       with {:ok, verdict} <- judge.evaluate(task_with_decision, result),
-           {:ok, _records} <- Persistence.record_run(task, decision, result, verdict) do
+           {:ok, run} <- Persistence.create_run(task),
+           {:ok, _decision_record} <- Persistence.record_decision(run.id, decision),
+           {:ok, _run_task_record} <-
+             Persistence.record_run_task(run.id, decision.decision_id, result),
+           {:ok, _verdict_record} <- Persistence.record_verdict(decision.decision_id, verdict) do
         {:ok, verdict}
       end
     end

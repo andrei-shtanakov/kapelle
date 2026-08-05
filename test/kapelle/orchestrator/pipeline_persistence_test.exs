@@ -8,6 +8,7 @@ defmodule Kapelle.Orchestrator.PipelinePersistenceTest do
   alias Kapelle.Orchestrator.Records.RunTask
   alias Kapelle.Orchestrator.Records.Verdict, as: VerdictRecord
   alias Kapelle.Test.FailingJudge
+  alias Kapelle.Test.MismatchedJudge
   alias Kapelle.Test.StubPolicy
 
   test "run_sync/2 persists a run/run_task/decision/verdict chain linked by FK" do
@@ -27,21 +28,21 @@ defmodule Kapelle.Orchestrator.PipelinePersistenceTest do
     assert verdict_row.total_score == verdict.total_score
   end
 
-  test "run_sync/2 returns {:error, {failed_step, changeset}} when persistence fails, without returning a Verdict" do
+  test "run_sync/2 returns {:error, changeset} when persistence fails, without returning a Verdict" do
     task = %{id: "task-persist-2", type: :summarize}
 
     assert {:ok, %Verdict{}} = Pipeline.run_sync(task, policy: StubPolicy)
 
-    assert {:error, {:decision, %Ecto.Changeset{valid?: false}}} =
+    assert {:error, %Ecto.Changeset{valid?: false}} =
              Pipeline.run_sync(task, policy: StubPolicy)
 
-    assert Repo.aggregate(Run, :count, :id) == 1
+    assert Repo.aggregate(Run, :count, :id) == 2
     assert Repo.aggregate(RunTask, :count, :id) == 1
     assert Repo.aggregate(DecisionRecord, :count, :id) == 1
     assert Repo.aggregate(VerdictRecord, :count, :id) == 1
   end
 
-  test "record_run/4 is not invoked when routing fails, so no rows are written" do
+  test "persistence is not invoked when routing fails, so no rows are written" do
     task = %{id: "task-persist-3", type: :unsupported}
 
     assert {:error, _reason} = Pipeline.run_sync(task, [])
@@ -57,6 +58,19 @@ defmodule Kapelle.Orchestrator.PipelinePersistenceTest do
     assert Repo.aggregate(Run, :count, :id) == 0
     assert Repo.aggregate(RunTask, :count, :id) == 0
     assert Repo.aggregate(DecisionRecord, :count, :id) == 0
+    assert Repo.aggregate(VerdictRecord, :count, :id) == 0
+  end
+
+  test "run_sync/2 rejects a verdict whose decision_id doesn't match the routed decision, leaving no verdict row" do
+    task = %{id: "task-persist-5", type: :code_gen}
+
+    assert {:error, :verdict_decision_mismatch} =
+             Pipeline.run_sync(task, judge: MismatchedJudge)
+
+    run = Repo.get_by!(Run, task_id: "task-persist-5")
+    decision = Repo.get_by!(DecisionRecord, run_id: run.id)
+
+    assert Repo.get_by(RunTask, decision_id: decision.id)
     assert Repo.aggregate(VerdictRecord, :count, :id) == 0
   end
 end
