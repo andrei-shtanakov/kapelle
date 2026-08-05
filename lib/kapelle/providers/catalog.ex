@@ -36,10 +36,11 @@ defmodule Kapelle.Providers.Catalog do
   @doc """
   Fetches a single catalog entry by its `"<provider>@<model>"` id.
 
-  Returns `{:ok, entry}` if found, or `{:error, {:unknown_model_id, id}}`
-  if no entry matches. Never raises and never returns `nil`.
+  Returns `{:ok, entry}` if found, `{:error, {:unknown_model_id, id}}`
+  if no entry matches, or `{:error, {:invalid_model_id, id}}` if `id` is
+  not a string. Never raises and never returns `nil`.
   """
-  @spec get(String.t()) :: {:ok, Entry.t()} | {:error, term()}
+  @spec get(term()) :: {:ok, Entry.t()} | {:error, term()}
   def get(id) when is_binary(id) do
     with {:ok, entries} <- load() do
       case Enum.find(entries, &(&1.id == id)) do
@@ -48,6 +49,8 @@ defmodule Kapelle.Providers.Catalog do
       end
     end
   end
+
+  def get(id), do: {:error, {:invalid_model_id, id}}
 
   defp default_path do
     Application.app_dir(:kapelle, "priv/catalog/models.toml")
