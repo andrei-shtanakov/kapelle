@@ -207,6 +207,20 @@ defmodule Kapelle.Orchestrator.Workers.EvaluateWorkerTest do
       assert Repo.aggregate(VerdictRecord, :count, decision_id: decision.id) == 1
       assert Repo.get!(Run, run.id).status != "failed"
     end
+
+    test "a late success arriving after a concurrent finalizer already marked the run failed returns :ok and leaves the run failed" do
+      run = insert_run!(%{"id" => "task-1"}, default_overrides())
+      decision = insert_decision!(run.id, "task-1")
+      run_task = insert_run_task!(run.id, decision.id, "task-1")
+      Repo.update!(Run.status_changeset(run, "failed"))
+
+      args = %{"run_id" => run.id, "run_task_id" => run_task.id, "decision_id" => decision.id}
+
+      assert :ok = perform_job(EvaluateWorker, args)
+
+      assert Repo.get_by!(VerdictRecord, decision_id: decision.id)
+      assert Repo.get!(Run, run.id).status == "failed"
+    end
   end
 
   describe "build_multi/3" do
@@ -229,6 +243,27 @@ defmodule Kapelle.Orchestrator.Workers.EvaluateWorkerTest do
 
       assert {:error, :verdict, _changeset, _changes} = Repo.transaction(multi)
       assert Repo.get!(Run, run.id).status == "pending"
+    end
+
+    test "when the run is already terminal, the status transition is a no-op but the verdict still commits" do
+      run = insert_run!(%{"id" => "task-1"}, default_overrides())
+      decision = insert_decision!(run.id, "task-1")
+      insert_run_task!(run.id, decision.id, "task-1")
+      run = Repo.update!(Run.status_changeset(run, "failed"))
+
+      verdict =
+        Verdict.new!(%{
+          decision_id: decision.id,
+          task_id: "task-1",
+          total_score: 1.0,
+          score_components: %{status_match: 1.0}
+        })
+
+      multi = EvaluateWorker.build_multi(run, decision.id, verdict)
+
+      assert {:ok, %{run: {0, nil}}} = Repo.transaction(multi)
+      assert Repo.get_by!(VerdictRecord, decision_id: decision.id)
+      assert Repo.get!(Run, run.id).status == "failed"
     end
   end
 end

@@ -20,7 +20,11 @@ defmodule Kapelle.Orchestrator.Workers.EvaluateWorker do
 
   The `Verdict` write and the `Run`'s `"completed"` status write happen
   inside a single `Ecto.Multi` transaction, so a run's terminal state and
-  its verdict either both exist or neither does.
+  its verdict either both exist or neither does. The status write goes
+  through `Terminal.terminal_transition/4`, so it's a no-op (rather than
+  an overwrite) if `run` is already terminal — e.g. a concurrent failure
+  finalized it first. Either way `perform/1` still returns `:ok`, since
+  the verdict itself committed and there's no successor job to withhold.
   """
 
   use Oban.Worker, queue: :evaluator
@@ -98,6 +102,6 @@ defmodule Kapelle.Orchestrator.Workers.EvaluateWorker do
     |> Multi.run(:verdict, fn _repo, _changes ->
       Persistence.record_verdict(decision_id, verdict)
     end)
-    |> Multi.update(:run, Run.status_changeset(run, "completed"))
+    |> Terminal.terminal_transition(:run, run.id, "completed")
   end
 end
