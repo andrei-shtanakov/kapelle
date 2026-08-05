@@ -286,11 +286,13 @@ defmodule Kapelle.Orchestrator.Persistence do
 
   defp atomize_type(task), do: task
 
-  defp safe_to_existing_atom(string) do
+  defp safe_to_existing_atom(string) when is_binary(string) do
     {:ok, String.to_existing_atom(string)}
   rescue
     ArgumentError -> :error
   end
+
+  defp safe_to_existing_atom(_other), do: :error
 
   @doc """
   Converts a `Records.Decision` row back to the `Router.Decision` contract

@@ -25,7 +25,7 @@ defmodule Kapelle.Orchestrator.Records.Run do
     has_one :decision, Decision
     has_many :run_tasks, RunTask
 
-    timestamps()
+    timestamps(type: :utc_datetime)
   end
 
   @type t :: %__MODULE__{

@@ -344,6 +344,12 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
                Persistence.atomize_task(payload)
     end
 
+    test "returns {:error, {:unknown_task_key, key}} instead of raising for a non-binary key" do
+      payload = %{"id" => "task-1", 42 => "value"}
+
+      assert {:error, {:unknown_task_key, 42}} = Persistence.atomize_task(payload)
+    end
+
     test "returns {:ok, %{}} for an empty map" do
       assert {:ok, %{}} = Persistence.atomize_task(%{})
     end

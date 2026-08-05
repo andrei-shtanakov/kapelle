@@ -21,7 +21,7 @@ defmodule Kapelle.Orchestrator.Records.Verdict do
 
     belongs_to :decision, Decision
 
-    timestamps()
+    timestamps(type: :utc_datetime)
   end
 
   @type t :: %__MODULE__{
