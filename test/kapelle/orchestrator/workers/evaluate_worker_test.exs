@@ -177,8 +177,8 @@ defmodule Kapelle.Orchestrator.Workers.EvaluateWorkerTest do
       assert {:discard, %Ecto.Changeset{} = changeset} =
                perform_job(EvaluateWorker, args, attempt: 1, max_attempts: 1)
 
-      refute Enum.any?(changeset.errors, fn
-               {:decision_id, {_message, opts}} -> Keyword.get(opts, :constraint) == :unique
+      assert Enum.any?(changeset.errors, fn
+               {:decision_id, {_message, opts}} -> Keyword.get(opts, :constraint) == :foreign
                _ -> false
              end)
 
