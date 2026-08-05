@@ -14,9 +14,11 @@ description: |
   (depends on persistence), and the independent providers catalog branch.
   Canonical backlog and acceptance criteria: spec/tasks.md TASK-005/006/008.
 
+# Maestro requires absolute or ~-prefixed paths (validate_repo_path);
+# ~ keeps the config free of machine-specific usernames.
 repo_url: https://github.com/andrei-shtanakov/kapelle
-repo_path: /Users/Andrei_Shtanakov/labs/kapelle
-workspace_base: /Users/Andrei_Shtanakov/labs/kapelle-maestro-ws
+repo_path: ~/labs/kapelle
+workspace_base: ~/labs/kapelle-maestro-ws
 
 max_concurrent: 2
 base_branch: pilot/s2-maestro
