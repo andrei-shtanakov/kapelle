@@ -41,6 +41,21 @@ defmodule Kapelle.Orchestrator.PipelineObanTest do
     assert verdict.task_id == "task-oban-1"
 
     assert Repo.get!(Run, run_id).status == "completed"
+
+    # Duplicate delivery of the already-processed evaluate job: perform/1's
+    # existing-Verdict check short-circuits before re-evaluating, so no
+    # second Verdict is recorded and the run stays completed. (The
+    # DB-level unique-constraint race between two concurrent first
+    # deliveries is covered separately in evaluate_worker_test.exs.)
+    assert :ok =
+             perform_job(EvaluateWorker, %{
+               "run_id" => run_id,
+               "run_task_id" => run_task.id,
+               "decision_id" => decision.id
+             })
+
+    assert Repo.aggregate(VerdictRecord, :count, decision_id: decision.id) == 1
+    assert Repo.get!(Run, run_id).status == "completed"
   end
 
   test "a judge failure in :evaluator leaves the job retryable and persists no Verdict" do
@@ -78,7 +93,7 @@ defmodule Kapelle.Orchestrator.PipelineObanTest do
     decision = Repo.get_by!(DecisionRecord, run_id: run_id)
 
     assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :executor)
-    assert Repo.get_by!(RunTask, decision_id: decision.id)
+    run_task = Repo.get_by!(RunTask, decision_id: decision.id)
 
     evaluate_job =
       Repo.one!(
@@ -93,6 +108,27 @@ defmodule Kapelle.Orchestrator.PipelineObanTest do
     |> Repo.update!()
 
     assert %{discard: 1, failure: 0} = Oban.drain_queue(queue: :evaluator)
+
+    refute Repo.get_by(VerdictRecord, decision_id: decision.id)
+    assert Repo.get!(Run, run_id).status == "failed"
+
+    # A second manual drain finds no jobs left to run...
+    assert %{success: 0, failure: 0} = Oban.drain_queue(queue: :evaluator)
+
+    # ...and a duplicate delivery of the same discarded job is a no-op:
+    # the run was already terminal, so it's discarded again rather than
+    # overwriting the failed status.
+    assert {:discard, :already_terminal} =
+             perform_job(
+               EvaluateWorker,
+               %{
+                 "run_id" => run_id,
+                 "run_task_id" => run_task.id,
+                 "decision_id" => decision.id
+               },
+               attempt: 1,
+               max_attempts: 1
+             )
 
     refute Repo.get_by(VerdictRecord, decision_id: decision.id)
     assert Repo.get!(Run, run_id).status == "failed"
