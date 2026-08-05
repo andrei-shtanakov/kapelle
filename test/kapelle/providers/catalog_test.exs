@@ -100,5 +100,10 @@ defmodule Kapelle.Providers.CatalogTest do
     test "returns {:error, {:unknown_model_id, id}} for an unknown id" do
       assert {:error, {:unknown_model_id, "nope@nope"}} = Catalog.get("nope@nope")
     end
+
+    test "returns {:error, {:invalid_model_id, id}} instead of raising for non-binary input" do
+      assert {:error, {:invalid_model_id, nil}} = Catalog.get(nil)
+      assert {:error, {:invalid_model_id, :atom}} = Catalog.get(:atom)
+    end
   end
 end
