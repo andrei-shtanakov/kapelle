@@ -162,6 +162,30 @@ defmodule Kapelle.Orchestrator.Workers.EvaluateWorkerTest do
       assert [] = all_enqueued()
     end
 
+    test "a decision_id that matches no persisted Decision fails the Verdict foreign-key constraint and goes through Terminal.fail, not the unique-violation success path" do
+      run = insert_run!(%{"id" => "task-1"}, %{"judge" => "echoing_judge"})
+      decision = insert_decision!(run.id, "task-1")
+      run_task = insert_run_task!(run.id, decision.id, "task-1")
+      missing_decision_id = Ecto.UUID.generate()
+
+      args = %{
+        "run_id" => run.id,
+        "run_task_id" => run_task.id,
+        "decision_id" => missing_decision_id
+      }
+
+      assert {:discard, %Ecto.Changeset{} = changeset} =
+               perform_job(EvaluateWorker, args, attempt: 1, max_attempts: 1)
+
+      refute Enum.any?(changeset.errors, fn
+               {:decision_id, {_message, opts}} -> Keyword.get(opts, :constraint) == :unique
+               _ -> false
+             end)
+
+      refute Repo.get_by(VerdictRecord, decision_id: missing_decision_id)
+      assert Repo.get!(Run, run.id).status == "failed"
+    end
+
     test "two deliveries racing on the same decision_id: the loser treats the unique-constraint collision as success, not a failure" do
       run = insert_run!(%{"id" => "task-1"}, default_overrides())
       decision = insert_decision!(run.id, "task-1")
