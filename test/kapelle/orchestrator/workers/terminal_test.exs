@@ -36,11 +36,19 @@ defmodule Kapelle.Orchestrator.Workers.TerminalTest do
       assert Repo.get!(Run, run.id).status == "pending"
     end
 
-    test "on the final attempt, overwrites an already-completed run's status unconditionally" do
+    test "on the final attempt, preserves an already-completed run's status" do
       run = insert_run!("completed")
       job = %Oban.Job{attempt: 3, max_attempts: 3}
 
-      assert {:discard, :boom} = Terminal.fail(run, job, :boom)
+      assert {:discard, :already_terminal} = Terminal.fail(run, job, :boom)
+      assert Repo.get!(Run, run.id).status == "completed"
+    end
+
+    test "on the final attempt, preserves an already-failed run's status" do
+      run = insert_run!("failed")
+      job = %Oban.Job{attempt: 3, max_attempts: 3}
+
+      assert {:discard, :already_terminal} = Terminal.fail(run, job, :boom)
       assert Repo.get!(Run, run.id).status == "failed"
     end
   end

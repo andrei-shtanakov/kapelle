@@ -43,20 +43,22 @@ defmodule Kapelle.Orchestrator.Workers.Terminal do
   @doc """
   Handles a stage failure for `run`/`job`/`reason`.
 
-  On the final attempt (`attempt >= max_attempts`), updates `run` to
-  `"failed"` and returns `{:discard, reason}` so Oban stops retrying the
-  job — but only once that write is confirmed; if it fails, `{:error,
-  reason}` is returned instead so Oban retries rather than discarding a
-  job whose run was never actually marked failed. On any earlier
-  attempt, returns `{:error, reason}` unchanged, leaving `run`'s status
-  untouched and the job retryable.
+  On the final attempt (`attempt >= max_attempts`), conditionally
+  transitions `run` to `"failed"` via `terminal_transition/4` and returns
+  `{:discard, reason}` so Oban stops retrying the job — but only once
+  that write is confirmed. If `run` was already terminal (e.g. a
+  concurrent success already completed it), the transition is a no-op
+  and `{:discard, :already_terminal}` is returned instead, so a late
+  failure can never overwrite a completed run. On any earlier attempt,
+  returns `{:error, reason}` unchanged, leaving `run`'s status untouched
+  and the job retryable.
   """
   @spec fail(Run.t(), Oban.Job.t(), term()) :: {:error, term()} | {:discard, term()}
-  def fail(%Run{} = run, %Oban.Job{attempt: attempt, max_attempts: max_attempts}, reason) do
+  def fail(%Run{id: run_id}, %Oban.Job{attempt: attempt, max_attempts: max_attempts}, reason) do
     if attempt >= max_attempts do
-      case run |> Run.status_changeset("failed") |> Repo.update() do
-        {:ok, _run} -> {:discard, reason}
-        {:error, _changeset} -> {:error, reason}
+      case Multi.new() |> terminal_transition(:run, run_id, "failed") |> Repo.transaction() do
+        {:ok, %{run: {1, _}}} -> {:discard, reason}
+        {:ok, %{run: {0, _}}} -> {:discard, :already_terminal}
       end
     else
       {:error, reason}
