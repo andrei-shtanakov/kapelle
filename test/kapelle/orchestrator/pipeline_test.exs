@@ -1,5 +1,5 @@
 defmodule Kapelle.Orchestrator.PipelineTest do
-  use ExUnit.Case, async: true
+  use Kapelle.DataCase, async: true
 
   alias Kapelle.Evaluator.Verdict
   alias Kapelle.Orchestrator.Pipeline
@@ -21,7 +21,7 @@ defmodule Kapelle.Orchestrator.PipelineTest do
 
     assert {:ok, %Verdict{} = verdict} = Pipeline.run_sync(task, policy: StubPolicy)
 
-    assert verdict.decision_id == "stub-decision-id"
+    assert verdict.decision_id == "11111111-1111-1111-1111-111111111111"
   end
 
   test "run_sync/2 with the default RulesPolicy still yields a valid decision_id" do
