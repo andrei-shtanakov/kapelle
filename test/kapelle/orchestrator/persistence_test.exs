@@ -1,9 +1,13 @@
 defmodule Kapelle.Orchestrator.PersistenceTest do
-  use ExUnit.Case, async: true
+  use Kapelle.DataCase, async: true
 
   alias Kapelle.Evaluator.Verdict
   alias Kapelle.Executor.Result
   alias Kapelle.Orchestrator.Persistence
+  alias Kapelle.Orchestrator.Records.Decision, as: DecisionRecord
+  alias Kapelle.Orchestrator.Records.Run
+  alias Kapelle.Orchestrator.Records.RunTask
+  alias Kapelle.Orchestrator.Records.Verdict, as: VerdictRecord
   alias Kapelle.Router.Decision
 
   describe "run_attrs/1" do
@@ -143,6 +147,147 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
 
       assert Map.has_key?(attrs, :score_components)
       assert attrs.score_components == %{}
+    end
+  end
+
+  describe "record_run/4" do
+    setup do
+      task = %{id: "task-1", type: :code_gen}
+
+      decision =
+        Decision.new!(%{
+          decision_id: Ecto.UUID.generate(),
+          task_id: "task-1",
+          target: %{provider: "anthropic", model: "claude-sonnet-5"},
+          decided_at: DateTime.utc_now(),
+          features: %{temperature: 0.2}
+        })
+
+      result =
+        Result.new!(%{
+          task_id: "task-1",
+          status: :pass,
+          output: %{stdout: "ok"},
+          duration_ms: 1234,
+          artifacts: [%{path: "report.json"}]
+        })
+
+      verdict =
+        Verdict.new!(%{
+          decision_id: decision.decision_id,
+          task_id: "task-1",
+          total_score: 1.0,
+          score_components: %{status_match: 1.0}
+        })
+
+      %{task: task, decision: decision, result: result, verdict: verdict}
+    end
+
+    test "inserts run, run_task, decision, and verdict rows linked by FK", %{
+      task: task,
+      decision: decision,
+      result: result,
+      verdict: verdict
+    } do
+      assert {:ok, %{run: run, run_task: run_task, decision: decision_row, verdict: verdict_row}} =
+               Persistence.record_run(task, decision, result, verdict)
+
+      assert %Run{} = run
+      assert %RunTask{} = run_task
+      assert %DecisionRecord{} = decision_row
+      assert %VerdictRecord{} = verdict_row
+
+      assert run_task.run_id == run.id
+      assert decision_row.run_task_id == run_task.id
+      assert decision_row.id == decision.decision_id
+      assert verdict_row.decision_id == decision_row.id
+
+      assert Repo.aggregate(Run, :count, :id) == 1
+      assert Repo.aggregate(RunTask, :count, :id) == 1
+      assert Repo.aggregate(DecisionRecord, :count, :id) == 1
+      assert Repo.aggregate(VerdictRecord, :count, :id) == 1
+    end
+
+    test "rolls back all four inserts when a later step fails", %{
+      task: task,
+      decision: decision,
+      result: result,
+      verdict: verdict
+    } do
+      invalid_decision = %{decision | target: "not-a-map"}
+
+      assert {:error, {:decision, changeset}} =
+               Persistence.record_run(task, invalid_decision, result, verdict)
+
+      assert %Ecto.Changeset{valid?: false} = changeset
+
+      assert Repo.aggregate(Run, :count, :id) == 0
+      assert Repo.aggregate(RunTask, :count, :id) == 0
+      assert Repo.aggregate(DecisionRecord, :count, :id) == 0
+      assert Repo.aggregate(VerdictRecord, :count, :id) == 0
+    end
+
+    test "rolls back the run insert when the run_task step fails", %{
+      task: task,
+      decision: decision,
+      verdict: verdict
+    } do
+      invalid_result = %{
+        Result.new!(%{
+          task_id: "task-1",
+          status: :pass,
+          output: %{stdout: "ok"},
+          duration_ms: 1234,
+          artifacts: [%{path: "report.json"}]
+        })
+        | task_id: nil
+      }
+
+      assert {:error, {:run_task, changeset}} =
+               Persistence.record_run(task, decision, invalid_result, verdict)
+
+      assert %Ecto.Changeset{valid?: false} = changeset
+
+      assert Repo.aggregate(Run, :count, :id) == 0
+      assert Repo.aggregate(RunTask, :count, :id) == 0
+    end
+
+    test "rejects a verdict whose decision_id doesn't match the decision, without touching the DB",
+         %{task: task, decision: decision, result: result} do
+      mismatched_verdict =
+        Verdict.new!(%{
+          decision_id: Ecto.UUID.generate(),
+          task_id: "task-1",
+          total_score: 1.0,
+          score_components: %{status_match: 1.0}
+        })
+
+      assert Persistence.record_run(task, decision, result, mismatched_verdict) ==
+               {:error, :verdict_decision_mismatch}
+
+      assert Repo.aggregate(Run, :count, :id) == 0
+      assert Repo.aggregate(RunTask, :count, :id) == 0
+      assert Repo.aggregate(DecisionRecord, :count, :id) == 0
+      assert Repo.aggregate(VerdictRecord, :count, :id) == 0
+    end
+
+    test "rolls back run, run_task, and decision when a duplicate decision_id conflicts", %{
+      task: task,
+      decision: decision,
+      result: result,
+      verdict: verdict
+    } do
+      assert {:ok, _} = Persistence.record_run(task, decision, result, verdict)
+
+      assert {:error, {:decision, changeset}} =
+               Persistence.record_run(task, decision, result, verdict)
+
+      assert %Ecto.Changeset{valid?: false} = changeset
+
+      assert Repo.aggregate(Run, :count, :id) == 1
+      assert Repo.aggregate(RunTask, :count, :id) == 1
+      assert Repo.aggregate(DecisionRecord, :count, :id) == 1
+      assert Repo.aggregate(VerdictRecord, :count, :id) == 1
     end
   end
 end
