@@ -50,6 +50,19 @@ defmodule Kapelle.Orchestrator.Persistence do
   end
 
   @doc """
+  Builds a `Records.Run` changeset for a pending run, storing the full
+  `task` map as `payload` so `RouteWorker` can later reload the task it was
+  never given directly from Postgres.
+
+  Additive alongside `run_attrs/1`/`create_run/1`, which `run_sync/2` still
+  uses unmodified.
+  """
+  @spec pending_run_changeset(map()) :: Ecto.Changeset.t()
+  def pending_run_changeset(task) when is_map(task) do
+    Run.changeset(%Run{}, %{task_id: Map.fetch!(task, :id), status: "pending", payload: task})
+  end
+
+  @doc """
   Builds insert attrs for `Records.Decision` from a `Router.Decision`,
   linked to `run_id`. `id` is set to `decision.decision_id` so the row's
   primary key matches the contract struct verbatim.

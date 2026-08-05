@@ -56,6 +56,24 @@ defmodule Kapelle.Orchestrator.Workers.EvaluateWorkerTest do
       assert [] = all_enqueued()
     end
 
+    test "the task passed to the judge has atom keys, matching Pipeline.run_sync/2's in-memory task shape" do
+      run = insert_run!(%{"id" => "task-1", "type" => "code_gen"})
+      decision = insert_decision!(run.id, "task-1")
+      run_task = insert_run_task!(run.id, decision.id, "task-1")
+
+      args = %{
+        "run_id" => run.id,
+        "run_task_id" => run_task.id,
+        "decision_id" => decision.id,
+        "judge" => "echoing_judge"
+      }
+
+      assert :ok = perform_job(EvaluateWorker, args)
+
+      assert_received {:evaluate_task, task}
+      assert task == %{id: "task-1", type: "code_gen", decision_id: decision.id}
+    end
+
     test "a judge error returns {:error, _} without persisting a Verdict" do
       run = insert_run!(%{"id" => "task-1"})
       decision = insert_decision!(run.id, "task-1")
