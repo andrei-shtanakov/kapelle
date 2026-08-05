@@ -25,6 +25,30 @@ defmodule Kapelle.Providers.Catalog do
     end
   end
 
+  @doc """
+  Returns all catalog entries.
+
+  Delegates to `load/1`; see its docs for the error cases.
+  """
+  @spec list() :: {:ok, [Entry.t()]} | {:error, term()}
+  def list, do: load()
+
+  @doc """
+  Fetches a single catalog entry by its `"<provider>@<model>"` id.
+
+  Returns `{:ok, entry}` if found, or `{:error, {:unknown_model_id, id}}`
+  if no entry matches. Never raises and never returns `nil`.
+  """
+  @spec get(String.t()) :: {:ok, Entry.t()} | {:error, term()}
+  def get(id) when is_binary(id) do
+    with {:ok, entries} <- load() do
+      case Enum.find(entries, &(&1.id == id)) do
+        nil -> {:error, {:unknown_model_id, id}}
+        entry -> {:ok, entry}
+      end
+    end
+  end
+
   defp default_path do
     Application.app_dir(:kapelle, "priv/catalog/models.toml")
   end
