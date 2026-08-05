@@ -1,0 +1,4 @@
+[[models]]
+provider = "anthropic"
+model = "claude-sonnet-5"
+params = "not-a-table"

@@ -1,0 +1,7 @@
+[[models]]
+provider = 123
+model = "claude-sonnet-5"
+
+[models.params]
+temperature = 0.7
+max_tokens = 4096
