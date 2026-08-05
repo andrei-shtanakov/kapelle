@@ -73,6 +73,7 @@ defmodule Kapelle.MixProject do
       {:bandit, "~> 1.5"},
       {:oban, "~> 2.19"},
       {:langchain, "~> 0.9"},
+      {:toml, "~> 0.7"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end
