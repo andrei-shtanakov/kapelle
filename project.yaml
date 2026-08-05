@@ -97,6 +97,19 @@ workstreams:
          acceptable, registry key sets per job are not.
       7. Existing tests keep their meaning; any changed assertion must be
          separately justified in the task notes.
+      8. ROUND 3 — terminal status monotonicity (the only remaining issue;
+         criteria 1-7 are already implemented on this branch and must not
+         regress): transition to "completed" is allowed only from a
+         non-terminal state; "completed" -> "failed" is forbidden; a late
+         final-fail arriving after "completed" returns a successful
+         discard/already_terminal outcome and leaves the record unchanged;
+         a repeated success after "completed" is idempotent as well;
+         concurrent final success/fail races are resolved by an atomic
+         conditional UPDATE (not read-then-write); the terminal test that
+         currently asserts "overwrites an already-completed run's status
+         unconditionally" must instead assert that "completed" is preserved;
+         add a test with two concurrent finalizers or an equivalent
+         conditional-update row-count proof.
     scope:
       - "lib/kapelle/orchestrator/**"
       - "test/kapelle/orchestrator/**"
