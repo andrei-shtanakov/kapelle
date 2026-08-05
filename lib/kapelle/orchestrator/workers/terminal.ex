@@ -6,8 +6,39 @@ defmodule Kapelle.Orchestrator.Workers.Terminal do
   preserves today's retry behavior.
   """
 
+  import Ecto.Query, only: [from: 2]
+
+  alias Ecto.Multi
   alias Kapelle.Orchestrator.Records.Run
   alias Kapelle.Repo
+
+  @terminal_statuses ~w(completed failed)
+
+  @doc """
+  Adds a conditional terminal-status transition to `multi`: sets the
+  `Run` identified by `run_id` to `status`, but only if its current
+  status is not already terminal (`"completed"`/`"failed"`).
+
+  Expressed as a single `UPDATE ... WHERE` (via `Ecto.Multi.update_all/4`)
+  rather than a read-then-write guard, because a guard built on a
+  struct read (`if run.status not in terminal, do: update`) is a
+  classic TOCTOU race: the read and the write are two separate
+  round-trips, so two concurrent finalizers on the same run can both
+  pass the guard before either commits. Folding the condition into the
+  `WHERE` clause makes the whole check-and-set one atomic statement, so
+  concurrent transitions on the same run race at the database instead
+  of in application code — Postgres serializes the two `UPDATE`s and
+  at most one of them matches the `WHERE` clause. The `{count, nil}`
+  result this produces doubles as the row-count proof of atomicity:
+  `1` means this call performed the transition, `0` means no row
+  matched — either `run_id` was already terminal or it named no `Run`
+  at all — and the call was a no-op either way.
+  """
+  @spec terminal_transition(Multi.t(), Multi.name(), Ecto.UUID.t(), String.t()) :: Multi.t()
+  def terminal_transition(multi, name, run_id, status) when status in @terminal_statuses do
+    query = from(r in Run, where: r.id == ^run_id and r.status not in @terminal_statuses)
+    Multi.update_all(multi, name, query, set: [status: status, updated_at: DateTime.utc_now()])
+  end
 
   @doc """
   Handles a stage failure for `run`/`job`/`reason`.
