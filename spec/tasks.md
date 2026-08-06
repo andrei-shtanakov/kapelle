@@ -117,7 +117,7 @@ carry ids only, state reloaded from DB, per DESIGN-006.
 **Blocks:** [TASK-007]
 
 ### TASK-007: First real provider adapter
-🟠 P1 | ⬜ TODO | Est: 1d
+🟠 P1 | ✅ DONE | Est: 1d
 
 **Description:**
 `Providers.ModelFactory` + `ChainAdapter` (langchain ChatAnthropic) behind the
@@ -125,11 +125,11 @@ same `Executor.Adapter` behaviour; opt-in smoke test, per DESIGN-007. Default
 test suite stays network-free (NFR-002).
 
 **Checklist:**
-- [ ] `Kapelle.Providers.ModelFactory.build/1` ("anthropic@model" → %ChatAnthropic{})
-- [ ] `Kapelle.Executor.ChainAdapter` for single-prompt tasks returning Result
-- [ ] Smoke test `@tag :provider_smoke`, excluded by default in test_helper.exs; reads ANTHROPIC_API_KEY from env
-- [ ] Default `mix test` passes with no network and no key present
-- [ ] format + credo clean
+- [x] `Kapelle.Providers.ModelFactory.build/1` ("anthropic@model" → %ChatAnthropic{})
+- [x] `Kapelle.Executor.ChainAdapter` for single-prompt tasks returning Result
+- [x] Smoke test `@tag :provider_smoke`, excluded by default in test_helper.exs; reads ANTHROPIC_API_KEY from env
+- [x] Default `mix test` passes with no network and no key present
+- [x] format + credo clean
 
 **Traces to:** [REQ-006], [DESIGN-007], NFR-002
 **Depends on:** [TASK-006], [TASK-008]
@@ -168,4 +168,4 @@ TASK-008 ───────────────────────�
 
 | Milestone | Tasks | Ready now |
 |---|---|---|
-| M1 Vertical Slice | TASK-002..TASK-008 (1 open, 6 done, 1 done manual) | TASK-007 |
+| M1 Vertical Slice | TASK-002..TASK-008 (7 done, 1 done manual) | — |
