@@ -20,5 +20,10 @@ defmodule Kapelle.Providers.ModelFactoryTest do
     test "propagates Catalog's unknown id error" do
       assert {:error, {:unknown_model_id, "nope@nope"}} = ModelFactory.build("nope@nope")
     end
+
+    test "propagates Catalog's invalid id error for non-binary ids" do
+      assert {:error, {:invalid_model_id, 42}} = ModelFactory.build(42)
+      assert {:error, {:invalid_model_id, nil}} = ModelFactory.build(nil)
+    end
   end
 end

@@ -39,6 +39,6 @@ defmodule Kapelle.Executor.ChainAdapter do
       {:error, _chain, reason} -> {:error, reason}
     end
   rescue
-    exception -> {:error, {:chain_exception, exception}}
+    exception -> {:error, {:chain_exception, exception, __STACKTRACE__}}
   end
 end

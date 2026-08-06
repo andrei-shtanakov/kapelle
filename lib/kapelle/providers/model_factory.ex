@@ -16,8 +16,8 @@ defmodule Kapelle.Providers.ModelFactory do
   entry's params fail the model's own validation
   (`{:error, %Ecto.Changeset{}}`).
   """
-  @spec build(String.t()) :: {:ok, struct()} | {:error, term()}
-  def build(id) when is_binary(id) do
+  @spec build(term()) :: {:ok, struct()} | {:error, term()}
+  def build(id) do
     with {:ok, entry} <- Catalog.get(id) do
       build_model(entry)
     end
