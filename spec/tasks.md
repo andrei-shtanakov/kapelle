@@ -117,7 +117,7 @@ carry ids only, state reloaded from DB, per DESIGN-006.
 **Blocks:** [TASK-007]
 
 ### TASK-007: First real provider adapter
-🟠 P1 | 🔍 REVIEW | Est: 1d
+🟠 P1 | ✅ DONE | Est: 1d
 
 **Description:**
 `Providers.ModelFactory` + `ChainAdapter` (langchain ChatAnthropic) behind the
