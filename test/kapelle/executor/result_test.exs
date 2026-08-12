@@ -11,7 +11,9 @@ defmodule Kapelle.Executor.ResultTest do
              status: :pass,
              output: nil,
              duration_ms: nil,
-             artifacts: []
+             artifacts: [],
+             target: nil,
+             rejected: []
            } = Result.new!(@valid_attrs)
   end
 
@@ -27,11 +29,18 @@ defmodule Kapelle.Executor.ResultTest do
       Map.merge(@valid_attrs, %{
         output: "some output",
         duration_ms: 1234,
-        artifacts: ["path/to/file"]
+        artifacts: ["path/to/file"],
+        target: "anthropic@claude-sonnet-5",
+        rejected: [{"openai@gpt-5", :error}]
       })
 
-    assert %Result{output: "some output", duration_ms: 1234, artifacts: ["path/to/file"]} =
-             Result.new!(attrs)
+    assert %Result{
+             output: "some output",
+             duration_ms: 1234,
+             artifacts: ["path/to/file"],
+             target: "anthropic@claude-sonnet-5",
+             rejected: [{"openai@gpt-5", :error}]
+           } = Result.new!(attrs)
   end
 
   test "new!/1 raises when a required key is missing" do
@@ -55,6 +64,14 @@ defmodule Kapelle.Executor.ResultTest do
   test "new!/1 raises when artifacts is not a list" do
     for bad <- [nil, %{}, "artifact", 42] do
       attrs = Map.put(@valid_attrs, :artifacts, bad)
+
+      assert_raise ArgumentError, fn -> Result.new!(attrs) end
+    end
+  end
+
+  test "new!/1 raises when rejected is not a list" do
+    for bad <- [nil, %{}, "rejected", 42] do
+      attrs = Map.put(@valid_attrs, :rejected, bad)
 
       assert_raise ArgumentError, fn -> Result.new!(attrs) end
     end

@@ -3,10 +3,17 @@ defmodule Kapelle.Executor.Result do
   Contract struct emitted by `Kapelle.Executor.Adapter.execute/2`.
 
   Mirrors spec-runner exit codes: `:pass` (0), `:fail` (1), `:error` (2).
+
+  `target` and `rejected` are populated by
+  `Kapelle.Executor.FallbackResolver` when a catalog entry's `fallback`
+  chain is walked: `target` is the catalog id that actually served the
+  request, and `rejected` is the ordered list of `{id, reason}` pairs for
+  every earlier target that errored. A `Result` produced without going
+  through fallback resolution leaves both at their defaults.
   """
 
   @enforce_keys [:task_id, :status]
-  defstruct [:task_id, :status, :output, :duration_ms, artifacts: []]
+  defstruct [:task_id, :status, :output, :duration_ms, artifacts: [], target: nil, rejected: []]
 
   @type status :: :pass | :fail | :error
 
@@ -15,7 +22,9 @@ defmodule Kapelle.Executor.Result do
           status: status(),
           output: term(),
           duration_ms: non_neg_integer() | nil,
-          artifacts: list()
+          artifacts: list(),
+          target: String.t() | nil,
+          rejected: [{String.t(), term()}]
         }
 
   @valid_statuses [:pass, :fail, :error]
@@ -23,7 +32,8 @@ defmodule Kapelle.Executor.Result do
   @doc """
   Builds a `Result`, raising `ArgumentError` if a required key is missing,
   `attrs` has an unknown key, `status` is not one of
-  `#{inspect(@valid_statuses)}`, or `artifacts` is not a list.
+  `#{inspect(@valid_statuses)}`, `artifacts` is not a list, or `rejected`
+  is not a list.
   """
   @spec new!(map()) :: t()
   def new!(attrs) when is_map(attrs) do
@@ -31,6 +41,7 @@ defmodule Kapelle.Executor.Result do
     |> build!(attrs)
     |> validate_status!()
     |> validate_artifacts!()
+    |> validate_rejected!()
   end
 
   defp build!(module, attrs) do
@@ -55,5 +66,13 @@ defmodule Kapelle.Executor.Result do
 
   defp validate_artifacts!(%__MODULE__{artifacts: artifacts}) do
     raise ArgumentError, "artifacts must be a list, got: #{inspect(artifacts)}"
+  end
+
+  defp validate_rejected!(%__MODULE__{rejected: rejected} = result) when is_list(rejected) do
+    result
+  end
+
+  defp validate_rejected!(%__MODULE__{rejected: rejected}) do
+    raise ArgumentError, "rejected must be a list, got: #{inspect(rejected)}"
   end
 end

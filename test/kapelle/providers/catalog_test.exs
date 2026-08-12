@@ -86,6 +86,27 @@ defmodule Kapelle.Providers.CatalogTest do
       assert {:error, {:unknown_fallback, "anthropic@claude-sonnet-5", "nope@nope"}} =
                Catalog.load(fixture("unknown_fallback.toml"))
     end
+
+    test "parses a declared fallback chain onto the entry" do
+      assert {:ok, [entry, _fallback_entry]} = Catalog.load(fixture("fallback_chain.toml"))
+      assert entry.fallback == ["openai@gpt-5"]
+    end
+
+    test "defaults fallback to an empty list when absent" do
+      assert {:ok, [entry]} = Catalog.load(fixture("missing_params.toml"))
+      assert entry.fallback == []
+    end
+
+    test "non-list fallback returns {:error, {:invalid_entry, 0, :invalid_field, :fallback}}" do
+      assert {:error, {:invalid_entry, 0, :invalid_field, :fallback}} =
+               Catalog.load(fixture("invalid_fallback_type.toml"))
+    end
+
+    test "a fallback cycle returns {:error, {:fallback_cycle, [ids]}}" do
+      assert {:error, {:fallback_cycle, cycle}} = Catalog.load(fixture("fallback_cycle.toml"))
+
+      assert cycle == ["anthropic@claude-sonnet-5", "openai@gpt-5", "anthropic@claude-sonnet-5"]
+    end
   end
 
   describe "list/0" do

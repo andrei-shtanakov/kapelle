@@ -27,6 +27,27 @@ defmodule Kapelle.Providers.Catalog.EntryTest do
     assert entry.params == %{}
   end
 
+  test "fallback defaults to an empty list" do
+    entry = %Entry{
+      id: "anthropic@claude-sonnet-5",
+      provider: "anthropic",
+      model: "claude-sonnet-5"
+    }
+
+    assert entry.fallback == []
+  end
+
+  test "builds a struct with a declared fallback chain" do
+    entry = %Entry{
+      id: "anthropic@claude-sonnet-5",
+      provider: "anthropic",
+      model: "claude-sonnet-5",
+      fallback: ["openai@gpt-5", "openai@gpt-4"]
+    }
+
+    assert entry.fallback == ["openai@gpt-5", "openai@gpt-4"]
+  end
+
   test "raises when required keys are missing" do
     assert_raise ArgumentError, fn ->
       struct!(Entry, provider: "anthropic")
