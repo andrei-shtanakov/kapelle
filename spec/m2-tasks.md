@@ -12,7 +12,7 @@
 ## Milestone 2: Routing and feedback
 
 ### TASK-101: Deterministic provider fallback
-🟠 P1 | 🔄 IN_PROGRESS | Est: 0.5d
+🟠 P1 | 🔍 REVIEW | Est: 0.5d
 
 **Description:**
 Give each catalog entry an optional, data-declared fallback chain, and make the
