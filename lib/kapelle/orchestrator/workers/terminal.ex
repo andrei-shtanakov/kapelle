@@ -10,6 +10,7 @@ defmodule Kapelle.Orchestrator.Workers.Terminal do
 
   alias Ecto.Multi
   alias Kapelle.Orchestrator.Records.Run
+  alias Kapelle.Orchestrator.RunEvents
   alias Kapelle.Repo
 
   @terminal_statuses ~w(completed failed)
@@ -57,8 +58,12 @@ defmodule Kapelle.Orchestrator.Workers.Terminal do
   def fail(%Run{id: run_id}, %Oban.Job{attempt: attempt, max_attempts: max_attempts}, reason) do
     if attempt >= max_attempts do
       case Multi.new() |> terminal_transition(:run, run_id, "failed") |> Repo.transaction() do
-        {:ok, %{run: {1, _}}} -> {:discard, reason}
-        {:ok, %{run: {0, _}}} -> {:discard, :already_terminal}
+        {:ok, %{run: {1, _}}} ->
+          RunEvents.broadcast(run_id)
+          {:discard, reason}
+
+        {:ok, %{run: {0, _}}} ->
+          {:discard, :already_terminal}
       end
     else
       {:error, reason}

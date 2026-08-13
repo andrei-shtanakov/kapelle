@@ -7,6 +7,7 @@ defmodule Kapelle.Orchestrator.Workers.ExecuteWorkerTest do
   alias Kapelle.Orchestrator.Persistence
   alias Kapelle.Orchestrator.Records.Run
   alias Kapelle.Orchestrator.Records.RunTask
+  alias Kapelle.Orchestrator.RunEvents
   alias Kapelle.Orchestrator.Workers.{EvaluateWorker, ExecuteWorker}
   alias Kapelle.Router.Decision
 
@@ -94,6 +95,19 @@ defmodule Kapelle.Orchestrator.Workers.ExecuteWorkerTest do
       refute Repo.get_by(RunTask, decision_id: decision.id)
       refute_enqueued(worker: EvaluateWorker)
       assert Repo.get!(Run, run.id).status == "failed"
+    end
+
+    test "success broadcasts a RunEvents update for the run" do
+      run = insert_run!(%{"id" => "task-1"}, default_overrides())
+      decision = insert_decision!(run.id, "task-1")
+      :ok = RunEvents.subscribe(run.id)
+
+      args = %{"run_id" => run.id, "decision_id" => decision.id}
+
+      assert :ok = perform_job(ExecuteWorker, args)
+
+      assert_receive {:run_updated, run_id}
+      assert run_id == run.id
     end
 
     test "a Run whose overrides are missing the adapter key fails cleanly through Terminal.fail instead of raising" do

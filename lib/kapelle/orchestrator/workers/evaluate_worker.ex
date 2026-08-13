@@ -40,6 +40,7 @@ defmodule Kapelle.Orchestrator.Workers.EvaluateWorker do
   alias Kapelle.Orchestrator.Persistence
   alias Kapelle.Orchestrator.Records.Run
   alias Kapelle.Orchestrator.Records.Verdict, as: VerdictRecord
+  alias Kapelle.Orchestrator.RunEvents
   alias Kapelle.Orchestrator.Workers.OverrideRegistry
   alias Kapelle.Orchestrator.Workers.Terminal
   alias Kapelle.Repo
@@ -75,6 +76,7 @@ defmodule Kapelle.Orchestrator.Workers.EvaluateWorker do
       |> Repo.transaction()
       |> case do
         {:ok, _changes} ->
+          RunEvents.broadcast(run.id)
           :ok
 
         {:error, :verdict, %Ecto.Changeset{} = changeset, _changes_so_far} ->

@@ -18,6 +18,9 @@ defmodule KapelleWeb.Router do
     pipe_through :browser
 
     get "/", PageController, :home
+
+    live "/runs", RunsLive, :index
+    live "/runs/:id", RunLive, :show
   end
 
   # Other scopes may use custom stacks.
