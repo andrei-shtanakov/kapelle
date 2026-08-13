@@ -104,4 +104,10 @@ defmodule KapelleWeb.RunLiveTest do
 
     assert render(view) =~ "claude-sonnet-5"
   end
+
+  test "a non-UUID id renders not-found instead of a CastError 500", %{conn: conn} do
+    assert_error_sent 404, fn ->
+      get(conn, ~p"/runs/not-a-uuid")
+    end
+  end
 end

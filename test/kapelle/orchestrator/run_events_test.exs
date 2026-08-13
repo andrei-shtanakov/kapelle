@@ -19,6 +19,6 @@ defmodule Kapelle.Orchestrator.RunEventsTest do
 
     :ok = RunEvents.broadcast(other_run_id)
 
-    refute_receive {:run_updated, _}, 50
+    refute_receive {:run_updated, _}, 200
   end
 end

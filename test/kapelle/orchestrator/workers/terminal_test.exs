@@ -90,7 +90,7 @@ defmodule Kapelle.Orchestrator.Workers.TerminalTest do
 
       assert {:discard, :already_terminal} = Terminal.fail(run, job, :boom)
 
-      refute_receive {:run_updated, _}, 50
+      refute_receive {:run_updated, _}, 200
     end
   end
 

@@ -14,7 +14,8 @@ defmodule KapelleWeb.RunLive do
   alias Kapelle.Orchestrator.RunEvents
 
   @impl true
-  def mount(%{"id" => run_id}, _session, socket) do
+  def mount(%{"id" => raw_id}, _session, socket) do
+    run_id = cast_run_id!(raw_id)
     if connected?(socket), do: RunEvents.subscribe(run_id)
 
     {:ok, assign(socket, run: Persistence.get_run_with_details!(run_id))}
@@ -23,6 +24,16 @@ defmodule KapelleWeb.RunLive do
   @impl true
   def handle_info({:run_updated, run_id}, socket) do
     {:noreply, assign(socket, run: Persistence.get_run_with_details!(run_id))}
+  end
+
+  # A non-UUID `:id` must be a 404, not an `Ecto.Query.CastError` 500:
+  # raising `Ecto.NoResultsError` lets Phoenix render not-found, same as
+  # an unknown-but-valid UUID.
+  defp cast_run_id!(raw_id) do
+    case Ecto.UUID.cast(raw_id) do
+      {:ok, run_id} -> run_id
+      :error -> raise Ecto.NoResultsError, queryable: Kapelle.Orchestrator.Records.Run
+    end
   end
 
   @impl true

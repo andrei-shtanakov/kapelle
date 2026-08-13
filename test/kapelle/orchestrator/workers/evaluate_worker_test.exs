@@ -8,6 +8,7 @@ defmodule Kapelle.Orchestrator.Workers.EvaluateWorkerTest do
   alias Kapelle.Orchestrator.Persistence
   alias Kapelle.Orchestrator.Records.Run
   alias Kapelle.Orchestrator.Records.Verdict, as: VerdictRecord
+  alias Kapelle.Orchestrator.RunEvents
   alias Kapelle.Orchestrator.Workers.EvaluateWorker
   alias Kapelle.Router.Decision
 
@@ -160,6 +161,20 @@ defmodule Kapelle.Orchestrator.Workers.EvaluateWorkerTest do
 
       refute Repo.get_by(VerdictRecord, decision_id: decision.id)
       assert Repo.get!(Run, run.id).status == "failed"
+    end
+
+    test "success broadcasts a RunEvents update for the run" do
+      run = insert_run!(%{"id" => "task-1"}, default_overrides())
+      decision = insert_decision!(run.id, "task-1")
+      run_task = insert_run_task!(run.id, decision.id, "task-1")
+      :ok = RunEvents.subscribe(run.id)
+
+      args = %{"run_id" => run.id, "run_task_id" => run_task.id, "decision_id" => decision.id}
+
+      assert :ok = perform_job(EvaluateWorker, args)
+
+      assert_receive {:run_updated, run_id}
+      assert run_id == run.id
     end
 
     test "a replayed job is idempotent: no duplicate Verdict, no re-enqueued job, and the Run stays completed" do
