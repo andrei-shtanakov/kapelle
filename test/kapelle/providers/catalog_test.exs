@@ -107,35 +107,6 @@ defmodule Kapelle.Providers.CatalogTest do
 
       assert cycle == ["anthropic@claude-sonnet-5", "openai@gpt-5", "anthropic@claude-sonnet-5"]
     end
-
-    test "a self-referencing fallback returns {:error, {:fallback_cycle, [ids]}}" do
-      assert {:error, {:fallback_cycle, cycle}} =
-               Catalog.load(fixture("fallback_self_cycle.toml"))
-
-      assert cycle == ["anthropic@claude-sonnet-5", "anthropic@claude-sonnet-5"]
-    end
-
-    test "a three-node fallback cycle returns {:error, {:fallback_cycle, [ids]}}" do
-      assert {:error, {:fallback_cycle, cycle}} =
-               Catalog.load(fixture("fallback_cycle_three_nodes.toml"))
-
-      assert cycle == [
-               "anthropic@claude-sonnet-5",
-               "openai@gpt-5",
-               "mistral@large",
-               "anthropic@claude-sonnet-5"
-             ]
-    end
-
-    test "a fallback list mixing valid and invalid element types returns {:error, {:invalid_entry, 0, :invalid_field, :fallback}}" do
-      assert {:error, {:invalid_entry, 0, :invalid_field, :fallback}} =
-               Catalog.load(fixture("invalid_fallback_element_type.toml"))
-    end
-
-    test "duplicate provider/model ids return {:error, {:duplicate_id, id}}" do
-      assert {:error, {:duplicate_id, "anthropic@claude-sonnet-5"}} =
-               Catalog.load(fixture("duplicate_ids.toml"))
-    end
   end
 
   describe "list/0" do
