@@ -94,7 +94,7 @@ slice — cancel and retry are a separate task.
 **Blocks:** —
 
 ### TASK-104: Wire the fallback chain into routed execution
-🟠 P1 | ⬜ TODO | Est: 1d
+🟠 P1 | ⏸️ BLOCKED | Est: 1d
 
 **Description:**
 Close the gap review found on PR #7: `Kapelle.Executor.FallbackResolver`
