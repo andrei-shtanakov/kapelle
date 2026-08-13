@@ -15,11 +15,13 @@ defmodule Kapelle.Orchestrator.Persistence do
   alias Kapelle.Evaluator.Verdict
   alias Kapelle.Executor.Result
   alias Kapelle.Orchestrator.Records.Decision, as: DecisionRecord
+  alias Kapelle.Orchestrator.Records.Outcome, as: OutcomeRecord
   alias Kapelle.Orchestrator.Records.Run
   alias Kapelle.Orchestrator.Records.RunTask
   alias Kapelle.Orchestrator.Records.Verdict, as: VerdictRecord
   alias Kapelle.Repo
   alias Kapelle.Router.Decision
+  alias Kapelle.Router.Outcome
 
   @doc """
   Builds insert attrs for `Records.Run` from the submitted `task` map.
@@ -243,6 +245,53 @@ defmodule Kapelle.Orchestrator.Persistence do
   @spec get_verdict_by_decision(Ecto.UUID.t()) :: VerdictRecord.t() | nil
   def get_verdict_by_decision(decision_id) do
     Repo.get_by(VerdictRecord, decision_id: decision_id)
+  end
+
+  @doc """
+  Builds insert attrs for `Records.Outcome` from a `Router.Outcome`,
+  linked to `decision_id`. `type` is stringified (`Records.Outcome.type`
+  is a plain string column, matching the schema convention for enum-like
+  fields elsewhere in this module).
+  """
+  @spec outcome_attrs(Ecto.UUID.t(), Outcome.t()) :: map()
+  def outcome_attrs(decision_id, %Outcome{} = outcome) do
+    %{
+      decision_id: decision_id,
+      task_id: outcome.task_id,
+      type: to_string(outcome.type)
+    }
+  end
+
+  @doc """
+  Inserts a `Records.Outcome` row for `outcome`, linked to `decision_id`.
+
+  Returns `{:error, :outcome_decision_mismatch}` without touching the DB if
+  `outcome.decision_id` doesn't match `decision_id`, mirroring
+  `record_verdict/2`'s guard against silently persisting against the wrong
+  decision.
+  """
+  @spec record_outcome(Ecto.UUID.t(), Outcome.t()) ::
+          {:ok, OutcomeRecord.t()}
+          | {:error, :outcome_decision_mismatch}
+          | {:error, Ecto.Changeset.t()}
+  def record_outcome(decision_id, %Outcome{} = outcome) do
+    if outcome.decision_id == decision_id do
+      %OutcomeRecord{}
+      |> OutcomeRecord.changeset(outcome_attrs(decision_id, outcome))
+      |> Repo.insert()
+    else
+      {:error, :outcome_decision_mismatch}
+    end
+  end
+
+  @doc """
+  Looks up the `Records.Outcome` row linked to `decision_id`, or `nil` if
+  none exists yet. `unique_index(:outcomes, [:decision_id])` makes this an
+  idempotency check, same as `get_verdict_by_decision/1`.
+  """
+  @spec get_outcome_by_decision(Ecto.UUID.t()) :: OutcomeRecord.t() | nil
+  def get_outcome_by_decision(decision_id) do
+    Repo.get_by(OutcomeRecord, decision_id: decision_id)
   end
 
   @doc """

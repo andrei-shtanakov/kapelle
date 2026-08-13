@@ -5,10 +5,12 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
   alias Kapelle.Executor.Result
   alias Kapelle.Orchestrator.Persistence
   alias Kapelle.Orchestrator.Records.Decision, as: DecisionRecord
+  alias Kapelle.Orchestrator.Records.Outcome, as: OutcomeRecord
   alias Kapelle.Orchestrator.Records.Run
   alias Kapelle.Orchestrator.Records.RunTask
   alias Kapelle.Orchestrator.Records.Verdict, as: VerdictRecord
   alias Kapelle.Router.Decision
+  alias Kapelle.Router.Outcome
 
   describe "run_attrs/1" do
     test "builds Records.Run attrs from a submitted task map" do
@@ -674,6 +676,123 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
 
       assert %Ecto.Changeset{valid?: false} = changeset
       assert Repo.aggregate(VerdictRecord, :count, :id) == 0
+    end
+  end
+
+  describe "outcome_attrs/2" do
+    test "builds Records.Outcome attrs from a Router.Outcome, linked to decision_id" do
+      outcome = Outcome.new!(%{decision_id: "dec-1", task_id: "task-1", type: :success})
+
+      assert Persistence.outcome_attrs("dec-1", outcome) == %{
+               decision_id: "dec-1",
+               task_id: "task-1",
+               type: "success"
+             }
+    end
+
+    test "stringifies a :failure type" do
+      outcome = Outcome.new!(%{decision_id: "dec-1", task_id: "task-1", type: :failure})
+
+      assert Persistence.outcome_attrs("dec-1", outcome).type == "failure"
+    end
+  end
+
+  describe "record_outcome/2" do
+    setup do
+      {:ok, run} = Persistence.create_run(%{id: "task-1", type: :code_gen})
+
+      decision =
+        Decision.new!(%{
+          decision_id: Ecto.UUID.generate(),
+          task_id: "task-1",
+          target: %{provider: "anthropic", model: "claude-sonnet-5"},
+          decided_at: DateTime.utc_now()
+        })
+
+      {:ok, decision_record} = Persistence.record_decision(run.id, decision)
+
+      %{decision_record: decision_record}
+    end
+
+    test "inserts a Records.Outcome row linked to decision_id", %{
+      decision_record: decision_record
+    } do
+      outcome =
+        Outcome.new!(%{decision_id: decision_record.id, task_id: "task-1", type: :success})
+
+      assert {:ok, %OutcomeRecord{} = outcome_record} =
+               Persistence.record_outcome(decision_record.id, outcome)
+
+      assert outcome_record.decision_id == decision_record.id
+      assert outcome_record.type == "success"
+      assert Repo.aggregate(OutcomeRecord, :count, :id) == 1
+    end
+
+    test "rejects an outcome whose decision_id doesn't match, without touching the DB", %{
+      decision_record: decision_record
+    } do
+      mismatched_outcome =
+        Outcome.new!(%{decision_id: Ecto.UUID.generate(), task_id: "task-1", type: :success})
+
+      assert Persistence.record_outcome(decision_record.id, mismatched_outcome) ==
+               {:error, :outcome_decision_mismatch}
+
+      assert Repo.aggregate(OutcomeRecord, :count, :id) == 0
+    end
+
+    test "returns a changeset error when a required field is missing", %{
+      decision_record: decision_record
+    } do
+      invalid_outcome = %{
+        Outcome.new!(%{decision_id: decision_record.id, task_id: "task-1", type: :success})
+        | task_id: nil
+      }
+
+      assert {:error, changeset} =
+               Persistence.record_outcome(decision_record.id, invalid_outcome)
+
+      assert %Ecto.Changeset{valid?: false} = changeset
+      assert Repo.aggregate(OutcomeRecord, :count, :id) == 0
+    end
+  end
+
+  describe "get_outcome_by_decision/1" do
+    setup do
+      {:ok, run} = Persistence.create_run(%{id: "task-1", type: :code_gen})
+
+      decision =
+        Decision.new!(%{
+          decision_id: Ecto.UUID.generate(),
+          task_id: "task-1",
+          target: %{provider: "anthropic", model: "claude-sonnet-5"},
+          decided_at: DateTime.utc_now()
+        })
+
+      {:ok, decision_record} = Persistence.record_decision(run.id, decision)
+
+      %{decision_record: decision_record}
+    end
+
+    test "returns the Records.Outcome row linked to decision_id", %{
+      decision_record: decision_record
+    } do
+      outcome =
+        Outcome.new!(%{decision_id: decision_record.id, task_id: "task-1", type: :success})
+
+      {:ok, outcome_record} = Persistence.record_outcome(decision_record.id, outcome)
+
+      assert %OutcomeRecord{id: id} = Persistence.get_outcome_by_decision(decision_record.id)
+      assert id == outcome_record.id
+    end
+
+    test "returns nil when no outcome is linked to decision_id", %{
+      decision_record: decision_record
+    } do
+      assert Persistence.get_outcome_by_decision(decision_record.id) == nil
+    end
+
+    test "returns nil when decision_id matches nothing" do
+      assert Persistence.get_outcome_by_decision(Ecto.UUID.generate()) == nil
     end
   end
 end
