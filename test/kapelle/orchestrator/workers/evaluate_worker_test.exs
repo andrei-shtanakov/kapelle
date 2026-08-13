@@ -63,6 +63,21 @@ defmodule Kapelle.Orchestrator.Workers.EvaluateWorkerTest do
       assert [] = all_enqueued()
     end
 
+    test "success also persists a typed router Outcome, linked to the decision, atomically with the terminal Verdict" do
+      run = insert_run!(%{"id" => "task-1"}, default_overrides())
+      decision = insert_decision!(run.id, "task-1")
+      run_task = insert_run_task!(run.id, decision.id, "task-1")
+
+      args = %{"run_id" => run.id, "run_task_id" => run_task.id, "decision_id" => decision.id}
+
+      assert :ok = perform_job(EvaluateWorker, args)
+
+      assert %{decision_id: decision_id, type: "success"} =
+               Persistence.get_outcome_by_decision(decision.id)
+
+      assert decision_id == decision.id
+    end
+
     test "the task passed to the judge has atom keys, matching Pipeline.run_sync/2's in-memory task shape" do
       run = insert_run!(%{"id" => "task-1", "type" => "code_gen"}, %{"judge" => "echoing_judge"})
       decision = insert_decision!(run.id, "task-1")

@@ -54,7 +54,7 @@ debugged from a log.
 **Blocks:** [TASK-102]
 
 ### TASK-102: Outcome feedback is transactional
-🟠 P1 | ⏸️ BLOCKED | Est: 1d
+🟠 P1 | 🔄 IN_PROGRESS | Est: 1d
 
 **Description:**
 Close `decision_id → verdict → router outcome` exactly once: a typed outcome
