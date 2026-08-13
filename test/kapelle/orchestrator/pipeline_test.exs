@@ -53,12 +53,6 @@ defmodule Kapelle.Orchestrator.PipelineTest do
     assert {:error, _reason} = Pipeline.run_sync(task, [])
   end
 
-  test "run_sync/2 propagates an execution error without evaluating" do
-    task = %{id: "task-7", type: :code_gen, fake_result: {:error, :boom}}
-
-    assert {:error, :boom} = Pipeline.run_sync(task, judge: ExplodingJudge)
-  end
-
   # FakeAdapter and FakeJudge issue no HTTP/network calls of any kind, so a
   # successful run_sync/2 here proves the e2e path is network-free.
   test "run_sync/2 completes end-to-end with only fakes (zero network)" do
@@ -67,6 +61,12 @@ defmodule Kapelle.Orchestrator.PipelineTest do
     assert {:ok, %Verdict{}} = Pipeline.run_sync(task, [])
   end
 
+  # NOTE: the `test` line below is pinned to line 70 — it is the confirmed RED
+  # of TASK-104's TDD checkpoint (b1d9594cd86d), whose replay selector is
+  # line-based (`pipeline_test.exs:70`). If you move it, repair the checkpoint.
+  # The updated test-7 ("propagates an execution error…") lives further down:
+  # its old `{:error, :boom}` shape is superseded by REQ-104's typed
+  # exhaustion once the fallback chain is wired.
   test "run_sync/2 walks the catalog's declared fallback chain when the routed target errors, and persists the walk on the run_task" do
     task = %{id: "task-fallback-1", type: :code_gen}
 
@@ -82,6 +82,22 @@ defmodule Kapelle.Orchestrator.PipelineTest do
     assert result.status == :pass
     assert result.target == "anthropic@claude-opus-5"
     assert result.rejected == [{"anthropic@claude-sonnet-5", :provider_down}]
+  end
+
+  # With the fallback chain wired (REQ-104), an execution error is no longer a
+  # bare reason: FakeAdapter errors identically on every target in :code_gen's
+  # chain, so the propagated shape is the typed exhaustion carrying the walk.
+  # The test's original point is unchanged — the judge is never invoked.
+  test "run_sync/2 propagates an execution error without evaluating" do
+    task = %{id: "task-7", type: :code_gen, fake_result: {:error, :boom}}
+
+    assert {:error, {:all_targets_errored, rejections}} =
+             Pipeline.run_sync(task, judge: ExplodingJudge)
+
+    assert rejections == [
+             {"anthropic@claude-sonnet-5", :boom},
+             {"anthropic@claude-opus-5", :boom}
+           ]
   end
 
   describe "submit/2" do
