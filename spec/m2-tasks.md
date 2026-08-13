@@ -3,9 +3,11 @@
 > Run with `--spec-prefix=m2-`. Phase 1 (`spec/tasks.md`) is closed and is left
 > untouched.
 >
-> These three run under `execution_mode: tdd` and are the evidence set for the
-> spec-runner TDD lifecycle. They are executed **one at a time**, each with its
-> own evidence record; they are not a DAG to be run unattended.
+> These tasks run under `execution_mode: tdd` and are the evidence set for the
+> spec-runner TDD lifecycle: the original three shapes (domain logic,
+> transactional persistence, read-model/UI) plus TASK-104, a wiring follow-up
+> from PR #7's review. They are executed **one at a time**, each with its own
+> evidence record; they are not a DAG to be run unattended.
 
 **Legend:** 🔴 P0 · 🟠 P1 | ⬜ TODO · 🔄 IN PROGRESS · ✅ DONE · ⏸️ BLOCKED
 

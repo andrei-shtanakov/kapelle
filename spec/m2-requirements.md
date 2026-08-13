@@ -1,10 +1,12 @@
 # Kapelle — Requirements (Phase 2: M2/M3)
 
-Three requirements, deliberately different in shape: pure domain logic, a
-transactional persistence slice, and a read-model/UI slice. They are the
-evidence set for spec-runner's TDD lifecycle (#141 slice 3b trigger), so the
-variety is the point — a defect class that appears in only one shape is a
-property of that shape.
+Four requirements. The original three are deliberately different in shape:
+pure domain logic, a transactional persistence slice, and a read-model/UI
+slice — they are the evidence set for spec-runner's TDD lifecycle (#141
+slice 3b trigger), so the variety is the point: a defect class that appears
+in only one shape is a property of that shape. REQ-104 joined later (owner
+decision 2026-08-13): it makes REQ-101's guarantee real at runtime, closing
+the wiring gap review found on PR #7.
 
 ## REQ-101: Deterministic provider fallback
 
