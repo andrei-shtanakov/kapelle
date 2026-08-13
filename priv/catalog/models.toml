@@ -1,6 +1,7 @@
 [[models]]
 provider = "anthropic"
 model = "claude-sonnet-5"
+fallback = ["anthropic@claude-opus-5"]
 
 [models.params]
 temperature = 0.7

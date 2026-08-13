@@ -3,6 +3,7 @@ defmodule Kapelle.Orchestrator.PipelineTest do
   use Oban.Testing, repo: Kapelle.Repo
 
   alias Kapelle.Evaluator.Verdict
+  alias Kapelle.Orchestrator.Persistence
   alias Kapelle.Orchestrator.Pipeline
   alias Kapelle.Orchestrator.Records.Decision, as: DecisionRecord
   alias Kapelle.Orchestrator.Records.Run
@@ -10,6 +11,7 @@ defmodule Kapelle.Orchestrator.PipelineTest do
   alias Kapelle.Orchestrator.Records.Verdict, as: VerdictRecord
   alias Kapelle.Orchestrator.Workers.RouteWorker
   alias Kapelle.Test.ExplodingJudge
+  alias Kapelle.Test.FallbackAdapter
   alias Kapelle.Test.StubPolicy
 
   test "run_sync/2 takes a submitted task through route -> execute -> evaluate to a Verdict" do
@@ -63,6 +65,23 @@ defmodule Kapelle.Orchestrator.PipelineTest do
     task = %{id: "task-6", type: :code_gen}
 
     assert {:ok, %Verdict{}} = Pipeline.run_sync(task, [])
+  end
+
+  test "run_sync/2 walks the catalog's declared fallback chain when the routed target errors, and persists the walk on the run_task" do
+    task = %{id: "task-fallback-1", type: :code_gen}
+
+    assert {:ok, %Verdict{} = verdict} = Pipeline.run_sync(task, adapter: FallbackAdapter)
+
+    assert verdict.total_score == 1.0
+
+    run = Repo.get_by!(Run, task_id: "task-fallback-1")
+    decision = Repo.get_by!(DecisionRecord, run_id: run.id)
+    run_task = Repo.get_by!(RunTask, decision_id: decision.id)
+    result = Persistence.to_contract(run_task)
+
+    assert result.status == :pass
+    assert result.target == "anthropic@claude-opus-5"
+    assert result.rejected == [{"anthropic@claude-sonnet-5", :provider_down}]
   end
 
   describe "submit/2" do
