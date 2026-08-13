@@ -143,11 +143,23 @@ defmodule Kapelle.Providers.Catalog do
   end
 
   defp validate_fallbacks(entries) do
-    ids = MapSet.new(entries, & &1.id)
-    chains = Map.new(entries, &{&1.id, &1.fallback})
+    with :ok <- validate_unique_ids(entries) do
+      ids = MapSet.new(entries, & &1.id)
+      chains = Map.new(entries, &{&1.id, &1.fallback})
 
-    with :ok <- validate_fallback_targets_known(entries, ids) do
-      validate_fallback_acyclic(chains)
+      with :ok <- validate_fallback_targets_known(entries, ids) do
+        validate_fallback_acyclic(chains)
+      end
+    end
+  end
+
+  defp validate_unique_ids(entries) do
+    entries
+    |> Enum.frequencies_by(& &1.id)
+    |> Enum.find(fn {_id, count} -> count > 1 end)
+    |> case do
+      nil -> :ok
+      {id, _count} -> {:error, {:duplicate_id, id}}
     end
   end
 

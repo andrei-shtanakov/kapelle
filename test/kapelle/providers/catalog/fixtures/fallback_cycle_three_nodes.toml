@@ -1,0 +1,14 @@
+[[models]]
+provider = "anthropic"
+model = "claude-sonnet-5"
+fallback = ["openai@gpt-5"]
+
+[[models]]
+provider = "openai"
+model = "gpt-5"
+fallback = ["mistral@large"]
+
+[[models]]
+provider = "mistral"
+model = "large"
+fallback = ["anthropic@claude-sonnet-5"]
