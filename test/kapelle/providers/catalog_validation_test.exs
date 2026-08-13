@@ -1,11 +1,10 @@
 defmodule Kapelle.Providers.CatalogValidationTest do
   @moduledoc """
-  Review-authored validation tests for `Kapelle.Providers.Catalog.load/1`.
-
-  These four tests were written by the TASK-101 review agent against
-  `catalog_test.exs`. They live in their own file because that file's bytes
-  are the claimed RED evidence of checkpoint a9a0a5a0a1a8 (spec-runner TDD
-  claim): the claim must keep matching, and the tests must keep running.
+  TASK-101 fallback tests for `Kapelle.Providers.Catalog.load/1` that were
+  added to `catalog_test.exs` after its bytes became claimed RED evidence
+  (checkpoint a9a0a5a0a1a8, spec-runner TDD claim): four by the green-phase
+  implementation, four by the review agent. They live in their own file so
+  the claim keeps matching while the tests keep running.
   """
   use ExUnit.Case, async: true
 
@@ -13,6 +12,29 @@ defmodule Kapelle.Providers.CatalogValidationTest do
 
   defp fixture(name) do
     Path.join([__DIR__, "catalog", "fixtures", name])
+  end
+
+  describe "load/1 fallback parsing" do
+    test "parses a declared fallback chain onto the entry" do
+      assert {:ok, [entry, _fallback_entry]} = Catalog.load(fixture("fallback_chain.toml"))
+      assert entry.fallback == ["openai@gpt-5"]
+    end
+
+    test "defaults fallback to an empty list when absent" do
+      assert {:ok, [entry]} = Catalog.load(fixture("missing_params.toml"))
+      assert entry.fallback == []
+    end
+
+    test "non-list fallback returns {:error, {:invalid_entry, 0, :invalid_field, :fallback}}" do
+      assert {:error, {:invalid_entry, 0, :invalid_field, :fallback}} =
+               Catalog.load(fixture("invalid_fallback_type.toml"))
+    end
+
+    test "a fallback cycle returns {:error, {:fallback_cycle, [ids]}}" do
+      assert {:error, {:fallback_cycle, cycle}} = Catalog.load(fixture("fallback_cycle.toml"))
+
+      assert cycle == ["anthropic@claude-sonnet-5", "openai@gpt-5", "anthropic@claude-sonnet-5"]
+    end
   end
 
   describe "load/1 validation" do
