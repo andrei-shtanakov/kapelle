@@ -74,7 +74,7 @@ no false completion after a crash between steps.
 **Blocks:** [TASK-103]
 
 ### TASK-103: LiveView run detail
-🟠 P1 | 🔄 IN_PROGRESS | Est: 1d
+🟠 P1 | ✅ DONE | Est: 1d
 
 **Description:**
 The first useful M3 page: a runs list and a detail view showing task, decision,
@@ -82,10 +82,10 @@ result/verdict and current status, updating over PubSub. Read-only in this
 slice — cancel and retry are a separate task.
 
 **Checklist:**
-- [ ] runs list
-- [ ] detail view with task, decision, result/verdict, status
-- [ ] PubSub update on state change, no reload
-- [ ] LiveView tests, no external network
+- [x] runs list
+- [x] detail view with task, decision, result/verdict, status
+- [x] PubSub update on state change, no reload
+- [x] LiveView tests, no external network
 
 **Traces to:** [REQ-103]
 **Depends on:** [TASK-102]
