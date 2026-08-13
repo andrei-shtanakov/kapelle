@@ -77,6 +77,9 @@ defmodule Kapelle.Orchestrator.Workers.EvaluateWorkerTest do
                Persistence.get_outcome_by_decision(decision.id)
 
       assert decision_id == decision.id
+
+      assert Repo.get_by!(VerdictRecord, decision_id: decision.id)
+      assert Repo.get!(Run, run.id).status == "completed"
     end
 
     test "the task passed to the judge has atom keys, matching Pipeline.run_sync/2's in-memory task shape" do
