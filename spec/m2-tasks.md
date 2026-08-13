@@ -74,7 +74,7 @@ no false completion after a crash between steps.
 **Blocks:** [TASK-103]
 
 ### TASK-103: LiveView run detail
-🟠 P1 | ⏸️ BLOCKED | Est: 1d
+🟠 P1 | 🔄 IN_PROGRESS | Est: 1d
 
 **Description:**
 The first useful M3 page: a runs list and a detail view showing task, decision,
