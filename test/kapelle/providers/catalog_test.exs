@@ -81,6 +81,11 @@ defmodule Kapelle.Providers.CatalogTest do
       assert {:error, {:invalid_entry, 1, :missing_field, :provider}} =
                Catalog.load(fixture("short_circuit.toml"))
     end
+
+    test "fallback naming an unknown target returns {:error, {:unknown_fallback, id, target}}" do
+      assert {:error, {:unknown_fallback, "anthropic@claude-sonnet-5", "nope@nope"}} =
+               Catalog.load(fixture("unknown_fallback.toml"))
+    end
   end
 
   describe "list/0" do

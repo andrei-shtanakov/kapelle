@@ -1,0 +1,4 @@
+[[models]]
+provider = "anthropic"
+model = "claude-sonnet-5"
+fallback = "openai@gpt-5"

@@ -1,0 +1,7 @@
+[[models]]
+provider = "anthropic"
+model = "claude-sonnet-5"
+
+[[models]]
+provider = "anthropic"
+model = "claude-sonnet-5"
