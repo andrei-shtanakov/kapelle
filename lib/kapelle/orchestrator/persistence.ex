@@ -12,6 +12,8 @@ defmodule Kapelle.Orchestrator.Persistence do
   schemas, via `to_contract/1`.
   """
 
+  import Ecto.Query, only: [from: 2]
+
   alias Kapelle.Evaluator.Verdict
   alias Kapelle.Executor.Result
   alias Kapelle.Orchestrator.Records.Decision, as: DecisionRecord
@@ -49,6 +51,31 @@ defmodule Kapelle.Orchestrator.Persistence do
   @spec get_run!(Ecto.UUID.t()) :: Run.t()
   def get_run!(run_id) do
     Repo.get!(Run, run_id)
+  end
+
+  @doc """
+  Lists all `Records.Run` rows, most recently inserted first, for the runs
+  index page (REQ-103).
+  """
+  @spec list_runs() :: [Run.t()]
+  def list_runs do
+    Repo.all(from r in Run, order_by: [desc: r.inserted_at])
+  end
+
+  @doc """
+  Reloads the `Records.Run` row for `run_id` with its `decision` (and the
+  decision's `run_task`/`verdict`) preloaded, for the run detail page
+  (REQ-103). `decision` is `nil` until `RouteWorker` routes the run; its
+  `run_task`/`verdict` are `nil` until `ExecuteWorker`/`EvaluateWorker`
+  reach it.
+
+  Raises `Ecto.NoResultsError` if no row matches `run_id`.
+  """
+  @spec get_run_with_details!(Ecto.UUID.t()) :: Run.t()
+  def get_run_with_details!(run_id) do
+    Run
+    |> Repo.get!(run_id)
+    |> Repo.preload(decision: [:run_task, :verdict])
   end
 
   @doc """
