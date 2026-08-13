@@ -54,7 +54,7 @@ debugged from a log.
 **Blocks:** [TASK-102]
 
 ### TASK-102: Outcome feedback is transactional
-🟠 P1 | ⏸️ BLOCKED | Est: 1d
+🟠 P1 | ✅ DONE | Est: 1d
 
 **Description:**
 Close `decision_id → verdict → router outcome` exactly once: a typed outcome
@@ -63,11 +63,11 @@ written atomically, a late event that never overwrites a terminal result, and
 no false completion after a crash between steps.
 
 **Checklist:**
-- [ ] typed outcome persisted on a terminal verdict
-- [ ] redelivery is idempotent
-- [ ] verdict and outcome are atomic
-- [ ] a late event does not overwrite a terminal result
-- [ ] a crash between steps leaves no false completion
+- [x] typed outcome persisted on a terminal verdict
+- [x] redelivery is idempotent
+- [x] verdict and outcome are atomic
+- [x] a late event does not overwrite a terminal result
+- [x] a crash between steps leaves no false completion
 
 **Traces to:** [REQ-102]
 **Depends on:** [TASK-101]

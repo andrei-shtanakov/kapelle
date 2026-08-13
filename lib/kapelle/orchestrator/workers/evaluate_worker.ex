@@ -2,8 +2,10 @@ defmodule Kapelle.Orchestrator.Workers.EvaluateWorker do
   @moduledoc """
   `evaluator`-queue worker: reloads the `Run`/`RunTask` for an executed
   task, evaluates it via the resolved judge, and persists the resulting
-  `Verdict` together with the owning `Run`'s terminal `"completed"`
-  status. Terminal stage — no further job is enqueued on success.
+  `Verdict`, a typed `Router.Outcome` derived from it, and the owning
+  `Run`'s terminal `"completed"` status. Terminal stage — no further job
+  is enqueued on success. Closes REQ-102's `decision_id → verdict →
+  router outcome` loop exactly once.
 
   Job args carry only `run_id`/`run_task_id`/`decision_id` — `judge` is
   resolved from `run.overrides`, set once at `Pipeline.submit/2` time, so
@@ -13,18 +15,22 @@ defmodule Kapelle.Orchestrator.Workers.EvaluateWorker do
   Idempotent under replay: if `decision_id` already has a persisted
   `Verdict` (a prior delivery of this job already evaluated it),
   `perform/1` returns `:ok` without re-evaluating or re-writing `Run`'s
-  status. If two deliveries race past that check concurrently, the
-  loser's insert hits `verdicts`' unique index on `decision_id` instead —
-  that's treated as success too, since the winner already persisted the
-  `Verdict` and the `Run`'s `"completed"` status.
+  status or `Outcome`. If two deliveries race past that check
+  concurrently, the loser's insert hits `verdicts`' unique index on
+  `decision_id` instead — that's treated as success too, since the
+  winner already persisted the `Verdict`, the `Outcome`, and the `Run`'s
+  `"completed"` status.
 
-  The `Verdict` write and the `Run`'s `"completed"` status write happen
-  inside a single `Ecto.Multi` transaction, so a run's terminal state and
-  its verdict either both exist or neither does. The status write goes
-  through `Terminal.terminal_transition/4`, so it's a no-op (rather than
-  an overwrite) if `run` is already terminal — e.g. a concurrent failure
-  finalized it first. Either way `perform/1` still returns `:ok`, since
-  the verdict itself committed and there's no successor job to withhold.
+  The `Verdict` write, the `Outcome` write, and the `Run`'s `"completed"`
+  status write happen inside a single `Ecto.Multi` transaction, so a
+  run's terminal state, its verdict, and its outcome either all exist or
+  none does — a crash between steps can't leave one written without the
+  others. The status write goes through `Terminal.terminal_transition/4`,
+  so it's a no-op (rather than an overwrite) if `run` is already terminal
+  — e.g. a concurrent failure finalized it first, so a late success can
+  never overwrite that terminal result. Either way `perform/1` still
+  returns `:ok`, since the verdict and outcome themselves committed and
+  there's no successor job to withhold.
   """
 
   use Oban.Worker, queue: :evaluator
@@ -37,6 +43,7 @@ defmodule Kapelle.Orchestrator.Workers.EvaluateWorker do
   alias Kapelle.Orchestrator.Workers.OverrideRegistry
   alias Kapelle.Orchestrator.Workers.Terminal
   alias Kapelle.Repo
+  alias Kapelle.Router.Outcome
 
   @impl Oban.Worker
   def perform(
@@ -101,6 +108,9 @@ defmodule Kapelle.Orchestrator.Workers.EvaluateWorker do
     Multi.new()
     |> Multi.run(:verdict, fn _repo, _changes ->
       Persistence.record_verdict(decision_id, verdict)
+    end)
+    |> Multi.run(:outcome, fn _repo, _changes ->
+      Persistence.record_outcome(decision_id, Outcome.from_verdict(verdict))
     end)
     |> Terminal.terminal_transition(:run, run.id, "completed")
   end
