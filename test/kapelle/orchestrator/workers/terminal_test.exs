@@ -4,6 +4,7 @@ defmodule Kapelle.Orchestrator.Workers.TerminalTest do
   alias Ecto.Adapters.SQL.Sandbox
   alias Ecto.Multi
   alias Kapelle.Orchestrator.Records.Run
+  alias Kapelle.Orchestrator.RunEvents
   alias Kapelle.Orchestrator.Workers.Terminal
 
   defp insert_run!(status \\ "pending") do
@@ -69,6 +70,27 @@ defmodule Kapelle.Orchestrator.Workers.TerminalTest do
 
       assert {:discard, :already_terminal} = Terminal.fail(run, job, :boom)
       assert Repo.get!(Run, run.id).status == "failed"
+    end
+
+    test "a genuine transition to failed broadcasts a RunEvents update for the run" do
+      run = insert_run!()
+      job = %Oban.Job{attempt: 3, max_attempts: 3}
+      :ok = RunEvents.subscribe(run.id)
+
+      assert {:discard, :boom} = Terminal.fail(run, job, :boom)
+
+      assert_receive {:run_updated, run_id}
+      assert run_id == run.id
+    end
+
+    test "a no-op against an already-terminal run does not broadcast" do
+      run = insert_run!("completed")
+      job = %Oban.Job{attempt: 3, max_attempts: 3}
+      :ok = RunEvents.subscribe(run.id)
+
+      assert {:discard, :already_terminal} = Terminal.fail(run, job, :boom)
+
+      refute_receive {:run_updated, _}, 200
     end
   end
 

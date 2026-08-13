@@ -29,6 +29,7 @@ defmodule Kapelle.Orchestrator.Workers.ExecuteWorker do
   alias Kapelle.Orchestrator.Persistence
   alias Kapelle.Orchestrator.Records.Run
   alias Kapelle.Orchestrator.Records.RunTask
+  alias Kapelle.Orchestrator.RunEvents
   alias Kapelle.Orchestrator.Workers.EvaluateWorker
   alias Kapelle.Orchestrator.Workers.OverrideRegistry
   alias Kapelle.Orchestrator.Workers.Terminal
@@ -56,6 +57,7 @@ defmodule Kapelle.Orchestrator.Workers.ExecuteWorker do
       |> Repo.transaction()
       |> case do
         {:ok, _changes} ->
+          RunEvents.broadcast(run.id)
           :ok
 
         {:error, :run_task, %Ecto.Changeset{} = changeset, _changes_so_far} ->

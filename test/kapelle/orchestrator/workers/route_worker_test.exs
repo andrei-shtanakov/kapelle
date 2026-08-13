@@ -5,6 +5,7 @@ defmodule Kapelle.Orchestrator.Workers.RouteWorkerTest do
   alias Ecto.Adapters.SQL.Sandbox
   alias Kapelle.Orchestrator.Records.Decision, as: DecisionRecord
   alias Kapelle.Orchestrator.Records.Run
+  alias Kapelle.Orchestrator.RunEvents
   alias Kapelle.Orchestrator.Workers.{ExecuteWorker, RouteWorker}
   alias Kapelle.Router.Decision
 
@@ -65,6 +66,30 @@ defmodule Kapelle.Orchestrator.Workers.RouteWorkerTest do
       refute Repo.get_by(DecisionRecord, run_id: run.id)
       refute_enqueued(worker: ExecuteWorker)
       assert Repo.get!(Run, run.id).status == "failed"
+    end
+
+    test "success broadcasts a RunEvents update for the run" do
+      run = insert_run!(%{"id" => "task-1"}, default_overrides())
+      :ok = RunEvents.subscribe(run.id)
+
+      args = %{"run_id" => run.id}
+
+      assert :ok = perform_job(RouteWorker, args)
+
+      assert_receive {:run_updated, run_id}
+      assert run_id == run.id
+    end
+
+    test "a routing error on the final attempt broadcasts a RunEvents update for the run" do
+      run = insert_run!(%{"id" => "unroutable"}, default_overrides())
+      :ok = RunEvents.subscribe(run.id)
+
+      args = %{"run_id" => run.id}
+
+      assert {:discard, :unroutable} = perform_job(RouteWorker, args, attempt: 1, max_attempts: 1)
+
+      assert_receive {:run_updated, run_id}
+      assert run_id == run.id
     end
 
     test "routes with the real default RulesPolicy against a jsonb-reloaded, string-keyed payload" do

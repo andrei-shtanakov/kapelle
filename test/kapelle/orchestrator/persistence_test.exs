@@ -408,6 +408,81 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
     end
   end
 
+  describe "list_runs/0" do
+    test "returns all Records.Run rows" do
+      {:ok, run_a} = Persistence.create_run(%{id: "task-a"})
+      {:ok, run_b} = Persistence.create_run(%{id: "task-b"})
+
+      ids = Persistence.list_runs() |> Enum.map(& &1.id)
+
+      assert run_a.id in ids
+      assert run_b.id in ids
+    end
+
+    test "returns an empty list when there are no runs" do
+      assert Persistence.list_runs() == []
+    end
+
+    test "orders runs most recently inserted first" do
+      {:ok, older} = Persistence.create_run(%{id: "task-older"})
+
+      older
+      |> Ecto.Changeset.change(inserted_at: ~U[2020-01-01 00:00:00Z])
+      |> Repo.update!()
+
+      {:ok, newer} = Persistence.create_run(%{id: "task-newer"})
+
+      assert [%Run{id: newer_id}, %Run{id: older_id}] = Persistence.list_runs()
+      assert newer_id == newer.id
+      assert older_id == older.id
+    end
+  end
+
+  describe "get_run_with_details!/1" do
+    test "reloads the Run with its decision, run_task, and verdict preloaded" do
+      {:ok, run} = Persistence.create_run(%{id: "task-1", type: :code_gen})
+
+      decision =
+        Decision.new!(%{
+          decision_id: Ecto.UUID.generate(),
+          task_id: "task-1",
+          target: %{provider: "anthropic", model: "claude-sonnet-5"},
+          decided_at: DateTime.utc_now()
+        })
+
+      {:ok, decision_record} = Persistence.record_decision(run.id, decision)
+
+      result = Result.new!(%{task_id: "task-1", status: :pass, output: %{"stdout" => "ok"}})
+      {:ok, run_task} = Persistence.record_run_task(run.id, decision_record.id, result)
+
+      verdict =
+        Verdict.new!(%{decision_id: decision_record.id, task_id: "task-1", total_score: 1.0})
+
+      {:ok, verdict_record} = Persistence.record_verdict(decision_record.id, verdict)
+
+      loaded = Persistence.get_run_with_details!(run.id)
+
+      assert loaded.id == run.id
+      assert loaded.decision.id == decision_record.id
+      assert loaded.decision.run_task.id == run_task.id
+      assert loaded.decision.verdict.id == verdict_record.id
+    end
+
+    test "leaves decision nil when the run hasn't been routed yet" do
+      {:ok, run} = Persistence.create_run(%{id: "task-1"})
+
+      loaded = Persistence.get_run_with_details!(run.id)
+
+      assert loaded.decision == nil
+    end
+
+    test "raises Ecto.NoResultsError when no row matches run_id" do
+      assert_raise Ecto.NoResultsError, fn ->
+        Persistence.get_run_with_details!(Ecto.UUID.generate())
+      end
+    end
+  end
+
   describe "record_decision/2" do
     setup do
       {:ok, run} = Persistence.create_run(%{id: "task-1", type: :code_gen})
