@@ -46,3 +46,33 @@ Acceptance:
 - read-only in this slice — cancel/retry are separate;
 - the detail view updates when state changes, without a reload;
 - LiveView tests, no external network.
+
+## REQ-104: The declared fallback chain is applied at runtime
+
+REQ-101 delivered the chain as data (catalog parsing, load-time validation)
+and as a unit-level resolver — but routed execution still calls the adapter
+once and never walks `Entry.fallback` (found by review on PR #7). The
+runtime guarantee is the requirement; the resolver was only its mechanism.
+
+Acceptance:
+
+- routed execution actually walks the fallback chain: a provider `:error`
+  on the routed target moves execution to the next declared target, on
+  BOTH execution paths (`Pipeline.run_sync/2` and `ExecuteWorker`),
+  with identical semantics;
+- a `:fail` result is returned as-is and never triggers a fallback
+  (same distinction REQ-101 established);
+- when every target errors, execution finishes with the typed error
+  (`{:all_targets_errored, rejections}`) — a run ends `failed` with that
+  reason, not a crash;
+- the persisted `run_tasks` row records which target actually served and
+  the ordered rejection history (`target`, `rejected`) — today
+  `Persistence.run_task_attrs/3` drops both, so the walk would be
+  invisible in the audit trail;
+- load-time chain validation reports deterministically: cycle detection
+  does not depend on map iteration order, and the reported cycle is the
+  minimal cycle segment, not the entry path into it (review findings on
+  PR #7);
+- an integration test drives the chain through the real runtime
+  entrypoint (submit → route → execute), not by calling the resolver
+  directly; no test performs network I/O.
