@@ -12,7 +12,7 @@
 ## Milestone 2: Routing and feedback
 
 ### TASK-101: Deterministic provider fallback
-🟠 P1 | 🔄 IN_PROGRESS | Est: 0.5d
+🟠 P1 | ✅ DONE | Est: 0.5d
 
 **Description:**
 Give each catalog entry an optional, data-declared fallback chain, and make the
@@ -40,14 +40,14 @@ target was passed over, in order — a fallback that hides its own path cannot b
 debugged from a log.
 
 **Checklist:**
-- [ ] `fallback` is an optional list of ids on a catalog entry, parsed into `Kapelle.Providers.Catalog.Entry`
-- [ ] `Catalog.load/1` rejects an unknown fallback target: `{:error, {:unknown_fallback, id, target}}`
-- [ ] `Catalog.load/1` rejects a cycle: `{:error, {:fallback_cycle, [ids]}}`
-- [ ] resolution walks the chain in order and stops at the first target that does not `:error`
-- [ ] `:fail` is returned as-is and never triggers a fallback
-- [ ] the served target and the ordered rejection reasons are on the `Result`
-- [ ] table-driven unit tests covering: no chain, one hop, several hops, all targets erroring, `:fail` on the first target, unknown target, cycle
-- [ ] no test performs network I/O
+- [x] `fallback` is an optional list of ids on a catalog entry, parsed into `Kapelle.Providers.Catalog.Entry`
+- [x] `Catalog.load/1` rejects an unknown fallback target: `{:error, {:unknown_fallback, id, target}}`
+- [x] `Catalog.load/1` rejects a cycle: `{:error, {:fallback_cycle, [ids]}}`
+- [x] resolution walks the chain in order and stops at the first target that does not `:error`
+- [x] `:fail` is returned as-is and never triggers a fallback
+- [x] the served target and the ordered rejection reasons are on the `Result`
+- [x] table-driven unit tests covering: no chain, one hop, several hops, all targets erroring, `:fail` on the first target, unknown target, cycle
+- [x] no test performs network I/O
 
 **Traces to:** [REQ-101]
 **Depends on:** —
