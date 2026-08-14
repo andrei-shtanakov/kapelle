@@ -10,7 +10,17 @@ defmodule Kapelle.Product.Workers.ResearchWorkerTest do
   use Kapelle.DataCase, async: true
   use Oban.Testing, repo: Kapelle.Repo
 
-  alias Kapelle.Product.{CanonicalHash, Contracts, FixtureAgent, Loop, Loops, Store}
+  alias Kapelle.Product.{
+    CanonicalHash,
+    Contracts,
+    Event,
+    Events,
+    FixtureAgent,
+    Loop,
+    Loops,
+    Store
+  }
+
   alias Kapelle.Product.Workers.{CreatorWorker, ResearchWorker}
 
   defp idea_yaml do
@@ -89,6 +99,8 @@ defmodule Kapelle.Product.Workers.ResearchWorkerTest do
     before = Store.all(loop_id) |> Enum.map(&{&1.kind, &1.id, &1.revision}) |> Enum.sort()
     jobs_before = all_enqueued() |> length()
 
+    :ok = Events.subscribe(loop_id)
+
     # The research/0 job replays after concept/0 has already been
     # enqueued (Oban's `unique` only dedups scheduled/available/
     # executing, never `completed` — spec §8's crash/retry exit gate).
@@ -97,5 +109,6 @@ defmodule Kapelle.Product.Workers.ResearchWorkerTest do
     after_replay = Store.all(loop_id) |> Enum.map(&{&1.kind, &1.id, &1.revision}) |> Enum.sort()
     assert after_replay == before
     assert all_enqueued() |> length() == jobs_before
+    refute_receive %Event{}, 200
   end
 end

@@ -144,7 +144,7 @@ defmodule Kapelle.Product.Workers.StageShell do
   # richer `{:ok, classification}` result back down to `run/2`'s own
   # `:ok | {:cancel, reason}` contract.
   defp advance(loop) do
-    case repair(loop.loop_id) do
+    case repair_loop(loop) do
       {:ok, _classification} -> :ok
       {:error, reason} -> {:cancel, reason}
     end
@@ -170,8 +170,10 @@ defmodule Kapelle.Product.Workers.StageShell do
   """
   @spec repair(String.t()) :: {:ok, :terminal | :repaired | :in_sync} | {:error, term()}
   def repair(loop_id) when is_binary(loop_id) do
-    loop = Loops.get!(loop_id)
+    loop_id |> Loops.get!() |> repair_loop()
+  end
 
+  defp repair_loop(loop) do
     if terminal?(loop) do
       {:ok, :terminal}
     else
