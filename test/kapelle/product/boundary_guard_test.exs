@@ -9,8 +9,7 @@ defmodule Kapelle.Product.BoundaryGuardTest do
 
   test "no runtime module references the impresario checkout or _cowork_output" do
     offenders =
-      "lib/**/*.ex"
-      |> Path.wildcard()
+      (Path.wildcard("lib/**/*.{ex,exs,heex}") ++ Path.wildcard("config/*.exs"))
       |> Enum.filter(fn path ->
         source = File.read!(path)
         Enum.any?(@forbidden, &Regex.match?(&1, source))
