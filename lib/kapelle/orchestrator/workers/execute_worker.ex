@@ -25,6 +25,7 @@ defmodule Kapelle.Orchestrator.Workers.ExecuteWorker do
   use Oban.Worker, queue: :executor
 
   alias Ecto.Multi
+  alias Kapelle.Executor.Execution
   alias Kapelle.Executor.Result
   alias Kapelle.Orchestrator.Persistence
   alias Kapelle.Orchestrator.Records.Run
@@ -51,7 +52,7 @@ defmodule Kapelle.Orchestrator.Workers.ExecuteWorker do
 
     with {:ok, adapter} <- resolve_adapter(run),
          {:ok, task} <- Persistence.atomize_task(run.payload),
-         {:ok, result} <- adapter.execute(task, decision) do
+         {:ok, result} <- Execution.run(task, decision, adapter) do
       run
       |> build_multi(decision, result)
       |> Repo.transaction()

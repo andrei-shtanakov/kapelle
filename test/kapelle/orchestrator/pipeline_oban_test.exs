@@ -2,6 +2,7 @@ defmodule Kapelle.Orchestrator.PipelineObanTest do
   use Kapelle.DataCase, async: true
   use Oban.Testing, repo: Kapelle.Repo
 
+  alias Kapelle.Orchestrator.Persistence
   alias Kapelle.Orchestrator.Pipeline
   alias Kapelle.Orchestrator.Records.Decision, as: DecisionRecord
   alias Kapelle.Orchestrator.Records.Run
@@ -9,6 +10,7 @@ defmodule Kapelle.Orchestrator.PipelineObanTest do
   alias Kapelle.Orchestrator.Records.Verdict, as: VerdictRecord
   alias Kapelle.Orchestrator.Workers.EvaluateWorker
   alias Kapelle.Test.FailingJudge
+  alias Kapelle.Test.FallbackAdapter
   alias Kapelle.Test.RoutePolicy
 
   test "draining :orchestrator for an unroutable task fails the job without enqueueing ExecuteWorker" do
@@ -56,6 +58,63 @@ defmodule Kapelle.Orchestrator.PipelineObanTest do
 
     assert Repo.aggregate(VerdictRecord, :count, decision_id: decision.id) == 1
     assert Repo.get!(Run, run_id).status == "completed"
+  end
+
+  # REQ-104/TASK-104: drives the fallback chain through the real runtime
+  # entrypoint (submit -> RouteWorker -> ExecuteWorker), not a direct
+  # FallbackResolver call, proving the wiring holds on the async path too.
+  test "submit/2 walks the fallback chain through the real orchestrator/executor workers and persists the walk" do
+    assert {:ok, run_id} =
+             Pipeline.submit(%{id: "task-oban-fallback-1", type: :code_gen},
+               adapter: FallbackAdapter
+             )
+
+    assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :orchestrator)
+    decision = Repo.get_by!(DecisionRecord, run_id: run_id)
+
+    assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :executor)
+    run_task = Repo.get_by!(RunTask, decision_id: decision.id)
+    result = Persistence.to_contract(run_task)
+
+    assert result.status == :pass
+    assert result.target == "anthropic@claude-opus-5"
+    assert result.rejected == [{"anthropic@claude-sonnet-5", :provider_down}]
+
+    assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :evaluator)
+    assert Repo.get_by!(VerdictRecord, decision_id: decision.id)
+    assert Repo.get!(Run, run_id).status == "completed"
+  end
+
+  # REQ-104: every target in the chain erroring ends the run "failed" with
+  # the typed exhaustion reason, driven through the real ExecuteWorker
+  # rather than a direct resolver call — no crash, no retry storm (the job
+  # is discarded on its final attempt, not endlessly retried).
+  test "submit/2 exhausting every target in the fallback chain fails the run without persisting a RunTask" do
+    assert {:ok, run_id} =
+             Pipeline.submit(%{id: "unexecutable", type: :code_gen},
+               adapter: Kapelle.Test.ExecuteAdapter
+             )
+
+    assert %{success: 1, failure: 0} = Oban.drain_queue(queue: :orchestrator)
+    decision = Repo.get_by!(DecisionRecord, run_id: run_id)
+
+    execute_job =
+      Repo.one!(
+        from j in Oban.Job,
+          where:
+            j.worker == ^Oban.Worker.to_string(Kapelle.Orchestrator.Workers.ExecuteWorker) and
+              fragment("?->>'decision_id' = ?", j.args, ^decision.id)
+      )
+
+    execute_job
+    |> Ecto.Changeset.change(max_attempts: 1)
+    |> Repo.update!()
+
+    assert %{discard: 1, failure: 0} = Oban.drain_queue(queue: :executor)
+
+    refute Repo.get_by(RunTask, decision_id: decision.id)
+    assert %{success: 0, failure: 0} = Oban.drain_queue(queue: :evaluator)
+    assert Repo.get!(Run, run_id).status == "failed"
   end
 
   test "a judge failure in :evaluator leaves the job retryable and persists no Verdict" do

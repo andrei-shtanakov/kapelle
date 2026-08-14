@@ -21,6 +21,8 @@ defmodule Kapelle.Orchestrator.Records.RunTask do
     field :output, :map
     field :duration_ms, :integer
     field :artifacts, {:array, :map}, default: []
+    field :target, :string
+    field :rejected, {:array, :map}, default: []
 
     belongs_to :run, Run
     belongs_to :decision, Decision
@@ -35,6 +37,8 @@ defmodule Kapelle.Orchestrator.Records.RunTask do
           output: map() | nil,
           duration_ms: non_neg_integer() | nil,
           artifacts: [map()],
+          target: String.t() | nil,
+          rejected: [map()],
           run_id: Ecto.UUID.t() | nil,
           run: Run.t() | Ecto.Association.NotLoaded.t(),
           decision_id: Ecto.UUID.t() | nil,
@@ -51,7 +55,17 @@ defmodule Kapelle.Orchestrator.Records.RunTask do
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(run_task, attrs) do
     run_task
-    |> cast(attrs, [:run_id, :decision_id, :task_id, :status, :output, :duration_ms, :artifacts])
+    |> cast(attrs, [
+      :run_id,
+      :decision_id,
+      :task_id,
+      :status,
+      :output,
+      :duration_ms,
+      :artifacts,
+      :target,
+      :rejected
+    ])
     |> validate_required([:run_id, :decision_id, :task_id, :status])
     |> unique_constraint(:decision_id)
     |> foreign_key_constraint(:run_id)

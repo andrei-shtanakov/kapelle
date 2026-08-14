@@ -46,7 +46,9 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
                status: "pass",
                output: %{stdout: "ok"},
                duration_ms: 1234,
-               artifacts: [%{path: "report.json"}]
+               artifacts: [%{path: "report.json"}],
+               target: nil,
+               rejected: []
              }
     end
 
@@ -65,6 +67,39 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
       assert attrs.output == result.output
       assert attrs.artifacts == result.artifacts
       assert attrs.duration_ms == result.duration_ms
+    end
+
+    test "carries a fallback walk's target and rejected history onto attrs (REQ-104)" do
+      result =
+        Result.new!(%{
+          task_id: "task-1",
+          status: :pass,
+          target: "anthropic@claude-opus-5",
+          rejected: [{"anthropic@claude-sonnet-5", :provider_down}]
+        })
+
+      attrs = Persistence.run_task_attrs("run-1", "dec-1", result)
+
+      assert attrs.target == "anthropic@claude-opus-5"
+
+      assert attrs.rejected == [
+               %{"id" => "anthropic@claude-sonnet-5", "reason" => "provider_down"}
+             ]
+    end
+
+    test "a non-JSON-encodable rejection reason is stored as its inspect rendering" do
+      result =
+        Result.new!(%{
+          task_id: "task-1",
+          status: :pass,
+          target: "anthropic@claude-opus-5",
+          rejected: [{"anthropic@claude-sonnet-5", {:chain_exception, %RuntimeError{}, []}}]
+        })
+
+      attrs = Persistence.run_task_attrs("run-1", "dec-1", result)
+
+      assert [%{"id" => "anthropic@claude-sonnet-5", "reason" => reason}] = attrs.rejected
+      assert reason == inspect({:chain_exception, %RuntimeError{}, []})
     end
   end
 
@@ -662,6 +697,34 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
       assert_raise Ecto.NoResultsError, fn ->
         Persistence.get_run_task!(Ecto.UUID.generate())
       end
+    end
+
+    test "round-trips a fallback walk's target and rejected history back onto Result (REQ-104)" do
+      {:ok, run} = Persistence.create_run(%{id: "task-fallback-unit", type: :code_gen})
+
+      decision =
+        Decision.new!(%{
+          decision_id: Ecto.UUID.generate(),
+          task_id: "task-fallback-unit",
+          target: %{provider: "anthropic", model: "claude-opus-5"},
+          decided_at: DateTime.utc_now()
+        })
+
+      {:ok, decision_record} = Persistence.record_decision(run.id, decision)
+
+      result =
+        Result.new!(%{
+          task_id: "task-fallback-unit",
+          status: :pass,
+          target: "anthropic@claude-opus-5",
+          rejected: [{"anthropic@claude-sonnet-5", :provider_down}]
+        })
+
+      {:ok, run_task} = Persistence.record_run_task(run.id, decision_record.id, result)
+
+      assert %Result{} = reloaded = Persistence.get_run_task!(run_task.id)
+      assert reloaded.target == "anthropic@claude-opus-5"
+      assert reloaded.rejected == [{"anthropic@claude-sonnet-5", :provider_down}]
     end
 
     test "round-trips :fail and :error statuses back to existing atoms" do

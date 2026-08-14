@@ -35,6 +35,18 @@ defmodule Kapelle.Providers.CatalogValidationTest do
 
       assert cycle == ["anthropic@claude-sonnet-5", "openai@gpt-5", "anthropic@claude-sonnet-5"]
     end
+
+    # TASK-104 regression: `anthropic@claude-sonnet-5` leads into the
+    # `openai@gpt-5 <-> mistral@large` cycle but is not itself part of it.
+    # The reported cycle must be the minimal repeating segment, not the
+    # entry path that reaches it.
+    test "an entry leading into a cycle it is not part of reports only the cycle's minimal segment" do
+      assert {:error, {:fallback_cycle, cycle}} =
+               Catalog.load(fixture("fallback_cycle_with_leadin.toml"))
+
+      assert cycle == ["openai@gpt-5", "mistral@large", "openai@gpt-5"]
+      refute "anthropic@claude-sonnet-5" in cycle
+    end
   end
 
   describe "load/1 validation" do
