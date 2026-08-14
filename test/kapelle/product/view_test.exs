@@ -507,5 +507,24 @@ defmodule Kapelle.Product.ViewTest do
                  detail: %{reason: :researcher_after_creator, iteration: 0}
                }}} = View.build(loop_id)
     end
+
+    test "an iteration with a creator entry but no researcher entry of its own is a chain_violation :missing_researcher_entry" do
+      loop_id = "LOOP-XL-NO-RESEARCHER"
+
+      entries = [
+        exchange_entry(0, "creator", "concept_draft", "concept-draft://CD-001"),
+        exchange_entry(0, "orchestration", "product_proposal_patch", "proposal://PP-001"),
+        exchange_entry(1, "researcher", "research_pack", "research-pack://RP-002"),
+        exchange_entry(1, "creator", "concept_draft", "concept-draft://CD-002"),
+        exchange_entry(1, "orchestration", "product_proposal_patch", "proposal://PP-001")
+      ]
+
+      {:ok, _} = Store.put(exchange_log_record!(entries), loop_id)
+
+      assert {:error,
+              {:chain_violation,
+               %{kind: :exchange_log, rule: :missing_researcher_entry, detail: %{iteration: 0}}}} =
+               View.build(loop_id)
+    end
   end
 end

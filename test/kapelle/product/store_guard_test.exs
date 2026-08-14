@@ -1,5 +1,5 @@
 defmodule Kapelle.Product.StoreGuardTest do
-  use Kapelle.DataCase, async: true
+  use Kapelle.DataCase, async: false
 
   alias Kapelle.Product.{Contracts, Loader, Store}
 

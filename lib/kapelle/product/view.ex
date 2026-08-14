@@ -30,7 +30,9 @@ defmodule Kapelle.Product.View do
   proposal chains for `:initial_version`, `:identity_drift`,
   `:terminal_superseded`, `:fsm_regression`, `:iteration_decrease`;
   exchange-log chains for `:history_rewritten` (byte-canonical prefix
-  property) and `:entry_order`.
+  property), `:entry_order`, and `:missing_researcher_entry` (an
+  iteration with a creator/orchestration entry but no researcher entry
+  of its own).
 
   `gate_decision` rows are carried as a best-effort projection: they are
   still re-checked, but a row that fails the check is dropped from the
@@ -445,9 +447,35 @@ defmodule Kapelle.Product.View do
   defp check_entry_order(chain) do
     entries = List.last(chain)["entries"]
 
-    with :ok <- check_entries_iteration_order(entries) do
+    with :ok <- check_entries_iteration_order(entries),
+         :ok <- check_researcher_present(entries) do
       check_researcher_before_creator(entries)
     end
+  end
+
+  # `check_researcher_before_creator/1` only checks *relative* order when
+  # BOTH a researcher and a creator entry already exist for an iteration —
+  # it says nothing about an iteration that has a creator (or an
+  # orchestration) entry but no researcher entry at all, which is exactly
+  # as causally impossible (creator's own stage always follows research's
+  # for the same iteration) but a different failure shape, so it gets its
+  # own rule rather than being folded into `:entry_order`.
+  defp check_researcher_present(entries) do
+    entries
+    |> Enum.group_by(& &1["iteration"])
+    |> Enum.find_value(:ok, fn {iteration, group} ->
+      if Enum.any?(group, &(&1["actor"] == "researcher")) do
+        nil
+      else
+        {:error,
+         {:chain_violation,
+          %{
+            kind: :exchange_log,
+            rule: :missing_researcher_entry,
+            detail: %{iteration: iteration}
+          }}}
+      end
+    end)
   end
 
   defp check_entries_iteration_order(entries) do

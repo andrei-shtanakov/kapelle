@@ -19,11 +19,17 @@ defmodule Kapelle.Product.Workers.StageShell do
        if it names *this* job's own `(stage, iteration)`, the stage's
        `execute` callback runs. Otherwise, if this job's own output is
        already in the view (a same-args replay after a completed run —
-       Oban's `unique` dedup only covers scheduled/available/executing,
-       not `completed`, so this genuinely happens, see spec §8's
-       crash/retry exit gate), the job is idempotent: skip straight to
-       re-deriving the projection and the next enqueue. Otherwise the
-       job is truly stale (superseded by other progress) and is a no-op.
+       genuinely possible two ways: `enqueue_stage/4`'s `unique` uses
+       the default `states: :successful`, which *does* cover `completed`
+       jobs [Oban 2.20+], but only for the default `period: 60` window —
+       past that, an identical-args insert lands as a real second row;
+       separately, and with no insert involved at all, Oban can
+       redeliver and re-invoke `perform/1` on the very same
+       already-completed job row after a node crash or a stale
+       visibility timeout — see spec §8's crash/retry exit gate), the
+       job is idempotent: skip straight to re-deriving the projection
+       and the next enqueue. Otherwise the job is truly stale
+       (superseded by other progress) and is a no-op.
     4. `execute`'s `{:infrastructure, reason}` becomes `{:error, reason}`
        (Oban retries); `{:domain, reason}`/`{:invalid_artifact, reason}`
        marks the loop `"failed"` and cancels the job (fail-closed, no
@@ -183,6 +189,25 @@ defmodule Kapelle.Product.Workers.StageShell do
 
   defp do_repair(loop) do
     case View.build(loop.loop_id) do
+      # `view.idea == nil` means literally nothing has been persisted for
+      # this loop yet (`Loop.start/2` always writes the idea before
+      # anything else, and `View.build/1` itself tolerates a nil idea —
+      # its own `check_idea_refs/4` is vacuous with nothing to check
+      # against). A stranded config row with no idea can genuinely reach
+      # here via `Kapelle.Product.Reconciler` (e.g. a periodic sweep
+      # visiting a loop whose `Loop.start/2` crashed right after
+      # `Loops.create/1` but before its own `Store.put(idea, ...)`) — the
+      # ordinary worker path can't hit this, since the first job is only
+      # ever enqueued after the idea is already persisted. Both
+      # `projection_doc/3` and the research stage's own `input_hash_for/3`
+      # hash `view.idea` unconditionally, which would otherwise raise
+      # (`CanonicalHash.hash/1`'s `is_map` guard has no clause for `nil`)
+      # instead of failing closed like every other incomplete-view case.
+      {:ok, %{idea: nil}} ->
+        reason = {:view_incomplete, :idea_missing}
+        Loops.set_status(loop.loop_id, "failed", inspect(reason))
+        {:error, reason}
+
       {:ok, view} ->
         outcome = NextStage.compute(view, loop.max_iterations)
         new_projection = projection_doc(loop, view, outcome)
@@ -195,6 +220,32 @@ defmodule Kapelle.Product.Workers.StageShell do
       {:error, reason} ->
         Loops.set_status(loop.loop_id, "failed", inspect(reason))
         {:error, reason}
+    end
+  end
+
+  # `NextStage.compute/2`'s `:ready` verdict is derived purely from the
+  # research-pack/concept-draft artifacts' own open items (design doc §5;
+  # `NextStage.evaluate/5`) — it never reads the proposal doc back. That
+  # makes it possible, after a crash between two of `EvaluateWorker`'s own
+  # separate persists (durable boundary order: `apply_delta` lands before
+  # `maybe_finalize_ready`'s own "ready_for_business" snapshot), for a
+  # fresh view to compute `:ready` while the *stored* proposal chain's
+  # latest snapshot still says `"in_iteration"` — the loop would then
+  # falsely claim `"ready"` with no `"ready_for_business"` proposal to back
+  # it up. Refuse that: only trust `:ready` when the view's own proposal
+  # already agrees; otherwise this is a typed `:projection_drift`, fails
+  # the loop closed exactly like any other repair failure, and is
+  # reported to the caller instead of silently claiming success.
+  defp classify_and_apply(loop, view, {:terminal, :ready, reason}, _projection_stale?) do
+    case view.proposal["status"] do
+      "ready_for_business" ->
+        Loops.set_status(loop.loop_id, verdict_status(:ready), reason)
+        {:ok, :repaired}
+
+      actual ->
+        detail = %{expected: "ready_for_business", actual: actual}
+        Loops.set_status(loop.loop_id, "failed", inspect({:projection_drift, detail}))
+        {:error, {:projection_drift, detail}}
     end
   end
 
@@ -265,19 +316,33 @@ defmodule Kapelle.Product.Workers.StageShell do
   Validates `doc` against `kind`'s vendored schema, derives its identity,
   and persists it via `Store.put/2` — the same validate-then-persist
   path `Kapelle.Product.Loop.start/2` uses, shared here so every stage's
-  own output goes through the identical fail-closed gate. Any failure
-  (schema, identity, or an unexpected store error) is reported as
-  `{:invalid_artifact, reason}` — a stage's own output failing this
-  check is this worker's fault, not the agent's, and fails closed the
-  same way.
+  own output goes through the identical fail-closed gate.
+
+  A schema or identity failure is genuinely this stage's own output
+  being invalid, reported as `{:invalid_artifact, reason}`. `Store.put/2`'s
+  own typed errors are *not* relabeled into that same bucket — an
+  `:ambient_transaction` guard trip is an environment/programming
+  invariant violation, and an `:artifact_conflict` is honest disagreement
+  between two documents that both claim the same identity+revision;
+  neither is "this document failed schema validation". Both are passed
+  through in their own shape, still fail-closed the same way as any
+  other `perform_stage` error (design doc §5 step 4's final catch-all),
+  but with a `stop_reason` that names the real class instead of
+  misreporting every store failure as a schema problem.
   """
-  @spec persist_document(atom(), map(), String.t()) :: :ok | {:error, {:invalid_artifact, term()}}
+  @spec persist_document(atom(), map(), String.t()) ::
+          :ok
+          | {:error, {:invalid_artifact, term()}}
+          | {:error, :ambient_transaction}
+          | {:error, {:artifact_conflict, atom(), String.t(), String.t(), String.t()}}
   def persist_document(kind, doc, loop_id) do
     with :ok <- Validator.validate(kind, doc),
          {:ok, id} <- Identity.of(kind, doc),
          {:ok, _} <- Store.put(%Record{kind: kind, id: id, doc: doc}, loop_id) do
       :ok
     else
+      {:error, :ambient_transaction} = error -> error
+      {:error, {:artifact_conflict, _kind, _id, _existing, _new}} = error -> error
       {:error, reason} -> {:error, {:invalid_artifact, reason}}
     end
   end

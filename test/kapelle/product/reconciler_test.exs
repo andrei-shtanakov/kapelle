@@ -15,7 +15,7 @@ defmodule Kapelle.Product.ReconcilerTest do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Kapelle.Product.{CanonicalHash, Contracts, FixtureAgent, Loop, Loops, Reconciler}
+  alias Kapelle.Product.{CanonicalHash, Contracts, FixtureAgent, Loop, Loops, Reconciler, View}
   alias Kapelle.Product.Records.LoopRow
   alias Kapelle.Product.Workers.{CreatorWorker, EvaluateWorker, ResearchWorker, StageShell}
 
@@ -119,5 +119,78 @@ defmodule Kapelle.Product.ReconcilerTest do
     jobs_before = all_enqueued() |> length()
     assert {:ok, :terminal} = Reconciler.reconcile(loop_id)
     assert all_enqueued() |> length() == jobs_before
+  end
+
+  test "d) a stranded delta-apply v4 (round 1's ready snapshot never persisted) fails closed instead of claiming ready" do
+    loop_id = start_loop!("LOOP-REC-D")
+    run_round!(loop_id, 0)
+    assert :ok = perform_job(EvaluateWorker, job_args(loop_id, "apply", 0))
+    run_round!(loop_id, 1)
+
+    # Simulate a crash between `EvaluateWorker`'s own `apply_delta` persist
+    # and `maybe_finalize_ready`'s: build round 1's delta-apply snapshot
+    # (v4, still "in_iteration") and its exchange-log entry by hand, via
+    # the same store path the worker itself uses, but stop there — never
+    # persist the v5 "ready_for_business" snapshot. `NextStage.compute/2`
+    # still reads round 1's own rp/cd as fully resolved (RP-002's gap
+    # closed, CD-002's assumption answered) and computes `{:terminal,
+    # :ready, ...}` from the artifacts alone — the guard under test is
+    # that repair refuses to trust that verdict against a proposal doc
+    # that still says "in_iteration".
+    {:ok, view} = View.build(loop_id)
+    v3 = view.proposal
+
+    v4 = %{
+      v3
+      | "version" => 4,
+        "iteration" => 1,
+        "content" =>
+          Map.put(
+            v3["content"],
+            "delta_log",
+            v3["content"]["delta_log"] ++
+              [%{"iteration" => 1, "concept_draft" => "CD-002", "delta" => "delta 1"}]
+          ),
+        "refs" =>
+          Map.merge(v3["refs"], %{
+            "latest_research_pack" => "research-pack://RP-002",
+            "latest_concept_draft" => "concept-draft://CD-002"
+          }),
+        "updated_at" => "2026-08-01T00:00:00Z"
+    }
+
+    assert :ok = StageShell.persist_document(:product_proposal, v4, loop_id)
+
+    {:ok, view2} = View.build(loop_id)
+
+    assert :ok =
+             StageShell.append_exchange_entry(Loops.get!(loop_id), view2, %{
+               "iteration" => 1,
+               "actor" => "orchestration",
+               "artifact_kind" => "product_proposal_patch",
+               "artifact_ref" => "proposal://PP-001",
+               "at" => "2026-08-01T00:00:00Z"
+             })
+
+    assert {:error,
+            {:projection_drift, %{expected: "ready_for_business", actual: "in_iteration"}}} =
+             Reconciler.reconcile(loop_id)
+
+    assert Loops.get!(loop_id).status == "failed"
+  end
+
+  test "e) a config row with no persisted idea reconciles to a typed error instead of raising" do
+    {:ok, _loop_row} =
+      Loops.create(%{
+        loop_id: "LOOP-REC-E",
+        idea_identity: "IDEA-001",
+        proposal_id: "PP-001",
+        exchange_log_id: "XL-001",
+        max_iterations: 2,
+        agent: "fixture:golden"
+      })
+
+    assert {:error, {:view_incomplete, :idea_missing}} = Reconciler.reconcile("LOOP-REC-E")
+    assert Loops.get!("LOOP-REC-E").status == "failed"
   end
 end
