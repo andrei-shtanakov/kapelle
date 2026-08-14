@@ -16,6 +16,8 @@ defmodule Kapelle.Product.SchemaCompatTest do
 
     assert :ok = ExJsonSchema.Validator.validate(schema, %{"id" => "RP-001"})
     assert {:error, _} = ExJsonSchema.Validator.validate(schema, %{"id" => "nope"})
-    assert {:error, _} = ExJsonSchema.Validator.validate(schema, %{"id" => "RP-001", "extra" => 1})
+
+    assert {:error, _} =
+             ExJsonSchema.Validator.validate(schema, %{"id" => "RP-001", "extra" => 1})
   end
 end

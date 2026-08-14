@@ -28,7 +28,11 @@ defmodule Kapelle.Contracts.VendoredImpresarioTest do
   end
 
   test "exactly the seven expected contracts are vendored, each with a PIN" do
-    found = pins() |> Enum.map(&(&1 |> Path.dirname() |> Path.dirname() |> Path.basename())) |> Enum.sort()
+    found =
+      pins()
+      |> Enum.map(&(&1 |> Path.dirname() |> Path.dirname() |> Path.basename()))
+      |> Enum.sort()
+
     assert found == Enum.sort(@expected_kinds)
   end
 
