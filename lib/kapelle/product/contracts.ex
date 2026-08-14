@@ -26,7 +26,8 @@ defmodule Kapelle.Product.Contracts do
   @spec dir!(atom()) :: String.t()
   def dir!(kind), do: Path.join([@vendor_root, Map.fetch!(@kind_dirs, kind), "v1"])
 
-  @spec fetch_schema(atom()) :: {:ok, ExJsonSchema.Schema.Root.t()} | {:error, {:unknown_contract, term()}}
+  @spec fetch_schema(atom()) ::
+          {:ok, ExJsonSchema.Schema.Root.t()} | {:error, {:unknown_contract, term()}}
   def fetch_schema(kind) do
     case Map.fetch(@kind_dirs, kind) do
       {:ok, _dir} -> {:ok, schema!(kind)}

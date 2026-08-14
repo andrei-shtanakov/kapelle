@@ -6,7 +6,9 @@ defmodule Kapelle.Product.ValidatorTest do
 
   test "kinds/0 lists exactly the seven vendored kinds" do
     assert Enum.sort(Contracts.kinds()) ==
-             Enum.sort(~w(idea research_pack concept_draft product_proposal exchange_log loop_state gate_decision)a)
+             Enum.sort(
+               ~w(idea research_pack concept_draft product_proposal exchange_log loop_state gate_decision)a
+             )
   end
 
   test "a valid document validates :ok" do

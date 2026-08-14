@@ -3,7 +3,7 @@
 Status: approved in discussion 2026-08-13/14 (owner: Andrei); this document is
 the written record. Scope: airun M3 — Kapelle reproduces the impresario
 `forconcept` reference semantics as an execution backend and battle-tests its
-own durability doing so (guide §9, exit criteria §9.3).
+own durability doing so (guide §9, exit criteria §9.3). S1 implementation: docs/superpowers/plans/2026-08-14-product-s1-vendoring-skeleton.md.
 
 ## 1. Goal and two-axis verdict
 
