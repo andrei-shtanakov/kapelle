@@ -72,12 +72,18 @@ defmodule Kapelle.Product.NextStageTest do
     v =
       view(%{
         research_packs: %{0 => rp(0, [open_gap("SMB capacity unknown")])},
-        concept_drafts: %{0 => cd(0)},
+        concept_drafts: %{0 => cd(0, [open_assumption("payer readiness unconfirmed")])},
         proposal: %{"iteration" => 0}
       })
 
     assert {:terminal, :needs_human, reason} = NextStage.compute(v, 1)
-    assert reason =~ "gap: SMB capacity unknown"
+
+    # Pinned exact equality, not =~: the producer's open_criticals/2 lists
+    # assumptions before gaps (impresario loop.py:419-433) — a silent order
+    # swap here would never fail this test if it only matched a substring.
+    assert reason ==
+             "max_iterations reached with open critical items: " <>
+               "assumption: payer readiness unconfirmed; gap: SMB capacity unknown"
   end
 
   test "open assumptions from the concept draft count as critical items too" do

@@ -90,7 +90,7 @@ defmodule Kapelle.Product.NextStage do
       |> Enum.filter(&open_assumption?/1)
       |> Enum.map(&("assumption: " <> &1["text"]))
 
-    open_gaps ++ open_assumptions
+    open_assumptions ++ open_gaps
   end
 
   defp open_gap?(%{"blocks_approval" => true} = gap), do: gap["closed"] != true
