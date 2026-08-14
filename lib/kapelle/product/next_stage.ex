@@ -16,10 +16,6 @@ defmodule Kapelle.Product.NextStage do
     walk(view, 0, max_iterations)
   end
 
-  defp walk(_view, i, max) when i >= max do
-    {:terminal, :needs_human, "max_iterations reached with open critical items"}
-  end
-
   defp walk(view, i, max) do
     rp = view.research_packs[i]
     cd = view.concept_drafts[i]
@@ -78,13 +74,13 @@ defmodule Kapelle.Product.NextStage do
       rp
       |> Map.get("gaps", [])
       |> Enum.filter(&open_gap?/1)
-      |> Enum.map(& &1["what"])
+      |> Enum.map(&("gap: " <> &1["what"]))
 
     open_assumptions =
       cd
       |> Map.get("assumptions", [])
       |> Enum.filter(&open_assumption?/1)
-      |> Enum.map(& &1["text"])
+      |> Enum.map(&("assumption: " <> &1["text"]))
 
     open_gaps ++ open_assumptions
   end

@@ -1,6 +1,8 @@
 defmodule Kapelle.Product.ViewTest do
   use Kapelle.DataCase, async: true
 
+  import ExUnit.CaptureLog
+
   alias Kapelle.Product.{Loader, Store, View}
   alias Kapelle.Product.Records.ArtifactRow
   alias Kapelle.Repo
@@ -82,9 +84,10 @@ defmodule Kapelle.Product.ViewTest do
     assert view.concept_drafts == %{}
     assert view.decisions == []
     assert view.loop_state == nil
+    assert view.dropped == []
   end
 
-  test "a stored gate_decision row whose doc was corrupted post-hoc is dropped, not failed closed" do
+  test "a stored gate_decision row whose doc was corrupted post-hoc is dropped, not failed closed, and is visible" do
     {:ok, _} = Store.put(load!(:idea, "fixtures/valid/idea-001.yaml"), "LOOP-V7")
     {:ok, _} = Store.put(load!(:gate_decision, "fixtures/valid/gd-approve.yaml"), "LOOP-V7")
 
@@ -98,6 +101,11 @@ defmodule Kapelle.Product.ViewTest do
       set: [doc: corrupted]
     )
 
-    assert {:ok, %View{decisions: []}} = View.build("LOOP-V7")
+    {result, log} = with_log(fn -> View.build("LOOP-V7") end)
+
+    assert {:ok, %View{decisions: [], dropped: [%{kind: :gate_decision, identity: "GD-001"}]}} =
+             result
+
+    assert log =~ "dropping corrupted gate_decision artifact"
   end
 end

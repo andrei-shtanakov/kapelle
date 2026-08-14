@@ -77,7 +77,7 @@ defmodule Kapelle.Product.NextStageTest do
       })
 
     assert {:terminal, :needs_human, reason} = NextStage.compute(v, 1)
-    assert reason =~ "SMB capacity unknown"
+    assert reason =~ "gap: SMB capacity unknown"
   end
 
   test "open assumptions from the concept draft count as critical items too" do
@@ -89,7 +89,7 @@ defmodule Kapelle.Product.NextStageTest do
       })
 
     assert {:terminal, :needs_human, reason} = NextStage.compute(v, 1)
-    assert reason =~ "payer readiness unconfirmed"
+    assert reason =~ "assumption: payer readiness unconfirmed"
   end
 
   test "a human-waived assumption is closed and does not block readiness" do

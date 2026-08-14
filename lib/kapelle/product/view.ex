@@ -16,10 +16,15 @@ defmodule Kapelle.Product.View do
 
   `loop_state` and `gate_decision` rows are carried as a best-effort
   projection: they are still re-checked, but a row that fails the check
-  is silently dropped rather than failing the whole view — neither kind
-  ever participates in the sequence check and neither feeds
-  `Kapelle.Product.NextStage`.
+  is dropped from the projection rather than failing the whole view —
+  neither kind ever participates in the sequence check and neither feeds
+  `Kapelle.Product.NextStage`. A drop is never silent: it is logged
+  (`Logger.warning/1`) and recorded in the `dropped` field so tampering
+  with a lenient-kind row stays visible even though it doesn't fail the
+  build.
   """
+
+  require Logger
 
   alias Kapelle.Product.{CanonicalHash, Identity, Store, Validator}
 
@@ -32,7 +37,8 @@ defmodule Kapelle.Product.View do
     :loop_state,
     research_packs: %{},
     concept_drafts: %{},
-    decisions: []
+    decisions: [],
+    dropped: []
   ]
 
   @type t :: %__MODULE__{
@@ -43,7 +49,8 @@ defmodule Kapelle.Product.View do
           research_packs: %{optional(non_neg_integer()) => map()},
           concept_drafts: %{optional(non_neg_integer()) => map()},
           decisions: [map()],
-          loop_state: map() | nil
+          loop_state: map() | nil,
+          dropped: [%{kind: atom(), identity: String.t(), reason: term()}]
         }
 
   @lenient_kinds [:loop_state, :gate_decision]
@@ -57,30 +64,38 @@ defmodule Kapelle.Product.View do
               | :competing_artifacts
               | :impossible_sequence, term()}}
   def build(loop_id) when is_binary(loop_id) do
-    with {:ok, checked} <- check_rows(Store.all(loop_id)),
+    with {:ok, checked, dropped} <- check_rows(Store.all(loop_id)),
          {:ok, grouped} <- group(checked) do
-      {:ok, to_view(loop_id, grouped)}
+      {:ok, to_view(loop_id, grouped, dropped)}
     end
   end
 
   defp check_rows(rows) do
-    Enum.reduce_while(rows, {:ok, []}, fn row, {:ok, acc} ->
+    Enum.reduce_while(rows, {:ok, [], []}, fn row, {:ok, acc, dropped} ->
       case check_row(row) do
-        {:ok, checked} -> {:cont, {:ok, [checked | acc]}}
-        :skip -> {:cont, {:ok, acc}}
+        {:ok, checked} -> {:cont, {:ok, [checked | acc], dropped}}
+        {:dropped, drop} -> {:cont, {:ok, acc, [drop | dropped]}}
         {:error, _} = error -> {:halt, error}
       end
     end)
     |> case do
-      {:ok, acc} -> {:ok, Enum.reverse(acc)}
+      {:ok, acc, dropped} -> {:ok, Enum.reverse(acc), Enum.reverse(dropped)}
       error -> error
     end
   end
 
-  defp check_row(%{kind: kind} = row) when kind in @lenient_kinds do
+  defp check_row(%{kind: kind, id: id} = row) when kind in @lenient_kinds do
     case verify(row) do
-      {:ok, _} = ok -> ok
-      {:error, _} -> :skip
+      {:ok, _} = ok ->
+        ok
+
+      {:error, reason} ->
+        Logger.warning(
+          "Kapelle.Product.View dropping corrupted #{kind} artifact " <>
+            "identity=#{id} reason=#{inspect(reason)}"
+        )
+
+        {:dropped, %{kind: kind, identity: id, reason: reason}}
     end
   end
 
@@ -219,7 +234,7 @@ defmodule Kapelle.Product.View do
     end
   end
 
-  defp to_view(loop_id, grouped) do
+  defp to_view(loop_id, grouped, dropped) do
     %__MODULE__{
       loop_id: loop_id,
       idea: grouped.idea,
@@ -228,7 +243,8 @@ defmodule Kapelle.Product.View do
       loop_state: grouped.loop_state,
       research_packs: grouped.research_packs,
       concept_drafts: grouped.concept_drafts,
-      decisions: grouped.decisions
+      decisions: grouped.decisions,
+      dropped: dropped
     }
   end
 end
