@@ -134,7 +134,7 @@ iteration order, and the reported cycle must be the minimal cycle segment
 ---
 
 ### TASK-105: Needs-human hold path with inspectable state
-🟠 P1 | ⬜ TODO | Est: 1d
+🟠 P1 | 🔄 IN_PROGRESS | Est: 1d
 
 The happy path lands on `ready_for_business`; the other terminal branch has
 never been walked through the contour. `NextStage` already computes
