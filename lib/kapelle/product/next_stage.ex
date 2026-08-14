@@ -28,8 +28,36 @@ defmodule Kapelle.Product.NextStage do
     end
   end
 
-  defp delta_applied?(nil, _i), do: false
-  defp delta_applied?(proposal, i), do: (proposal["iteration"] || -1) >= i
+  @doc """
+  Whether the proposal's delta for round `i` has already been recorded
+  (Task 7 finding: `content` is the ground truth when present). Prefers
+  `content.delta_log` — a direct check of which rounds actually got an
+  applied entry — and falls back to the bare `iteration` field only when
+  `content` itself is absent (unit tests over a bare `%{"iteration" =>
+  n}` view, never a real stored proposal).
+
+  The fallback is not safe to use once `content` exists: `Loop.start`'s
+  real initial snapshot (Task 6) is `iteration: 0, content: %{delta_log:
+  []}` — the same `iteration` value round 0's own apply will eventually
+  produce, coincidentally, since the delta for round `i` is recorded
+  with `"iteration" => i` too. `iteration >= i` cannot tell "round 0 not
+  applied yet" from "round 0 just applied" apart in that one case, so
+  the two research/creator workers finishing round 0 would read the
+  fresh, still-`draft`, empty-`delta_log` proposal as already-applied
+  and skip straight to evaluating it — silently dropping the apply
+  stage (and its exchange-log entry) for round 0 alone. Checking
+  `delta_log` directly has no such coincidence: it is empty until an
+  apply actually appends round `i`'s entry.
+  """
+  @spec delta_applied?(map() | nil, non_neg_integer()) :: boolean()
+  def delta_applied?(nil, _i), do: false
+
+  def delta_applied?(proposal, i) do
+    case proposal["content"] do
+      nil -> (proposal["iteration"] || -1) >= i
+      content -> Enum.any?(content["delta_log"] || [], &(&1["iteration"] == i))
+    end
+  end
 
   # A replayed/resumed view can already hold artifacts for iteration i+1
   # (the producer's own loop already decided to continue past iteration i,
