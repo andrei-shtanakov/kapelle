@@ -1,7 +1,7 @@
 defmodule Kapelle.Contracts.VendoredImpresarioTest do
   use ExUnit.Case, async: true
 
-  @vendor_root Path.join(File.cwd!(), "contracts/impresario")
+  @vendor_root Path.join(File.cwd!(), "priv/contracts/impresario")
   @expected_kinds ~w(idea research-pack concept-draft product-proposal exchange-log loop-state gate-decision)
 
   defp pins do

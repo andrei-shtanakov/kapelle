@@ -8,7 +8,7 @@ IMPRESARIO="${1:?path to impresario checkout}"
 COMMIT="${2:?producer commit}"
 KINDS=(idea research-pack concept-draft product-proposal exchange-log loop-state gate-decision)
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEST="$ROOT/contracts/impresario"
+DEST="$ROOT/priv/contracts/impresario"
 SHA="$(git -C "$IMPRESARIO" rev-parse "$COMMIT")"
 STAMP="$(date +%Y-%m-%d)"
 
