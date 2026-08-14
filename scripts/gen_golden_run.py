@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
-"""Drive the pinned producer's deterministic happy-path loop to READY.
+"""Drive one of the pinned producer's deterministic loops to its terminal verdict.
 
-Ported from `tests/test_loop.py`'s HAPPY_SCRIPT fixture at the pinned commit
-(see scripts/gen_golden.sh) rather than imported: importing the producer's
-test module pulls in its dev-only `pytest` dependency, which the extracted
-tree's own `pip install -e` step (main dependencies only) does not provision.
+Ported from `tests/test_loop.py`'s fixtures at the pinned commit (see
+scripts/gen_golden.sh) rather than imported: importing the producer's test
+module pulls in its dev-only `pytest` dependency, which the extracted tree's
+own `pip install -e` step (main dependencies only) does not provision.
 
-Usage: gen_golden_run.py <extracted-producer-root> <output-workspace-dir>
+Both scripts are the producer's own — `HAPPY_SCRIPT` and `STUCK_SCRIPT`. The
+needs-human oracle must express the producer's semantics, not this project's
+expectation of them, so it is copied from the source of truth rather than
+invented here.
+
+Usage: gen_golden_run.py <extracted-producer-root> <output-workspace-dir> [scenario]
+       scenario: happy (default) | needs_human
 """
 
 from __future__ import annotations
@@ -125,10 +131,34 @@ HAPPY_SCRIPT = {
     },
 }
 
+# Byte-for-byte the STUCK_SCRIPT fixture in tests/test_loop.py at the pin, and
+# the producer's own `test_stuck_loop_needs_human` asserts what it produces:
+# verdict `needs_human`, a stop reason naming the open criticals, and the
+# proposal left `in_iteration` — a hold, not a failure. Every iteration leaves
+# the critical gap open and the critical assumption unanswered, so
+# `open_criticals/2` never empties and the last iteration terminates on
+# `max_iterations reached with open critical items: ...`.
+STUCK_SCRIPT = {
+    "researcher": {0: _rp(1, 0, gap_open=True), 1: _rp(2, 1, gap_open=True)},
+    "creator": {
+        0: _cd(1, 0, 1, assumption_open=True),
+        1: _cd(2, 1, 2, assumption_open=True),
+    },
+}
+
+SCENARIOS = {
+    "happy": (HAPPY_SCRIPT, "ready_for_business"),
+    "needs_human": (STUCK_SCRIPT, "needs_human"),
+}
+
 
 def main(argv: list[str]) -> None:
     root = Path(argv[1]).resolve()
     workspace = Path(argv[2]).resolve()
+    scenario = argv[3] if len(argv) > 3 else "happy"
+    if scenario not in SCENARIOS:
+        raise SystemExit(f"unknown scenario {scenario!r}; expected one of {sorted(SCENARIOS)}")
+    script, expected_verdict = SCENARIOS[scenario]
 
     from impresario.agents import ScriptedAgent
     from impresario.loop import init_loop, run_loop
@@ -150,12 +180,10 @@ def main(argv: list[str]) -> None:
         max_iterations=2,
         now_iso=NOW,
     )
-    result = run_loop(
-        workspace, contracts_dir, ScriptedAgent(HAPPY_SCRIPT), now_iso=NOW
-    )
-    if result.verdict != "ready_for_business":
+    result = run_loop(workspace, contracts_dir, ScriptedAgent(script), now_iso=NOW)
+    if result.verdict != expected_verdict:
         raise SystemExit(
-            f"expected ready_for_business, got {result.verdict}: {result.stop_reason}"
+            f"expected {expected_verdict}, got {result.verdict}: {result.stop_reason}"
         )
     print(
         f"verdict={result.verdict} iteration={result.iteration} "

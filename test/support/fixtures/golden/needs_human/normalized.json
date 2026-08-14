@@ -1,0 +1,43 @@
+[
+  {
+    "proposal_transition": "draft->in_iteration"
+  },
+  {
+    "artifact_hash": "sha256:bf726281050cdee117573f69d5ea9640bdbaa00aad2f947717afa06d51d44eb2",
+    "artifact_kind": "research_pack",
+    "artifact_ref": "research-pack://RP-001",
+    "iteration": 0,
+    "stage": "researcher"
+  },
+  {
+    "artifact_hash": "sha256:7ef8b3abf87b358c519c52a19908155ee4ad84b83a2eccaa010a490bd4e822be",
+    "artifact_kind": "concept_draft",
+    "artifact_ref": "concept-draft://CD-001",
+    "iteration": 0,
+    "stage": "creator"
+  },
+  {
+    "iteration": 0,
+    "stop_reason_class": "open",
+    "verdict": "continue"
+  },
+  {
+    "artifact_hash": "sha256:80600faca9f3878a2a70e609bd1536ebe60903d48304cbb8f686b4edfb45474b",
+    "artifact_kind": "research_pack",
+    "artifact_ref": "research-pack://RP-002",
+    "iteration": 1,
+    "stage": "researcher"
+  },
+  {
+    "artifact_hash": "sha256:c0bc6bc35f31af71884e875fd624ac59b49931737211415e9f35392e9d08283d",
+    "artifact_kind": "concept_draft",
+    "artifact_ref": "concept-draft://CD-002",
+    "iteration": 1,
+    "stage": "creator"
+  },
+  {
+    "iteration": 1,
+    "stop_reason_class": "max_iterations reached with open critical items",
+    "verdict": "needs_human"
+  }
+]

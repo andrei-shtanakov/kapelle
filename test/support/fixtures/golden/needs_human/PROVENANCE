@@ -1,0 +1,19 @@
+scenario: needs_human
+producer: impresario@f84d5ac5a2aea1e95f9a52f5a266cf37f42f1fd1 (full tree via git archive)
+generated: 2026-08-14
+generator: scripts/gen_golden.sh + scripts/gen_golden_run.py
+generator argv: gen_golden_run.py /var/folders/lw/5hflts_12r9c3cc008jzzzwh0000gn/T/tmp.MYaPSToCfZ /var/folders/lw/5hflts_12r9c3cc008jzzzwh0000gn/T/tmp.MYaPSToCfZ/ws needs_human
+generator sha256: 468ebdba2a1eab98e3c948ff936297c0ddeb2182789a48c7fd450bfe4d360ae2  scripts/gen_golden.sh
+generator sha256: ff33a1819127af251c71f4fdc08af51a388714bf756415833b23ef1f2cb375d2  scripts/gen_golden_run.py
+normalizer: lib/kapelle/product/oracle/normalizer.ex version() = v1
+sha256 ./normalized.json: f93d588fb0618762e4fb9caa215e30b09b4018ad371c09608184fb57b6736b15
+sha256 ./raw-trace.jsonl: af8ffff90c12b6917c3a92a3b57e6ad4f7a862d60731005daadaaf0298110885
+sha256 ./workspace/cd-001.yaml: 12aff2615efc83de488b6900587f5cd817ccf12e447e5a1cf33580cc19e32266
+sha256 ./workspace/cd-002.yaml: 4207dc3a527490dc9b05086ad4d6a5dc0241e513fbbf0f8b1a693a0acd66350e
+sha256 ./workspace/exchange-log.yaml: cb71bcd9f92e0ee9b999c31c1360c39451285ade5c281a3740eff63487cf3b41
+sha256 ./workspace/idea.yaml: 2c28db4645951ec316641cd8f95970a6d0f50145a54a806aab4c13fc5a38f0ee
+sha256 ./workspace/loop.state: 2250f3211d975d4847c90cd27a210d01bcdcf8117951b5b9c3dc89bd6c233b56
+sha256 ./workspace/proposal.yaml: d89487799b0713de964b1cb9548c1f8f0244d0abcdc692c437d93d82bef75edd
+sha256 ./workspace/rp-001.yaml: 8db8ee8264c6eba3db59e0d8ddb70b40c6b05f8d71366b91981f7ab88eff96c0
+sha256 ./workspace/rp-002.yaml: 308060f14fe9725ead67f6250cb256dbda9bde2ad3f30bf66dd0ed3e1463dae7
+sha256 ./workspace/trace.jsonl: af8ffff90c12b6917c3a92a3b57e6ad4f7a862d60731005daadaaf0298110885
