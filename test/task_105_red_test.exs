@@ -12,7 +12,7 @@ defmodule Kapelle.Task105RedTest do
   use Kapelle.DataCase, async: false
   use Oban.Testing, repo: Kapelle.Repo
 
-  alias Kapelle.Product.{Events, FixtureAgent, Loop, Loops, Reconciler, StrictParse, Store, View}
+  alias Kapelle.Product.{Events, FixtureAgent, Loop, Loops, Reconciler, Store, StrictParse, View}
 
   @golden "test/support/fixtures/golden/needs_human"
   @now_iso "2026-08-12T18:00:00Z"
