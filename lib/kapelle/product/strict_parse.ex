@@ -23,16 +23,8 @@ defmodule Kapelle.Product.StrictParse do
     keys = Enum.map(pairs, fn {k, _v} -> k end)
 
     case keys -- Enum.uniq(keys) do
-      [dup | _] ->
-        {:error, {:duplicate_key, dup}}
-
-      [] ->
-        Enum.reduce_while(pairs, {:ok, %{}}, fn {k, v}, {:ok, acc} ->
-          case from_json(v) do
-            {:ok, converted} -> {:cont, {:ok, Map.put(acc, k, converted)}}
-            error -> {:halt, error}
-          end
-        end)
+      [dup | _] -> {:error, {:duplicate_key, dup}}
+      [] -> merge_json_pairs(pairs)
     end
   end
 
@@ -51,6 +43,15 @@ defmodule Kapelle.Product.StrictParse do
   end
 
   defp from_json(scalar), do: {:ok, scalar}
+
+  defp merge_json_pairs(pairs) do
+    Enum.reduce_while(pairs, {:ok, %{}}, fn {k, v}, {:ok, acc} ->
+      case from_json(v) do
+        {:ok, converted} -> {:cont, {:ok, Map.put(acc, k, converted)}}
+        error -> {:halt, error}
+      end
+    end)
+  end
 
   # `keep_duplicate_keys: true` is load-bearing, not cosmetic: yamerl's
   # `detailed_constr` mode alone still collapses duplicate mapping keys to
@@ -84,16 +85,8 @@ defmodule Kapelle.Product.StrictParse do
     keys = Enum.map(pairs, fn {k, _v} -> scalar_key(k) end)
 
     case keys -- Enum.uniq(keys) do
-      [dup | _] ->
-        {:error, {:duplicate_key, dup}}
-
-      [] ->
-        Enum.reduce_while(pairs, {:ok, %{}}, fn {k, v}, {:ok, acc} ->
-          case from_yamerl(v) do
-            {:ok, converted} -> {:cont, {:ok, Map.put(acc, scalar_key(k), converted)}}
-            error -> {:halt, error}
-          end
-        end)
+      [dup | _] -> {:error, {:duplicate_key, dup}}
+      [] -> merge_yamerl_pairs(pairs)
     end
   end
 
@@ -114,6 +107,15 @@ defmodule Kapelle.Product.StrictParse do
 
   defp from_yamerl(node) when elem(node, 0) == :yamerl_null, do: {:ok, nil}
   defp from_yamerl(node), do: {:ok, yamerl_scalar(node)}
+
+  defp merge_yamerl_pairs(pairs) do
+    Enum.reduce_while(pairs, {:ok, %{}}, fn {k, v}, {:ok, acc} ->
+      case from_yamerl(v) do
+        {:ok, converted} -> {:cont, {:ok, Map.put(acc, scalar_key(k), converted)}}
+        error -> {:halt, error}
+      end
+    end)
+  end
 
   defp scalar_key(node), do: node |> yamerl_scalar() |> to_string()
 

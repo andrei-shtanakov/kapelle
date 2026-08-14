@@ -1,7 +1,7 @@
 defmodule Kapelle.Product.StoreTest do
   use Kapelle.DataCase, async: true
 
-  alias Kapelle.Product.{Event, Events, Loader, Store}
+  alias Kapelle.Product.{Contracts, Event, Events, Loader, Store}
 
   defp rp_record do
     {:ok, record} =
@@ -9,7 +9,7 @@ defmodule Kapelle.Product.StoreTest do
         :research_pack,
         File.read!(
           Path.join(
-            Kapelle.Product.Contracts.dir!(:research_pack),
+            Contracts.dir!(:research_pack),
             "fixtures/valid/rp-001.yaml"
           )
         )

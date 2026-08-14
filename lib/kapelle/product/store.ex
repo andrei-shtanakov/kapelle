@@ -35,37 +35,45 @@ defmodule Kapelle.Product.Store do
         {:error, {:artifact_conflict, kind, id, existing, hash}}
 
       nil ->
-        %ArtifactRow{}
-        |> ArtifactRow.changeset(%{
+        insert_new(kind, id, doc, hash, loop_id)
+    end
+  end
+
+  defp insert_new(kind, id, doc, hash, loop_id) do
+    %ArtifactRow{}
+    |> ArtifactRow.changeset(%{
+      loop_id: loop_id,
+      kind: to_string(kind),
+      identity: id,
+      canonical_hash: hash,
+      doc: doc
+    })
+    |> Repo.insert()
+    |> case do
+      {:ok, _row} ->
+        Events.broadcast(%Event{
           loop_id: loop_id,
-          kind: to_string(kind),
-          identity: id,
-          canonical_hash: hash,
-          doc: doc
+          kind: :artifact_stored,
+          artifact_kind: kind,
+          artifact_ref: "#{@kind_refs[kind]}://#{id}",
+          artifact_hash: hash,
+          producer: nil
         })
-        |> Repo.insert()
-        |> case do
-          {:ok, _row} ->
-            Events.broadcast(%Event{
-              loop_id: loop_id,
-              kind: :artifact_stored,
-              artifact_kind: kind,
-              artifact_ref: "#{@kind_refs[kind]}://#{id}",
-              artifact_hash: hash,
-              producer: nil
-            })
 
-            {:ok, :inserted}
+        {:ok, :inserted}
 
-          {:error, %Ecto.Changeset{} = changeset} ->
-            # Insert race on the composite PK: re-read and reclassify —
-            # the winner's bytes decide noop vs conflict.
-            if pk_violation?(changeset) do
-              put(%Record{kind: kind, id: id, doc: doc}, loop_id)
-            else
-              {:error, changeset}
-            end
-        end
+      {:error, %Ecto.Changeset{} = changeset} ->
+        retry_or_fail(changeset, kind, id, doc, loop_id)
+    end
+  end
+
+  # Insert race on the composite PK: re-read and reclassify — the
+  # winner's bytes decide noop vs conflict.
+  defp retry_or_fail(changeset, kind, id, doc, loop_id) do
+    if pk_violation?(changeset) do
+      put(%Record{kind: kind, id: id, doc: doc}, loop_id)
+    else
+      {:error, changeset}
     end
   end
 
