@@ -153,11 +153,21 @@ SCENARIOS = {
 
 
 def main(argv: list[str]) -> None:
+    # The required arguments are checked like the optional one (Copilot,
+    # PR #18): this is a hand-run generator, and an IndexError is a worse
+    # answer to a mistyped invocation than the usage line it already has.
+    if len(argv) < 3:
+        raise SystemExit(
+            "usage: gen_golden_run.py <extracted-producer-root> "
+            "<output-workspace-dir> [happy|needs_human]"
+        )
     root = Path(argv[1]).resolve()
     workspace = Path(argv[2]).resolve()
     scenario = argv[3] if len(argv) > 3 else "happy"
     if scenario not in SCENARIOS:
         raise SystemExit(f"unknown scenario {scenario!r}; expected one of {sorted(SCENARIOS)}")
+    if not (root / "contracts").is_dir():
+        raise SystemExit(f"{root} does not look like a producer checkout: no contracts/ in it")
     script, expected_verdict = SCENARIOS[scenario]
 
     from impresario.agents import ScriptedAgent
