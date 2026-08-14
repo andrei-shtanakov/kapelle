@@ -1,0 +1,4 @@
+producer: impresario@f84d5ac5a2aea1e95f9a52f5a266cf37f42f1fd1 src/impresario/hashing.py (extracted via git archive)
+generated: 2026-08-14
+generator: scripts/gen_hash_fixtures.sh (this file's sibling)
+sha256 cases.json: 01cc8d574c7ff6bad9dbc2b373f5e91b6aefc32145dd71c95b2c942dadabad8b
