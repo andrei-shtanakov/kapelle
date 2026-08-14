@@ -145,10 +145,9 @@ defmodule Kapelle.Providers.Catalog do
   defp validate_fallbacks(entries) do
     with :ok <- validate_unique_ids(entries) do
       ids = MapSet.new(entries, & &1.id)
-      chains = Map.new(entries, &{&1.id, &1.fallback})
 
       with :ok <- validate_fallback_targets_known(entries, ids) do
-        validate_fallback_acyclic(chains)
+        validate_fallback_acyclic(entries)
       end
     end
   end
@@ -172,10 +171,15 @@ defmodule Kapelle.Providers.Catalog do
     end)
   end
 
-  defp validate_fallback_acyclic(chains) do
-    chains
-    |> Map.keys()
-    |> Enum.reduce_while(:ok, fn id, :ok ->
+  defp validate_fallback_acyclic(entries) do
+    chains = Map.new(entries, &{&1.id, &1.fallback})
+
+    # Walk entries in their declared (file) order, not `Map.keys/1` order,
+    # which is hash-based and not guaranteed to match insertion order —
+    # iterating a `Map` here would make which cycle gets reported (when a
+    # catalog has more than one) depend on term hashing, not the data.
+    entries
+    |> Enum.reduce_while(:ok, fn %Entry{id: id}, :ok ->
       case find_cycle(chains, id, [id]) do
         nil -> {:cont, :ok}
         cycle -> {:halt, {:error, {:fallback_cycle, cycle}}}
@@ -188,10 +192,26 @@ defmodule Kapelle.Providers.Catalog do
     |> Map.fetch!(id)
     |> Enum.find_value(fn target ->
       if target in path do
-        Enum.reverse([target | path])
+        cycle_segment(path, target)
       else
         find_cycle(chains, target, [target | path])
       end
     end)
+  end
+
+  # `path` accumulates with the most recently visited id at its head, so it
+  # is the traversal in reverse. Reporting it as-is (as the previous
+  # implementation did) surfaces the whole entry path leading into the
+  # cycle, not the cycle itself — e.g. `A -> B -> C -> B` reported
+  # `[A, B, C, B]` when the actual cycle is just `[B, C, B]`. Reversing to
+  # chronological order and dropping everything before `target`'s first
+  # occurrence isolates the minimal repeating segment.
+  defp cycle_segment(path, target) do
+    chronological = Enum.reverse(path)
+    index = Enum.find_index(chronological, &(&1 == target))
+
+    chronological
+    |> Enum.drop(index)
+    |> Kernel.++([target])
   end
 end

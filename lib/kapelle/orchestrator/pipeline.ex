@@ -8,6 +8,7 @@ defmodule Kapelle.Orchestrator.Pipeline do
   alias Ecto.Multi
   alias Kapelle.Evaluator.FakeJudge
   alias Kapelle.Evaluator.Verdict
+  alias Kapelle.Executor.Execution
   alias Kapelle.Executor.FakeAdapter
   alias Kapelle.Orchestrator.Persistence
   alias Kapelle.Orchestrator.Records.Run
@@ -36,7 +37,7 @@ defmodule Kapelle.Orchestrator.Pipeline do
     judge = Keyword.get(opts, :judge, @default_judge)
 
     with {:ok, decision} <- policy.route(task, opts),
-         {:ok, result} <- adapter.execute(task, decision),
+         {:ok, result} <- Execution.run(task, decision, adapter),
          task_with_decision = Map.put(task, :decision_id, decision.decision_id),
          {:ok, verdict} <- judge.evaluate(task_with_decision, result) do
       Multi.new()

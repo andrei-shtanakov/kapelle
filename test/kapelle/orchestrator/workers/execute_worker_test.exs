@@ -71,25 +71,36 @@ defmodule Kapelle.Orchestrator.Workers.ExecuteWorkerTest do
              ]
     end
 
-    test "an adapter error returns {:error, _} without persisting a RunTask or enqueueing EvaluateWorker" do
+    # ExecuteAdapter errors identically for "unexecutable" regardless of which
+    # target it's called against, so the routed target
+    # (anthropic@claude-sonnet-5) and its declared fallback
+    # (anthropic@claude-opus-5) both error: the fallback chain is exhausted,
+    # and the propagated shape is REQ-104's typed exhaustion, not the bare
+    # adapter reason.
+    test "an adapter error on every target in the chain returns the typed exhaustion without persisting a RunTask or enqueueing EvaluateWorker" do
       run = insert_run!(%{"id" => "unexecutable"}, %{"adapter" => "execute_adapter"})
       decision = insert_decision!(run.id, "unexecutable")
 
       args = %{"run_id" => run.id, "decision_id" => decision.id}
 
-      assert {:error, :unexecutable} = perform_job(ExecuteWorker, args)
+      assert {:error, {:all_targets_errored, rejections}} = perform_job(ExecuteWorker, args)
+
+      assert rejections == [
+               {"anthropic@claude-sonnet-5", :unexecutable},
+               {"anthropic@claude-opus-5", :unexecutable}
+             ]
 
       refute Repo.get_by(RunTask, decision_id: decision.id)
       refute_enqueued(worker: EvaluateWorker)
     end
 
-    test "an adapter error on the final attempt goes through Terminal.fail: run is marked failed and the job is discarded" do
+    test "the fallback chain exhausting on the final attempt goes through Terminal.fail: run is marked failed and the job is discarded" do
       run = insert_run!(%{"id" => "unexecutable"}, %{"adapter" => "execute_adapter"})
       decision = insert_decision!(run.id, "unexecutable")
 
       args = %{"run_id" => run.id, "decision_id" => decision.id}
 
-      assert {:discard, :unexecutable} =
+      assert {:discard, {:all_targets_errored, _rejections}} =
                perform_job(ExecuteWorker, args, attempt: 1, max_attempts: 1)
 
       refute Repo.get_by(RunTask, decision_id: decision.id)
