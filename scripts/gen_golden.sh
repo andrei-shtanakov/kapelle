@@ -1,14 +1,25 @@
 #!/usr/bin/env bash
-# Generate the golden happy-path evidence from the PINNED reference runner.
-# Usage: scripts/gen_golden.sh <path-to-impresario-checkout>
+# Generate a golden scenario's evidence from the PINNED reference runner.
+# Usage: scripts/gen_golden.sh <path-to-impresario-checkout> [scenario]
+#        scenario: happy (default) | needs_human
 # Explicit, reviewable golden update (owner's S2 preamble, item 6):
 # never run automatically, never on test failure.
+#
+# Parameterised by scenario rather than hard-wired to happy: the needs-human
+# oracle has to exist *before* the code that is judged against it, or the
+# project would be checking itself against an expectation written after its
+# own result.
 set -euo pipefail
 
 IMPRESARIO="${1:?path to impresario checkout}"
+SCENARIO="${2:-happy}"
+case "$SCENARIO" in
+  happy|needs_human) ;;
+  *) echo "unknown scenario '$SCENARIO' (expected: happy | needs_human)" >&2; exit 2 ;;
+esac
 COMMIT="f84d5ac5a2aea1e95f9a52f5a266cf37f42f1fd1"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT="$ROOT/test/support/fixtures/golden/happy"
+OUT="$ROOT/test/support/fixtures/golden/$SCENARIO"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
@@ -22,7 +33,7 @@ python3 -m venv "$TMP/venv"
 # run_loop via ScriptedAgent) rather than importing it, since importing the
 # producer's test module would pull in its dev-only pytest dependency, which
 # this editable install (main dependencies only) does not provision.
-GEN_RUN_ARGV=("$TMP" "$TMP/ws")
+GEN_RUN_ARGV=("$TMP" "$TMP/ws" "$SCENARIO")
 "$TMP/venv/bin/python" "$ROOT/scripts/gen_golden_run.py" "${GEN_RUN_ARGV[@]}"
 
 rm -rf "$OUT" && mkdir -p "$OUT"
@@ -53,6 +64,7 @@ NORMALIZER_VERSION="$(
 ')
 
 {
+  echo "scenario: $SCENARIO"
   echo "producer: impresario@$COMMIT (full tree via git archive)"
   echo "generated: $(date +%Y-%m-%d)"
   echo "generator: scripts/gen_golden.sh + scripts/gen_golden_run.py"
