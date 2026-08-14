@@ -1,6 +1,9 @@
 producer: impresario@f84d5ac5a2aea1e95f9a52f5a266cf37f42f1fd1 (full tree via git archive)
 generated: 2026-08-14
 generator: scripts/gen_golden.sh + scripts/gen_golden_run.py
+generator argv: gen_golden_run.py /var/folders/lw/5hflts_12r9c3cc008jzzzwh0000gn/T/tmp.xWMgUIEVaw /var/folders/lw/5hflts_12r9c3cc008jzzzwh0000gn/T/tmp.xWMgUIEVaw/ws
+generator sha256: 9029bb87a457deb6b744dde57ec72ebd678ec6bf34c2bcf8ccf07d95e2cfe11e  scripts/gen_golden.sh
+generator sha256: 5b9360dca9a37e1a3ab035c7afd66f18138bb545b4b4e009f87128aa1714c0fa  scripts/gen_golden_run.py
 normalizer: lib/kapelle/product/oracle/normalizer.ex version() = v1
 sha256 ./normalized.json: ebc2dd2a238c621aec447c3dbb4b1cd68f81230a1dd899ec7721d98024aff3a5
 sha256 ./raw-trace.jsonl: 9eeaafdeba1b2c38f5ce5e58b92882b1caa532a007d84531612430f426a65abe
