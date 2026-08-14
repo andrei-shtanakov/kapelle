@@ -1,0 +1,11 @@
+# Инвариант: date — реальная календарная дата (format-проверка), не только форма YYYY-MM-DD
+id: IDEA-007
+title: "Идея с невозможной датой"
+date: 2026-99-99
+source:
+  kind: internal
+  ref: "workshop-2026-08"
+priority: low
+business_attractiveness: 2
+status: new
+hypothesis: "Дата имеет правильную форму, но не существует."

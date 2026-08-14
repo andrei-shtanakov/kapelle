@@ -1,0 +1,10 @@
+# Инвариант: раздел «Гипотеза» обязателен на входе
+id: IDEA-002
+title: "Идея без гипотезы"
+date: 2026-08-01
+source:
+  kind: internal
+  ref: "workshop-2026-08"
+priority: low
+business_attractiveness: 2
+status: new

@@ -74,6 +74,8 @@ defmodule Kapelle.MixProject do
       {:oban, "~> 2.19"},
       {:langchain, "~> 0.9"},
       {:toml, "~> 0.7"},
+      {:ex_json_schema, "~> 0.10"},
+      {:yaml_elixir, "~> 2.9"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end

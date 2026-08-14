@@ -1,0 +1,13 @@
+source: impresario@f84d5ac5a2aea1e95f9a52f5a266cf37f42f1fd1 contracts/loop-state/v1
+vendored: 2026-08-14
+purpose: airun M3 — Kapelle.Product consumer copy (design doc §7)
+sha256 fixtures/invalid/bad-hash.json: d5971368fe6628bdc3090b3c28ce7b03fa8348fc1d636adfcbc19738f9641f6c
+sha256 fixtures/invalid/empty-reason.json: 63723fa5677b36d929b63e826f1d8be15f294b6d2573f07ededecd7e67d42703
+sha256 fixtures/invalid/extra-field.json: 04449dc6cb4ae84ed568316da52481185ca29aab9c11444e0ad17ef251c721b0
+sha256 fixtures/invalid/missing-at.json: 9f8893b2797f7e99194a512d7d41f99b23dff124f4dbe78db4f1659647521c00
+sha256 fixtures/invalid/unknown-verdict.json: 2ba7c7c7429d9be3d49651fc51115ecabf364416f48e718f552253090e57cd98
+sha256 fixtures/valid/failed.json: d9813d34862f2eeee4232982b07e0f39444596a31a34eeb9ea46730a59a088e6
+sha256 fixtures/valid/needs-human.json: a9fa88549e43e5d9b8e4b23b087b9271899741a7658f81bcb12ebde5000ce216
+sha256 fixtures/valid/ready.json: 55cafa1d825461502fb657e6214afc2ad4ab4827007dcaafc30da1dabfe91d44
+sha256 fixtures/valid/running.json: 98f83423496a3883c1f97856fb264cea7dc5c172cd763d3b8e683c0e0d57bafd
+sha256 schema.json: dddc48321eb8a5cba1b32c50c545902d797271c211322de47db69bfa5fc1746f

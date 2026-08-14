@@ -1,0 +1,7 @@
+source: impresario@f84d5ac5a2aea1e95f9a52f5a266cf37f42f1fd1 contracts/research-pack/v1
+vendored: 2026-08-14
+purpose: airun M3 — Kapelle.Product consumer copy (design doc §7)
+sha256 fixtures/invalid/finding-without-source.yaml: c399e702fa1bdc5ff82875a35db8a6144c4ffe30c8923004e9b6ba1bf03aeb9a
+sha256 fixtures/invalid/negative-iteration.yaml: 70de1c3c30018ab71712c6cb4e1a1c4642f679d6008d32c846621ce8036bc370
+sha256 fixtures/valid/rp-001.yaml: 8073012a63741dd1fb1b466579b1028615440c9106c43dcf985a32cb46049243
+sha256 schema.json: 5f1a5c5de01432fd3ee3ef185479903451669084bd65c91c7d33b4b9eedaa097

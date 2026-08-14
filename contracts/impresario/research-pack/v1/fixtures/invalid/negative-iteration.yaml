@@ -1,0 +1,13 @@
+# Инвариант: iteration — неотрицательное целое, монотонно растёт в цикле
+id: RP-003
+idea_ref: idea://IDEA-001
+iteration: -1
+findings: []
+constraints: []
+gaps: []
+brief_for_creator: "Пакет с отрицательной итерацией."
+requests_to_creator: []
+produced_by:
+  kind: human
+  id: analyst
+produced_at: 2026-08-11T09:00:00Z

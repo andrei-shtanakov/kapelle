@@ -1,0 +1,38 @@
+id: CD-001
+idea_ref: idea://IDEA-001
+proposal_ref: proposal://PP-001
+iteration: 0
+based_on_research:
+  ref: research-pack://RP-001
+  iteration: 0
+value_prop: >-
+  SMB-клиенты решают типовые проблемы за минуты без тикета; 4-я линия
+  занимается только нетиповыми случаями.
+alternatives:
+  - direction: "Self-service портал"
+    summary: "Полный портал диагностики с базой знаний."
+  - direction: "Чат-бот поверх существующего HD"
+    summary: "Меньше scope, но не снимает нагрузку целиком."
+  - direction: "API для партнёрских интеграций"
+    summary: "Закрывает только интеграционные сценарии."
+chosen_direction:
+  direction: "Self-service портал"
+  why: "Единственный вариант, закрывающий 60% типовых запросов целиком."
+  tentative: true
+business_models:
+  - "Включено в тариф Premium"
+  - "Плата за инцидент сверх квоты"
+assumptions:
+  - text: "SMB готов платить за приоритетный self-service."
+    blocks_approval: true
+  - text: "База знаний покрывает 80% типовых сценариев."
+    blocks_approval: false
+requests_to_researcher:
+  - "Проверить готовность платить: интервью с 5 клиентами верхнего квартиля."
+proposal_delta: "Добавлена концепция v0: выбранное направление и две модели."
+produced_by:
+  kind: agent
+  id: creator
+  model: vendor/model-x
+  prompt_version: creator/v1
+produced_at: 2026-08-11T12:00:00Z

@@ -1,0 +1,32 @@
+id: RP-001
+idea_ref: idea://IDEA-001
+proposal_ref: proposal://PP-001
+iteration: 0
+questions:
+  - "Какая доля запросов 4-й линии типовая?"
+findings:
+  - claim: "60% запросов 4-й линии — типовые, покрываемые диагностикой."
+    source_ref: "https://intranet.example/hd/4l-report-2026-q2"
+    confidence: high
+  - claim: "Сегмент SMB готов платить за приоритетный self-service."
+    confidence: unknown
+constraints:
+  - kind: standard
+    statement: "Диагностические данные клиентов — под data-policy DP-7."
+    source_ref: "standards://registry/v2/data-processing-7"
+gaps:
+  - what: "Ёмкость сегмента SMB для платного self-service"
+    needed: "Интервью или данные market-intel"
+    blocks_approval: false
+brief_for_creator: >-
+  Опираться можно на подтверждённую долю типовых запросов; готовность
+  платить не подтверждена — до улик держать как допущение.
+requests_to_creator:
+  - "Уточнить целевой сегмент: весь SMB или верхний квартиль?"
+input_hash: "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+produced_by:
+  kind: agent
+  id: researcher
+  model: vendor/model-x
+  prompt_version: researcher/v1
+produced_at: 2026-08-11T09:00:00Z
