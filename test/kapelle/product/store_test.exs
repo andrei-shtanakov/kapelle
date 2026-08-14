@@ -113,4 +113,16 @@ defmodule Kapelle.Product.StoreTest do
     assert {:error, {:artifact_conflict, :product_proposal, _, _, _}} =
              Store.put(mutated, "LOOP-R2")
   end
+
+  test "a late lower revision still inserts — Store never polices latest, the View does" do
+    v2 = proposal_record(version: 2)
+    v1 = proposal_record(version: 1)
+    assert {:ok, :inserted} = Store.put(v2, "LOOP-R3")
+    assert {:ok, :inserted} = Store.put(v1, "LOOP-R3")
+
+    assert [%{revision: 1}, %{revision: 2}] =
+             Store.all("LOOP-R3")
+             |> Enum.filter(&(&1.kind == :product_proposal))
+             |> Enum.sort_by(& &1.revision)
+  end
 end
