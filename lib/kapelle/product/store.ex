@@ -4,9 +4,19 @@ defmodule Kapelle.Product.Store do
   decision, 2026-08-14). put/2 is idempotent by canonical hash under the
   four-part key `(loop_id, kind, identity, revision)`: identical bytes at
   the same revision are a no-op, divergent bytes at the same revision are
-  a typed conflict, a new admissible revision is a new immutable row. The
-  write IS the authoritative commit; the Event goes out only after it
-  succeeds.
+  a typed conflict, a new admissible revision is a new immutable row.
+
+  The authoritative write IS the commit: `put/2` refuses to run inside a
+  caller-held ambient transaction (`Repo.in_transaction?/0`), because a
+  nested "commit" there is not actually a commit, and the post-insert
+  Event must never be observed before the real one lands. Oban's Basic
+  engine executes `perform/1` outside any transaction, so this makes that
+  assumption enforced rather than trusted. The Ecto SQL sandbox wraps
+  every test in a transaction, so tests get an explicit, documented
+  carve-out via `Application.get_env(:kapelle, :sandbox?, false)` (set in
+  `config/test.exs`) — this is not a general bypass. If a future slice
+  needs cross-write composition, the path is an outbox, not lifting this
+  guard.
   """
 
   alias Kapelle.Product.{CanonicalHash, Event, Events, Record}
@@ -35,28 +45,35 @@ defmodule Kapelle.Product.Store do
 
   @spec put(Record.t(), String.t()) ::
           {:ok, :inserted | :noop}
+          | {:error, :ambient_transaction}
           | {:error, {:artifact_conflict, atom(), String.t(), String.t(), String.t()}}
           | {:error, Ecto.Changeset.t()}
   def put(%Record{kind: kind, id: id, doc: doc}, loop_id) when is_binary(loop_id) do
-    hash = CanonicalHash.hash(doc)
-    revision = revision_of(kind, doc)
+    if Repo.in_transaction?() and not sandbox?() do
+      {:error, :ambient_transaction}
+    else
+      hash = CanonicalHash.hash(doc)
+      revision = revision_of(kind, doc)
 
-    case Repo.get_by(ArtifactRow,
-           loop_id: loop_id,
-           kind: to_string(kind),
-           identity: id,
-           revision: revision
-         ) do
-      %ArtifactRow{canonical_hash: ^hash} ->
-        {:ok, :noop}
+      case Repo.get_by(ArtifactRow,
+             loop_id: loop_id,
+             kind: to_string(kind),
+             identity: id,
+             revision: revision
+           ) do
+        %ArtifactRow{canonical_hash: ^hash} ->
+          {:ok, :noop}
 
-      %ArtifactRow{canonical_hash: existing} ->
-        {:error, {:artifact_conflict, kind, id, existing, hash}}
+        %ArtifactRow{canonical_hash: existing} ->
+          {:error, {:artifact_conflict, kind, id, existing, hash}}
 
-      nil ->
-        insert_new(kind, id, doc, hash, revision, loop_id)
+        nil ->
+          insert_new(kind, id, doc, hash, revision, loop_id)
+      end
     end
   end
+
+  defp sandbox?, do: Application.get_env(:kapelle, :sandbox?, false)
 
   defp insert_new(kind, id, doc, hash, revision, loop_id) do
     %ArtifactRow{}
