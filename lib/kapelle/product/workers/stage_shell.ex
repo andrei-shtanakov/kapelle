@@ -171,21 +171,31 @@ defmodule Kapelle.Product.Workers.StageShell do
   the same way: same projection shape, same `input_hash` chain, same
   `(loop_id, iteration, stage, input_hash)` uniqueness key.
 
-  A terminal loop is `:terminal` and touches nothing. Otherwise the
-  projection is rebuilt unconditionally (idempotent: writing the same
-  bytes twice is a no-op change in effect) and the fresh outcome is
-  applied; the result is `:repaired` when the projection actually
-  changed or the outcome's job needed a real insert (`Oban.Job.conflict?
-  == false`), and `:in_sync` when neither did — calling `repair/1` twice
-  in a row on an already-healthy loop is `:in_sync` the second time.
+  A loop already at a final status (`"ready"`/`"failed"`) is `:terminal`
+  and touches nothing — there is nothing left to ever re-derive.
+  `"needs_human"` is a hold, not a final status (design doc §5, Task 8):
+  a person may still be looking at it, so a held loop is repaired like
+  any running one — re-deriving from a fresh view, which reaches the
+  identical `{:terminal, :needs_human, reason}` verdict deterministically
+  as long as its artifacts are untouched, so the hold itself never
+  advances or duplicates anything. Otherwise the projection is rebuilt
+  unconditionally (idempotent: writing the same bytes twice is a no-op
+  change in effect) and the fresh outcome is applied; the result is
+  `:repaired` when the projection actually changed, the outcome's job
+  needed a real insert (`Oban.Job.conflict? == false`), or a running loop
+  just reached a terminal status for the first time, and `:in_sync` when
+  none of that did — calling `repair/1` twice in a row on an
+  already-healthy or already-held loop is `:in_sync` the second time.
   """
   @spec repair(String.t()) :: {:ok, :terminal | :repaired | :in_sync} | {:error, term()}
   def repair(loop_id) when is_binary(loop_id) do
     loop_id |> Loops.get!() |> repair_loop()
   end
 
+  @final_statuses ~w(ready failed)
+
   defp repair_loop(loop) do
-    if terminal?(loop) do
+    if loop.status in @final_statuses do
       {:ok, :terminal}
     else
       do_repair(loop)
@@ -254,9 +264,17 @@ defmodule Kapelle.Product.Workers.StageShell do
     end
   end
 
-  defp classify_and_apply(loop, _view, {:terminal, verdict, reason}, _projection_stale?) do
-    Loops.set_status(loop.loop_id, verdict_status(verdict), reason)
-    {:ok, :repaired}
+  # A held (`needs_human`) loop reaches here again on every later
+  # reconcile: `Loops.set_status/3`'s own `WHERE status = 'running'` guard
+  # makes the second-and-later call a no-op (`{:error, :already_terminal}`)
+  # rather than re-writing `stop_reason` — this is that no-op reported
+  # back as `:in_sync` unless the projection itself still needed a
+  # rewrite.
+  defp classify_and_apply(loop, _view, {:terminal, verdict, reason}, projection_stale?) do
+    case Loops.set_status(loop.loop_id, verdict_status(verdict), reason) do
+      {:ok, :transitioned} -> {:ok, :repaired}
+      {:error, :already_terminal} -> {:ok, if(projection_stale?, do: :repaired, else: :in_sync)}
+    end
   end
 
   defp classify_and_apply(loop, view, {:run, {stage, iteration}}, projection_stale?) do
