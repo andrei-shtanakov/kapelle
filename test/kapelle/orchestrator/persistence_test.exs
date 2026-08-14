@@ -83,8 +83,23 @@ defmodule Kapelle.Orchestrator.PersistenceTest do
       assert attrs.target == "anthropic@claude-opus-5"
 
       assert attrs.rejected == [
-               %{"id" => "anthropic@claude-sonnet-5", "reason" => :provider_down}
+               %{"id" => "anthropic@claude-sonnet-5", "reason" => "provider_down"}
              ]
+    end
+
+    test "a non-JSON-encodable rejection reason is stored as its inspect rendering" do
+      result =
+        Result.new!(%{
+          task_id: "task-1",
+          status: :pass,
+          target: "anthropic@claude-opus-5",
+          rejected: [{"anthropic@claude-sonnet-5", {:chain_exception, %RuntimeError{}, []}}]
+        })
+
+      attrs = Persistence.run_task_attrs("run-1", "dec-1", result)
+
+      assert [%{"id" => "anthropic@claude-sonnet-5", "reason" => reason}] = attrs.rejected
+      assert reason == inspect({:chain_exception, %RuntimeError{}, []})
     end
   end
 

@@ -193,9 +193,18 @@ defmodule Kapelle.Orchestrator.Persistence do
     }
   end
 
+  # Reasons come from adapters and can be arbitrary terms (ChainAdapter can
+  # emit `{:chain_exception, exception, stacktrace}`); jsonb only takes
+  # JSON-safe values, so anything beyond an atom or a string is stored as
+  # its `inspect/1` rendering — the audit trail keeps the information, the
+  # insert can't crash a run whose fallback actually succeeded.
   defp encode_rejected(rejected) when is_list(rejected) do
-    Enum.map(rejected, fn {id, reason} -> %{"id" => id, "reason" => reason} end)
+    Enum.map(rejected, fn {id, reason} -> %{"id" => id, "reason" => encode_reason(reason)} end)
   end
+
+  defp encode_reason(reason) when is_atom(reason), do: to_string(reason)
+  defp encode_reason(reason) when is_binary(reason), do: reason
+  defp encode_reason(reason), do: inspect(reason)
 
   @doc """
   Inserts a `Records.RunTask` row for `result`, linked to `run_id` and
