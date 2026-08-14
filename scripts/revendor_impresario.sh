@@ -9,7 +9,7 @@ COMMIT="${2:?producer commit}"
 KINDS=(idea research-pack concept-draft product-proposal exchange-log loop-state gate-decision)
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEST="$ROOT/contracts/impresario"
-SHA="$(git -C "$IMPRESARIO" rev-parse --short=12 "$COMMIT")"
+SHA="$(git -C "$IMPRESARIO" rev-parse "$COMMIT")"
 STAMP="$(date +%Y-%m-%d)"
 
 TMP="$(mktemp -d)"

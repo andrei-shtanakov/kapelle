@@ -1,4 +1,4 @@
-source: impresario@f84d5ac5a2ae contracts/loop-state/v1
+source: impresario@f84d5ac5a2aea1e95f9a52f5a266cf37f42f1fd1 contracts/loop-state/v1
 vendored: 2026-08-14
 purpose: airun M3 — Kapelle.Product consumer copy (design doc §7)
 sha256 fixtures/invalid/bad-hash.json: d5971368fe6628bdc3090b3c28ce7b03fa8348fc1d636adfcbc19738f9641f6c

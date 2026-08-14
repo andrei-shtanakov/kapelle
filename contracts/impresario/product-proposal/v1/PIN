@@ -1,4 +1,4 @@
-source: impresario@f84d5ac5a2ae contracts/product-proposal/v1
+source: impresario@f84d5ac5a2aea1e95f9a52f5a266cf37f42f1fd1 contracts/product-proposal/v1
 vendored: 2026-08-14
 purpose: airun M3 — Kapelle.Product consumer copy (design doc §7)
 sha256 fixtures/invalid/status-ready-for-committee.yaml: 40c953d9b576cfa5ee4935a59c72ccdc6e8839c0f870df7b3a408ddf3948f618

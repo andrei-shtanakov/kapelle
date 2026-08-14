@@ -1,4 +1,4 @@
-source: impresario@f84d5ac5a2ae contracts/gate-decision/v1
+source: impresario@f84d5ac5a2aea1e95f9a52f5a266cf37f42f1fd1 contracts/gate-decision/v1
 vendored: 2026-08-14
 purpose: airun M3 — Kapelle.Product consumer copy (design doc §7)
 sha256 fixtures/invalid/agent-authority.yaml: 9a4c6f35dd134c4229fdc7aa3ddc9a606b03338bc7c9f91101e8f601a0cda9cb
