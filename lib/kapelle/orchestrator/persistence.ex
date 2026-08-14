@@ -173,7 +173,10 @@ defmodule Kapelle.Orchestrator.Persistence do
   @doc """
   Builds insert attrs for `Records.RunTask` from an `Executor.Result`,
   linked to `run_id` and `decision_id`. `output`, `duration_ms`, and
-  `artifacts` are carried over verbatim.
+  `artifacts` are carried over verbatim. `target` and `rejected` carry
+  over the fallback walk `Kapelle.Executor.Execution` recorded on
+  `result` (REQ-104), so the audit trail shows which target actually
+  served and why any earlier targets were passed over.
   """
   @spec run_task_attrs(Ecto.UUID.t(), Ecto.UUID.t(), Result.t()) :: map()
   def run_task_attrs(run_id, decision_id, %Result{} = result) do
@@ -184,8 +187,14 @@ defmodule Kapelle.Orchestrator.Persistence do
       status: to_string(result.status),
       output: result.output,
       duration_ms: result.duration_ms,
-      artifacts: result.artifacts
+      artifacts: result.artifacts,
+      target: result.target,
+      rejected: encode_rejected(result.rejected)
     }
+  end
+
+  defp encode_rejected(rejected) when is_list(rejected) do
+    Enum.map(rejected, fn {id, reason} -> %{"id" => id, "reason" => reason} end)
   end
 
   @doc """
@@ -393,11 +402,26 @@ defmodule Kapelle.Orchestrator.Persistence do
       status: String.to_existing_atom(run_task.status),
       output: run_task.output,
       duration_ms: run_task.duration_ms,
-      artifacts: run_task.artifacts
+      artifacts: run_task.artifacts,
+      target: run_task.target,
+      rejected: decode_rejected(run_task.rejected)
     })
   end
 
   defp atomize_target(%{"provider" => provider, "model" => model}) do
     %{provider: provider, model: model}
   end
+
+  defp decode_rejected(rejected) when is_list(rejected) do
+    Enum.map(rejected, fn %{"id" => id, "reason" => reason} -> {id, decode_reason(reason)} end)
+  end
+
+  defp decode_reason(reason) when is_binary(reason) do
+    case safe_to_existing_atom(reason) do
+      {:ok, atom} -> atom
+      :error -> reason
+    end
+  end
+
+  defp decode_reason(reason), do: reason
 end

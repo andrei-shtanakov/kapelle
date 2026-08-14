@@ -14,7 +14,8 @@ Application.put_env(:kapelle, :orchestrator_overrides, %{
     "route_policy" => Kapelle.Test.RoutePolicy
   },
   adapter: %{
-    "execute_adapter" => Kapelle.Test.ExecuteAdapter
+    "execute_adapter" => Kapelle.Test.ExecuteAdapter,
+    "fallback_adapter" => Kapelle.Test.FallbackAdapter
   },
   judge: %{
     "failing_judge" => Kapelle.Test.FailingJudge,

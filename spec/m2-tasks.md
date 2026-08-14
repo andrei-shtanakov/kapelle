@@ -94,7 +94,7 @@ slice — cancel and retry are a separate task.
 **Blocks:** —
 
 ### TASK-104: Wire the fallback chain into routed execution
-🟠 P1 | ⏸️ BLOCKED | Est: 1d
+🟠 P1 | ✅ DONE | Est: 1d
 
 **Description:**
 Close the gap review found on PR #7: `Kapelle.Executor.FallbackResolver`
@@ -118,14 +118,14 @@ iteration order, and the reported cycle must be the minimal cycle segment
 (`A → B → C → B` reports `[B, C, B]`, not `[A, B, C, B]`).
 
 **Checklist:**
-- [ ] one shared execution seam walks `[decision target | fallback]` via `FallbackResolver.resolve/2`; `Pipeline.run_sync/2` and `ExecuteWorker` both go through it
-- [ ] a provider `:error` on the routed target executes the next declared target; `:fail` is returned as-is and never falls back
-- [ ] all targets erroring ends the run `failed` with the typed `{:all_targets_errored, rejections}` reason — no crash, no retry storm
-- [ ] `run_tasks` persists `target` and the ordered `rejected` history; `to_contract/1` restores them onto `Executor.Result`
-- [ ] cycle detection order is deterministic (no dependence on map iteration order)
-- [ ] the reported cycle is the minimal cycle segment, with a regression test for an entry leading into a cycle it is not part of
-- [ ] integration test through the real runtime entrypoint (submit → route → execute → persisted rows), not a direct resolver call
-- [ ] no test performs network I/O
+- [x] one shared execution seam walks `[decision target | fallback]` via `FallbackResolver.resolve/2`; `Pipeline.run_sync/2` and `ExecuteWorker` both go through it
+- [x] a provider `:error` on the routed target executes the next declared target; `:fail` is returned as-is and never falls back
+- [x] all targets erroring ends the run `failed` with the typed `{:all_targets_errored, rejections}` reason — no crash, no retry storm
+- [x] `run_tasks` persists `target` and the ordered `rejected` history; `to_contract/1` restores them onto `Executor.Result`
+- [x] cycle detection order is deterministic (no dependence on map iteration order)
+- [x] the reported cycle is the minimal cycle segment, with a regression test for an entry leading into a cycle it is not part of
+- [x] integration test through the real runtime entrypoint (submit → route → execute → persisted rows), not a direct resolver call
+- [x] no test performs network I/O
 
 **Traces to:** [REQ-104]
 **Depends on:** [TASK-101]
