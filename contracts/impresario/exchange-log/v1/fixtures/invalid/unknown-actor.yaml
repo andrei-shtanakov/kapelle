@@ -1,0 +1,9 @@
+# Инвариант: actor — закрытый enum ролей цикла
+id: XL-003
+proposal_ref: proposal://PP-001
+entries:
+  - iteration: 0
+    actor: marketing_bot
+    artifact_kind: note
+    artifact_ref: "note://freeform"
+    at: 2026-08-11T09:00:00Z

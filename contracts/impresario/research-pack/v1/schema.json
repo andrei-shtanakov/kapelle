@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:impresario:contract:research-pack:v1",
+  "title": "ResearchPack",
+  "description": "Материализованный выход researcher на одну итерацию (docs/semantics.md, ResearchPack). Finding с уверенностью выше unknown обязан нести source_ref (честный unknown вместо выдумки).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "idea_ref",
+    "iteration",
+    "findings",
+    "constraints",
+    "gaps",
+    "brief_for_creator",
+    "requests_to_creator",
+    "produced_by",
+    "produced_at"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^RP-[0-9]{3,}$" },
+    "idea_ref": { "type": "string", "pattern": "^idea://IDEA-[0-9]{3,}$" },
+    "proposal_ref": { "type": "string", "pattern": "^proposal://PP-[0-9]{3,}$" },
+    "iteration": { "type": "integer", "minimum": 0 },
+    "questions": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "findings": { "type": "array", "items": { "$ref": "#/$defs/finding" } },
+    "constraints": { "type": "array", "items": { "$ref": "#/$defs/constraint" } },
+    "gaps": { "type": "array", "items": { "$ref": "#/$defs/gap" } },
+    "brief_for_creator": { "type": "string", "minLength": 1 },
+    "requests_to_creator": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "input_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "produced_by": { "$ref": "#/$defs/actor" },
+    "produced_at": { "$ref": "#/$defs/timestamp" }
+  },
+  "$defs": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$"
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": { "enum": ["agent", "human"] },
+        "id": { "type": "string", "minLength": 1 },
+        "model": { "type": "string", "minLength": 1 },
+        "prompt_version": { "type": "string", "minLength": 1 }
+      },
+      "if": { "properties": { "kind": { "const": "agent" } } },
+      "then": { "required": ["kind", "id", "model", "prompt_version"] }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim", "confidence"],
+      "properties": {
+        "claim": { "type": "string", "minLength": 1 },
+        "source_ref": { "type": "string", "minLength": 1 },
+        "confidence": { "enum": ["high", "medium", "low", "unknown"] },
+        "superseded": { "type": "boolean" }
+      },
+      "if": {
+        "properties": { "confidence": { "enum": ["high", "medium", "low"] } }
+      },
+      "then": { "required": ["claim", "confidence", "source_ref"] }
+    },
+    "constraint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "statement"],
+      "properties": {
+        "kind": { "enum": ["regulatory", "standard", "strategy", "internal", "other"] },
+        "statement": { "type": "string", "minLength": 1 },
+        "source_ref": { "type": "string", "minLength": 1 }
+      }
+    },
+    "gap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["what", "blocks_approval"],
+      "properties": {
+        "what": { "type": "string", "minLength": 1 },
+        "needed": { "type": "string" },
+        "blocks_approval": { "type": "boolean" },
+        "closed": { "type": "boolean" }
+      }
+    }
+  }
+}

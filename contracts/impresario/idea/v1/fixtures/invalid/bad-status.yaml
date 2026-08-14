@@ -1,0 +1,11 @@
+# Инвариант: status — закрытый enum воронки стадии 3; произвольный статус невалиден
+id: IDEA-003
+title: "Идея с выдуманным статусом"
+date: 2026-08-01
+source:
+  kind: rd
+  ref: "rd-note-17"
+priority: high
+business_attractiveness: 5
+status: ready_for_committee
+hypothesis: "Гипотеза есть, но статус вне enum."

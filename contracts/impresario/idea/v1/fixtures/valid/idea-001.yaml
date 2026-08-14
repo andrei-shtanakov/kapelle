@@ -1,0 +1,19 @@
+id: IDEA-001
+title: "Портал самообслуживания для 4-й линии HD"
+date: 2026-08-01
+source:
+  kind: hd
+  ref: "HD-4L-2026-Q2-report"
+priority: medium
+business_attractiveness: 4
+status: under_review
+owner: "product-office"
+type: new_product
+hypothesis: >-
+  Портал самообслуживания снизит нагрузку 4-й линии HD на 30%,
+  дав клиентам сегмента SMB прямой доступ к диагностике за счёт
+  автоматизации типовых запросов.
+essence: "Self-service диагностика вместо тикетов 4-й линии."
+problem: "Типовые запросы занимают 60% времени 4-й линии."
+open_questions:
+  - "Какая доля запросов действительно типовая?"

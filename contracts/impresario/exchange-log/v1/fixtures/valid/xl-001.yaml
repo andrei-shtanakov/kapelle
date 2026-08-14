@@ -1,0 +1,25 @@
+id: XL-001
+proposal_ref: proposal://PP-001
+entries:
+  - iteration: 0
+    actor: researcher
+    artifact_kind: research_pack
+    artifact_ref: research-pack://RP-001
+    at: 2026-08-11T09:00:00Z
+    requests_opened:
+      - "Уточнить целевой сегмент: весь SMB или верхний квартиль?"
+  - iteration: 0
+    actor: creator
+    artifact_kind: concept_draft
+    artifact_ref: concept-draft://CD-001
+    at: 2026-08-11T12:00:00Z
+    requests_opened:
+      - "Проверить готовность платить: интервью с 5 клиентами верхнего квартиля."
+    requests_closed:
+      - "Уточнить целевой сегмент: весь SMB или верхний квартиль?"
+  - iteration: 0
+    actor: orchestration
+    artifact_kind: product_proposal_patch
+    artifact_ref: proposal://PP-001
+    at: 2026-08-11T12:05:00Z
+    note: "version 1 → 2: добавлена концепция v0"

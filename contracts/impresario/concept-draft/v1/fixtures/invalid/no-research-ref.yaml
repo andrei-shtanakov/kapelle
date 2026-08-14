@@ -1,0 +1,21 @@
+# Инвариант: ConceptDraft без ссылки на ResearchPack невалиден
+id: CD-002
+idea_ref: idea://IDEA-001
+iteration: 0
+value_prop: "УТП, придуманное без исследования."
+alternatives:
+  - direction: "Единственный вариант"
+    summary: "Без сравнения."
+chosen_direction:
+  direction: "Единственный вариант"
+  why: "Показалось правильным."
+business_models: []
+assumptions: []
+requests_to_researcher: []
+proposal_delta: "Концепция без research-базы."
+produced_by:
+  kind: agent
+  id: creator
+  model: vendor/model-x
+  prompt_version: creator/v1
+produced_at: 2026-08-11T12:00:00Z

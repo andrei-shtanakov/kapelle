@@ -1,0 +1,22 @@
+# Инвариант: хотя бы одна альтернатива обязана быть материализована
+id: CD-003
+idea_ref: idea://IDEA-001
+iteration: 0
+based_on_research:
+  ref: research-pack://RP-001
+  iteration: 0
+value_prop: "УТП без альтернатив."
+alternatives: []
+chosen_direction:
+  direction: "Безальтернативный путь"
+  why: "Альтернативы не рассматривались."
+business_models: []
+assumptions: []
+requests_to_researcher: []
+proposal_delta: "Концепция без альтернатив."
+produced_by:
+  kind: agent
+  id: creator
+  model: vendor/model-x
+  prompt_version: creator/v1
+produced_at: 2026-08-11T12:00:00Z
