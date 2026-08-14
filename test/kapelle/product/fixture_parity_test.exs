@@ -17,7 +17,9 @@ defmodule Kapelle.Product.FixtureParityTest do
                  "expected #{path} to load"
 
           assert is_map(doc)
-          if Map.has_key?(doc, "id"), do: assert(record.id == doc["id"])
+
+          assert is_binary(record.id) and record.id != "",
+                 "#{path}: Record.id must come from the kind's identity field"
         end
       end
 

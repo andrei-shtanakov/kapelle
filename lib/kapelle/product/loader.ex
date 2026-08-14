@@ -5,17 +5,19 @@ defmodule Kapelle.Product.Loader do
   record (design doc §3, invariant 4).
   """
 
-  alias Kapelle.Product.{Record, Validator}
+  alias Kapelle.Product.{Identity, Record, Validator}
 
   @spec load(atom(), binary()) ::
           {:ok, Record.t()}
           | {:error, {:invalid_artifact, atom(), list()}}
           | {:error, {:unknown_contract, term()}}
           | {:error, {:unparseable, term()}}
+          | {:error, {:missing_identity, atom(), String.t()}}
   def load(kind, yaml) when is_binary(yaml) do
     with {:ok, doc} <- parse(yaml),
-         :ok <- Validator.validate(kind, doc) do
-      {:ok, %Record{kind: kind, id: doc["id"], doc: doc}}
+         :ok <- Validator.validate(kind, doc),
+         {:ok, id} <- Identity.of(kind, doc) do
+      {:ok, %Record{kind: kind, id: id, doc: doc}}
     end
   end
 
