@@ -17,6 +17,13 @@ defmodule Kapelle.Product.Store do
   `config/test.exs`) — this is not a general bypass. If a future slice
   needs cross-write composition, the path is an outbox, not lifting this
   guard.
+
+  `loop_state` is NOT stored here (owner's loop-state-leaves-the-store
+  decision, 2026-08-14): it is a derived projection with no monotonic
+  revision of its own, and lives in `Kapelle.Product.Loops`'s
+  `latest_state` column instead. `put/2` refuses a `:loop_state` record
+  with a typed `{:projection_kind, :loop_state}` error rather than
+  silently accepting it into the authoritative store.
   """
 
   alias Kapelle.Product.{CanonicalHash, Event, Events, Record}
@@ -29,7 +36,6 @@ defmodule Kapelle.Product.Store do
     concept_draft: "concept-draft",
     product_proposal: "proposal",
     exchange_log: "exchange-log",
-    loop_state: "loop-state",
     gate_decision: "gate-decision"
   }
 
@@ -46,8 +52,13 @@ defmodule Kapelle.Product.Store do
   @spec put(Record.t(), String.t()) ::
           {:ok, :inserted | :noop}
           | {:error, :ambient_transaction}
+          | {:error, {:projection_kind, :loop_state}}
           | {:error, {:artifact_conflict, atom(), String.t(), String.t(), String.t()}}
           | {:error, Ecto.Changeset.t()}
+  def put(%Record{kind: :loop_state}, loop_id) when is_binary(loop_id) do
+    {:error, {:projection_kind, :loop_state}}
+  end
+
   def put(%Record{kind: kind, id: id, doc: doc}, loop_id) when is_binary(loop_id) do
     if Repo.in_transaction?() and not sandbox?() do
       {:error, :ambient_transaction}

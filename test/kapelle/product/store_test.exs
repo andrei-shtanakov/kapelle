@@ -114,6 +114,17 @@ defmodule Kapelle.Product.StoreTest do
              Store.put(mutated, "LOOP-R2")
   end
 
+  test "a loop_state record is refused — it is a projection surface, not an authoritative artifact" do
+    {:ok, record} =
+      Loader.load(
+        :loop_state,
+        File.read!(Path.join(Contracts.dir!(:loop_state), "fixtures/valid/running.json"))
+      )
+
+    assert {:error, {:projection_kind, :loop_state}} = Store.put(record, "LOOP-T5")
+    assert Store.all("LOOP-T5") == []
+  end
+
   test "a late lower revision still inserts — Store never polices latest, the View does" do
     v2 = proposal_record(version: 2)
     v1 = proposal_record(version: 1)

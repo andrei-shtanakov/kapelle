@@ -14,14 +14,19 @@ defmodule Kapelle.Product.View do
   (`:impossible_sequence` — a concept draft with no research pack of its
   own iteration, or a hole below the highest iteration reached).
 
-  `loop_state` and `gate_decision` rows are carried as a best-effort
-  projection: they are still re-checked, but a row that fails the check
-  is dropped from the projection rather than failing the whole view —
-  neither kind ever participates in the sequence check and neither feeds
-  `Kapelle.Product.NextStage`. A drop is never silent: it is logged
-  (`Logger.warning/1`) and recorded in the `dropped` field so tampering
-  with a lenient-kind row stays visible even though it doesn't fail the
-  build.
+  `gate_decision` rows are carried as a best-effort projection: they are
+  still re-checked, but a row that fails the check is dropped from the
+  projection rather than failing the whole view — it never participates
+  in the sequence check and never feeds `Kapelle.Product.NextStage`. A
+  drop is never silent: it is logged (`Logger.warning/1`) and recorded
+  in the `dropped` field so tampering with a lenient-kind row stays
+  visible even though it doesn't fail the build.
+
+  `loop_state` has no place in this view at all (owner's
+  loop-state-leaves-the-store decision, 2026-08-14): it is not stored in
+  `product_artifacts`, so `Store.all/1` never yields a `:loop_state` row
+  for this module to carry, drop, or fail on. Its projection lives in
+  `Kapelle.Product.Loops`'s `latest_state` column instead.
   """
 
   require Logger
@@ -34,7 +39,6 @@ defmodule Kapelle.Product.View do
     :idea,
     :proposal,
     :exchange_log,
-    :loop_state,
     research_packs: %{},
     concept_drafts: %{},
     decisions: [],
@@ -49,11 +53,10 @@ defmodule Kapelle.Product.View do
           research_packs: %{optional(non_neg_integer()) => map()},
           concept_drafts: %{optional(non_neg_integer()) => map()},
           decisions: [map()],
-          loop_state: map() | nil,
           dropped: [%{kind: atom(), identity: String.t(), reason: term()}]
         }
 
-  @lenient_kinds [:loop_state, :gate_decision]
+  @lenient_kinds [:gate_decision]
 
   @spec build(String.t()) ::
           {:ok, t()}
@@ -150,7 +153,6 @@ defmodule Kapelle.Product.View do
          idea: idea,
          proposal: proposal,
          exchange_log: exchange_log,
-         loop_state: singleton_lenient(rows, :loop_state),
          research_packs: research_packs,
          concept_drafts: concept_drafts,
          decisions: decisions(rows)
@@ -163,18 +165,6 @@ defmodule Kapelle.Product.View do
       [] -> {:ok, nil}
       [row] -> {:ok, row.doc}
       many -> {:error, {:competing_artifacts, %{kind: kind, ids: Enum.map(many, & &1.id)}}}
-    end
-  end
-
-  # loop_state never fails the view (design §5): a duplicate is resolved
-  # by taking the most recently stored row rather than erroring.
-  defp singleton_lenient(rows, kind) do
-    rows
-    |> Enum.filter(&(&1.kind == kind))
-    |> List.last()
-    |> case do
-      nil -> nil
-      row -> row.doc
     end
   end
 
@@ -310,7 +300,6 @@ defmodule Kapelle.Product.View do
       idea: grouped.idea,
       proposal: grouped.proposal,
       exchange_log: grouped.exchange_log,
-      loop_state: grouped.loop_state,
       research_packs: grouped.research_packs,
       concept_drafts: grouped.concept_drafts,
       decisions: grouped.decisions,

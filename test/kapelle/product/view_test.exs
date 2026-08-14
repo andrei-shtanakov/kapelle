@@ -25,7 +25,6 @@ defmodule Kapelle.Product.ViewTest do
     assert {:ok, view} = View.build("LOOP-V1")
     assert %{0 => %{"id" => "RP-001"}} = view.research_packs
     assert view.idea["id"]
-    assert view.loop_state == nil
   end
 
   test "a stored row whose doc was corrupted post-hoc fails closed on hash mismatch" do
@@ -48,11 +47,6 @@ defmodule Kapelle.Product.ViewTest do
     {:ok, _} = Store.put(load!(:idea, "fixtures/valid/idea-001.yaml"), "LOOP-V3")
     {:ok, _} = Store.put(load!(:concept_draft, "fixtures/valid/cd-001.yaml"), "LOOP-V3")
     assert {:error, {:impossible_sequence, _detail}} = View.build("LOOP-V3")
-  end
-
-  test "loop_state is carried as projection but its absence or presence never fails the view" do
-    seed_happy("LOOP-V4")
-    assert {:ok, %View{loop_state: nil}} = View.build("LOOP-V4")
   end
 
   test "a research pack and concept draft of the same iteration build a full concept_drafts entry" do
@@ -83,7 +77,6 @@ defmodule Kapelle.Product.ViewTest do
     assert view.research_packs == %{}
     assert view.concept_drafts == %{}
     assert view.decisions == []
-    assert view.loop_state == nil
     assert view.dropped == []
   end
 

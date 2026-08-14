@@ -14,7 +14,8 @@ defmodule Kapelle.Product.ParityHappyTest do
 
   use Kapelle.DataCase, async: false
 
-  alias Kapelle.Product.{CanonicalHash, Loader, NextStage, Oracle.Normalizer, Store, View}
+  alias Kapelle.Product.{CanonicalHash, Loader, Loops, NextStage, Oracle.Normalizer, Store, View}
+  alias Kapelle.Product.Record
 
   @golden "test/support/fixtures/golden/happy"
 
@@ -24,7 +25,7 @@ defmodule Kapelle.Product.ParityHappyTest do
 
     assert {:ok, view} = View.build(loop_id)
 
-    max = view.loop_state["max_iterations"]
+    max = Loops.get!(loop_id).max_iterations
     assert {:terminal, :ready, _reason} = NextStage.compute(view, max)
   end
 
@@ -47,7 +48,7 @@ defmodule Kapelle.Product.ParityHappyTest do
     # loop.state's own idea_input_hash (computed by the Python producer) must
     # equal what Kapelle.Product.CanonicalHash — this codebase's hash — gets
     # from the same idea document once it is in the view.
-    assert view.loop_state["idea_input_hash"] == CanonicalHash.hash(view.idea)
+    assert Loops.get!(loop_id).latest_state["idea_input_hash"] == CanonicalHash.hash(view.idea)
   end
 
   test "the normalizer matches the committed normalized golden" do
@@ -62,6 +63,12 @@ defmodule Kapelle.Product.ParityHappyTest do
   end
 
   # Replay artifacts in file order — the store is order-insensitive.
+  # loop.state is NOT an authoritative artifact (owner's
+  # loop-state-leaves-the-store decision, 2026-08-14): it is still
+  # `Loader.load(:loop_state, ...)`-validated (the schema stays vendored;
+  # parity still validates the golden file's shape before projecting
+  # it), but it lands in `Kapelle.Product.Loops`'s config + projection
+  # surface instead of `Store`.
   defp seed_golden_workspace(loop_id) do
     ws = Path.join(@golden, "workspace")
 
@@ -69,12 +76,30 @@ defmodule Kapelle.Product.ParityHappyTest do
           [
             {:idea, "idea.yaml"},
             {:product_proposal, "proposal.yaml"},
-            {:exchange_log, "exchange-log.yaml"},
-            {:loop_state, "loop.state"}
+            {:exchange_log, "exchange-log.yaml"}
           ] ++ iteration_files(ws) do
       {:ok, record} = Loader.load(kind, File.read!(Path.join(ws, file)))
       {:ok, _} = Store.put(record, loop_id)
     end
+
+    seed_loop_config(loop_id, ws)
+  end
+
+  defp seed_loop_config(loop_id, ws) do
+    {:ok, %Record{doc: state_doc}} =
+      Loader.load(:loop_state, File.read!(Path.join(ws, "loop.state")))
+
+    {:ok, _} =
+      Loops.create(%{
+        loop_id: loop_id,
+        idea_identity: state_doc["idea_ref"] |> String.split("://") |> List.last(),
+        proposal_id: state_doc["proposal_id"],
+        exchange_log_id: state_doc["exchange_log_id"],
+        max_iterations: state_doc["max_iterations"],
+        agent: "fixture:golden"
+      })
+
+    {:ok, _} = Loops.put_state_projection(loop_id, state_doc)
   end
 
   defp assert_observation_stored(observation, stored) do
