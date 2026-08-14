@@ -1,0 +1,32 @@
+id: CD-002
+idea_ref: idea://IDEA-001
+proposal_ref: proposal://PP-001
+iteration: 1
+based_on_research:
+  ref: research-pack://RP-002
+  iteration: 1
+value_prop: value
+alternatives:
+- direction: a
+  summary: s
+- direction: b
+  summary: s
+- direction: c
+  summary: s
+chosen_direction:
+  direction: a
+  why: w
+business_models:
+- m
+assumptions:
+- text: critical assumption
+  blocks_approval: true
+  answered_by: research-pack://RP-002
+requests_to_researcher: []
+proposal_delta: delta 1
+produced_by:
+  kind: agent
+  id: creator
+  model: vendor/model-x
+  prompt_version: creator/v1
+produced_at: '2026-08-12T18:00:00Z'

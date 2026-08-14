@@ -24,14 +24,22 @@ defmodule Kapelle.Product.NextStage do
       rp == nil -> {:run, {:research, i}}
       cd == nil -> {:run, {:concept, i}}
       not delta_applied?(view.proposal, i) -> {:run, {:apply, i}}
-      true -> evaluate(rp, cd, i, max)
+      true -> evaluate(view, rp, cd, i, max)
     end
   end
 
   defp delta_applied?(nil, _i), do: false
   defp delta_applied?(proposal, i), do: (proposal["iteration"] || -1) >= i
 
-  defp evaluate(rp, cd, i, max) do
+  # A replayed/resumed view can already hold artifacts for iteration i+1
+  # (the producer's own loop already decided to continue past iteration i,
+  # for whatever reason its issues/requests were); re-checking i+1's own
+  # state via `walk` — rather than blindly instructing "run research i+1" —
+  # is what lets a fully-materialized loop reach its true terminal verdict
+  # instead of getting stuck re-evaluating its first iteration forever. When
+  # i+1's artifacts do NOT exist yet, `walk`'s first clause falls through to
+  # the exact same `{:run, {:research, i + 1}}` instruction as before.
+  defp evaluate(view, rp, cd, i, max) do
     issues = open_criticals(rp, cd)
     requests = Map.get(cd, "requests_to_researcher", [])
 
@@ -40,7 +48,7 @@ defmodule Kapelle.Product.NextStage do
         {:terminal, :ready, "no open critical assumptions/gaps and no open requests"}
 
       i + 1 < max ->
-        {:run, {:research, i + 1}}
+        walk(view, i + 1, max)
 
       true ->
         {:terminal, :needs_human,

@@ -125,4 +125,27 @@ defmodule Kapelle.Product.NextStageTest do
 
     assert NextStage.compute(v, 2) == {:run, {:research, 1}}
   end
+
+  test "a fully replayed multi-iteration view reaches ready instead of re-running iteration 0" do
+    # Regression: iteration 0 left an open gap/assumption/request (so, taken
+    # alone, it would "advance" to research 1), but the view already holds
+    # iteration 1's artifacts closing them out — a completed/resumed loop
+    # replayed whole, as the golden happy-path fixture does. The walk must
+    # follow through to iteration 1's own verdict, not get stuck re-deciding
+    # iteration 0 forever.
+    v =
+      view(%{
+        research_packs: %{
+          0 => rp(0, [open_gap("critical gap")]),
+          1 => rp(1, [closed_gap("critical gap")])
+        },
+        concept_drafts: %{
+          0 => cd(0, [open_assumption("critical assumption")], ["check the gap"]),
+          1 => cd(1, [answered_assumption("critical assumption")])
+        },
+        proposal: %{"iteration" => 1}
+      })
+
+    assert {:terminal, :ready, _reason} = NextStage.compute(v, 2)
+  end
 end

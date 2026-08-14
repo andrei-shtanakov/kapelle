@@ -1,0 +1,15 @@
+producer: impresario@f84d5ac5a2aea1e95f9a52f5a266cf37f42f1fd1 (full tree via git archive)
+generated: 2026-08-14
+generator: scripts/gen_golden.sh + scripts/gen_golden_run.py
+normalizer: lib/kapelle/product/oracle/normalizer.ex version() = v1
+sha256 ./normalized.json: ebc2dd2a238c621aec447c3dbb4b1cd68f81230a1dd899ec7721d98024aff3a5
+sha256 ./raw-trace.jsonl: 9eeaafdeba1b2c38f5ce5e58b92882b1caa532a007d84531612430f426a65abe
+sha256 ./workspace/cd-001.yaml: ea7010eabcb18ab29777dc9ceae4b045264ed36fd352095a2c5201fe42170cbd
+sha256 ./workspace/cd-002.yaml: 33d451a6895e49f01d3ac560e9cf917cbc16452301c3fa900b1453897bd8222f
+sha256 ./workspace/exchange-log.yaml: cb71bcd9f92e0ee9b999c31c1360c39451285ade5c281a3740eff63487cf3b41
+sha256 ./workspace/idea.yaml: 2c28db4645951ec316641cd8f95970a6d0f50145a54a806aab4c13fc5a38f0ee
+sha256 ./workspace/loop.state: 12590e1a70637b104adbcc0c879ff48a74fc20468b51b0275bfe2e14364c2df6
+sha256 ./workspace/proposal.yaml: b7c8df7a4df9de5a8f5a11f0472fae6300bf7958e3bb79d15cad0d866a71b44b
+sha256 ./workspace/rp-001.yaml: 8db8ee8264c6eba3db59e0d8ddb70b40c6b05f8d71366b91981f7ab88eff96c0
+sha256 ./workspace/rp-002.yaml: 075dc900eb8c750ef63f4116b37d339cfc02f353884b72f60f680922f5fe732b
+sha256 ./workspace/trace.jsonl: 9eeaafdeba1b2c38f5ce5e58b92882b1caa532a007d84531612430f426a65abe
