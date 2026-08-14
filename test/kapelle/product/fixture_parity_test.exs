@@ -17,7 +17,9 @@ defmodule Kapelle.Product.FixtureParityTest do
                  "expected #{path} to load"
 
           assert is_map(doc)
-          if Map.has_key?(doc, "id"), do: assert(record.id == doc["id"])
+
+          assert is_binary(record.id) and record.id != "",
+                 "#{path}: Record.id must come from the kind's identity field"
         end
       end
 
@@ -37,5 +39,9 @@ defmodule Kapelle.Product.FixtureParityTest do
 
   test "unparseable YAML is a typed unparseable error, not a crash" do
     assert {:error, {:unparseable, _}} = Loader.load(:idea, ": : definitely not yaml : :")
+  end
+
+  test "duplicate key in a loaded document is a typed duplicate_key error" do
+    assert {:error, {:duplicate_key, "id"}} = Loader.load(:idea, "id: A\nid: B\n")
   end
 end

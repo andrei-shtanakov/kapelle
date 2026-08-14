@@ -13,7 +13,8 @@ defmodule Kapelle.Product.ValidatorTest do
 
   test "a valid document validates :ok" do
     doc =
-      "contracts/impresario/research-pack/v1/fixtures/valid/rp-001.yaml"
+      Contracts.dir!(:research_pack)
+      |> Path.join("fixtures/valid/rp-001.yaml")
       |> File.read!()
       |> YamlElixir.read_from_string!()
 

@@ -1,0 +1,10 @@
+id: IDEA-001
+title: Loop test idea
+date: '2026-08-12'
+source:
+  kind: internal
+  ref: test
+priority: high
+business_attractiveness: 4
+status: selected
+hypothesis: h

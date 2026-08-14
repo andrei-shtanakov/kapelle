@@ -29,7 +29,7 @@ jobs:
       - name: compare vendored copies to upstream HEAD
         run: |
           status=0
-          for pin in contracts/impresario/*/v1/PIN; do
+          for pin in priv/contracts/impresario/*/v1/PIN; do
             dir="$(dirname "$pin")"
             src="$(grep '^source:' "$pin" | sed -E 's/^source: impresario@[0-9a-f]+ //')"
             if ! diff -r --exclude=PIN "$dir" ".upstream/$src" > /dev/null 2>&1; then

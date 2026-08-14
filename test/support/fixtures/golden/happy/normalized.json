@@ -1,0 +1,46 @@
+[
+  {
+    "proposal_transition": "draft->in_iteration"
+  },
+  {
+    "artifact_hash": "sha256:bf726281050cdee117573f69d5ea9640bdbaa00aad2f947717afa06d51d44eb2",
+    "artifact_kind": "research_pack",
+    "artifact_ref": "research-pack://RP-001",
+    "iteration": 0,
+    "stage": "researcher"
+  },
+  {
+    "artifact_hash": "sha256:7be8e278131b4910e40ef6135b7bc168fff107ac9b34eb42a2d748581f8ab52d",
+    "artifact_kind": "concept_draft",
+    "artifact_ref": "concept-draft://CD-001",
+    "iteration": 0,
+    "stage": "creator"
+  },
+  {
+    "iteration": 0,
+    "stop_reason_class": "open",
+    "verdict": "continue"
+  },
+  {
+    "artifact_hash": "sha256:338943952f0248dea0a0fe943fc38527393ac021668ea4bf912bba396e242dee",
+    "artifact_kind": "research_pack",
+    "artifact_ref": "research-pack://RP-002",
+    "iteration": 1,
+    "stage": "researcher"
+  },
+  {
+    "artifact_hash": "sha256:30aa2b5a2533e0335ede78390974866015c621cf794a3049c35a4d31359f95a9",
+    "artifact_kind": "concept_draft",
+    "artifact_ref": "concept-draft://CD-002",
+    "iteration": 1,
+    "stage": "creator"
+  },
+  {
+    "iteration": 1,
+    "stop_reason_class": "no open critical assumptions/gaps and no open requests",
+    "verdict": "ready_for_business"
+  },
+  {
+    "proposal_transition": "in_iteration->ready_for_business"
+  }
+]

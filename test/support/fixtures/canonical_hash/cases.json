@@ -1,0 +1,93 @@
+[
+  {
+    "doc": {
+      "a": 2,
+      "b": 1
+    },
+    "hash": "sha256:d3626ac30a87e6f7a6428233b3c68299976865fa5508e4267c5415c76af7a772",
+    "name": "flat"
+  },
+  {
+    "doc": {
+      "a": null,
+      "z": {
+        "y": [
+          1,
+          2,
+          {
+            "x": "w"
+          }
+        ]
+      }
+    },
+    "hash": "sha256:13ca25f953f5d6adc80fec1681d8c13be6df32eb7c9c0d26e5f88ef55529a59a",
+    "name": "nested"
+  },
+  {
+    "doc": {
+      "emoji": "🎼",
+      "ключ": "значение — π≈3.14159"
+    },
+    "hash": "sha256:fe359ddd454ea2fb5e3cc9c05a4af704888ee963db708b8769da9a58a883c6fd",
+    "name": "unicode"
+  },
+  {
+    "doc": {
+      "big": 123456789012345,
+      "float": 0.75,
+      "int": 42,
+      "neg": -7,
+      "one": 1.0
+    },
+    "hash": "sha256:bc7f9db320af1095337e834ac14ef62f81ba56d898fb41ec125982dcd9c7602a",
+    "name": "numbers"
+  },
+  {
+    "doc": {
+      "f": false,
+      "n": null,
+      "t": true
+    },
+    "hash": "sha256:22e00dc2f7b01420f940fbdbfbdf34fa0667cc6500186495023ba37722cbd05e",
+    "name": "bools_null"
+  },
+  {
+    "doc": {
+      "bs": "a\\b",
+      "nl": "line1\nline2",
+      "q": "he said \"hi\"",
+      "tab": "a\tb"
+    },
+    "hash": "sha256:e2b8034c291daa464b92ee78a04acb177e6a62cde0d5609d655b3e08536dfd7b",
+    "name": "strings_escapes"
+  },
+  {
+    "doc": {
+      "l": [],
+      "m": {},
+      "s": ""
+    },
+    "hash": "sha256:d09ec1f2e80619cfe1690de6c05b6a5df076bc23d8d6082c9627c39fcea43e12",
+    "name": "empty_shapes"
+  },
+  {
+    "doc": {
+      "constraints": [],
+      "findings": [
+        {
+          "claim": "60% типовые",
+          "confidence": "medium",
+          "source_ref": "https://example.org/x"
+        }
+      ],
+      "gaps": [
+        "нет данных по SLA"
+      ],
+      "id": "RP-001",
+      "idea_ref": "idea://IDEA-001",
+      "iteration": 0
+    },
+    "hash": "sha256:77f2e0d3f960a42d41f415692cb692423257a737a2223b0b20599909eb3266d1",
+    "name": "realistic"
+  }
+]
