@@ -5,7 +5,7 @@ defmodule Kapelle.Product.Loader do
   record (design doc §3, invariant 4).
   """
 
-  alias Kapelle.Product.{Identity, Record, Validator}
+  alias Kapelle.Product.{Identity, Record, StrictParse, Validator}
 
   @spec load(atom(), binary()) ::
           {:ok, Record.t()}
@@ -13,6 +13,7 @@ defmodule Kapelle.Product.Loader do
           | {:error, {:unknown_contract, term()}}
           | {:error, {:unparseable, term()}}
           | {:error, {:missing_identity, atom(), String.t()}}
+          | {:error, {:duplicate_key, String.t()}}
   def load(kind, yaml) when is_binary(yaml) do
     with {:ok, doc} <- parse(yaml),
          :ok <- Validator.validate(kind, doc),
@@ -22,10 +23,11 @@ defmodule Kapelle.Product.Loader do
   end
 
   defp parse(yaml) do
-    case YamlElixir.read_from_string(yaml) do
+    case StrictParse.parse(yaml) do
       {:ok, doc} when is_map(doc) -> {:ok, doc}
       {:ok, other} -> {:error, {:unparseable, {:not_a_document, other}}}
-      {:error, reason} -> {:error, {:unparseable, reason}}
+      {:error, {:duplicate_key, _}} = error -> error
+      {:error, {:unparseable, _}} = error -> error
     end
   end
 end
