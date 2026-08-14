@@ -139,4 +139,28 @@ defmodule Kapelle.Task105RedTest do
     assert all_enqueued() == []
     refute_receive _any_event, 100
   end
+
+  test "a held loop's stop record is written once — reconciling without a pinned clock never restamps it" do
+    loop_id = start_loop!("LOOP-TASK-105-CLOCK")
+    assert %{discard: 0, failure: 0} = drain_product!()
+    assert Loops.get!(loop_id).status == "needs_human"
+
+    original_stop = Loops.get!(loop_id).latest_state["stop"]
+    assert original_stop["at"] == @now_iso
+
+    # Simulate production from here on: no pinned clock, so any
+    # `now_iso/0` call the repair path might still make would produce a
+    # genuinely different, unpredictable wall-clock string on every call
+    # — if the fix under test regressed, `latest_state["stop"]["at"]`
+    # would drift right here and `projection_stale?` would read `true`
+    # forever, so `reconcile/1` would never settle on `:in_sync`.
+    Application.delete_env(:kapelle, :product_clock)
+    on_exit(fn -> Application.put_env(:kapelle, :product_clock, fn -> @now_iso end) end)
+
+    assert {:ok, :in_sync} = Reconciler.reconcile(loop_id)
+    assert Loops.get!(loop_id).latest_state["stop"] == original_stop
+
+    assert {:ok, :in_sync} = Reconciler.reconcile(loop_id)
+    assert Loops.get!(loop_id).latest_state["stop"] == original_stop
+  end
 end

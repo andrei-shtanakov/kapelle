@@ -317,13 +317,40 @@ defmodule Kapelle.Product.Workers.StageShell do
       "proposal_id" => loop.proposal_id,
       "exchange_log_id" => loop.exchange_log_id,
       "max_iterations" => loop.max_iterations,
-      "stop" => stop_field(outcome, view)
+      "stop" => stop_field(outcome, view, loop.latest_state)
     }
   end
 
-  defp stop_field({:run, _target}, _view), do: nil
+  defp stop_field({:run, _target}, _view, _existing_projection), do: nil
 
-  defp stop_field({:terminal, verdict, reason}, view) do
+  # A hold's `stop` is written once, at hold time — the producer never
+  # restamps it (design doc §5), and neither does this. Every later
+  # reconcile of a held (or otherwise still-terminal) loop re-derives the
+  # SAME `outcome` from its own untouched artifacts (nothing enqueues a
+  # new stage while a loop is held or final), so recomputing `"at"` via
+  # `now_iso/0` here would rewrite the recorded moment to "now" on every
+  # single reconcile — in production, with the real wall clock, that
+  # makes `projection_stale?` true forever (a fresh timestamp each call),
+  # so `repair/1` would report `:repaired` on every reconcile of an
+  # already-held loop instead of ever reaching `:in_sync`, and the
+  # audited hold-start time would drift indefinitely. When the stored
+  # projection already has a `"stop"` for this SAME verdict, reuse it
+  # verbatim; only a genuinely new/changed verdict computes a fresh one.
+  defp stop_field({:terminal, verdict, reason}, view, existing_projection) do
+    case existing_projection do
+      %{"stop" => %{"verdict" => existing_verdict} = existing_stop} ->
+        if existing_verdict == stop_verdict(verdict) do
+          existing_stop
+        else
+          fresh_stop(verdict, reason, view)
+        end
+
+      _no_existing_stop ->
+        fresh_stop(verdict, reason, view)
+    end
+  end
+
+  defp fresh_stop(verdict, reason, view) do
     %{
       "verdict" => stop_verdict(verdict),
       "reason" => reason,
