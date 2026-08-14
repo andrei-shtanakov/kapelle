@@ -134,7 +134,7 @@ iteration order, and the reported cycle must be the minimal cycle segment
 ---
 
 ### TASK-105: Needs-human hold path with inspectable state
-🟠 P1 | 🔄 IN_PROGRESS | Est: 1d
+🟠 P1 | ✅ DONE | Est: 1d
 
 The happy path lands on `ready_for_business`; the other terminal branch has
 never been walked through the contour. `NextStage` already computes
@@ -152,13 +152,13 @@ carrying a **critical unresolved gap/assumption**, and the loop holds. Not a
 matrix, not a resume.
 
 **Checklist:**
-- [ ] the fixture agent has a deterministic needs-human script: a proposal with a critical gap/assumption the concept draft does not address
-- [ ] the evaluator walks that scenario to `needs_human` through the ordinary worker contour, not by a direct `NextStage` call
-- [ ] the loop's terminal status and the artifacts that caused it are readable through the canonical `View` — a person can see *why* it holds without reading the database
-- [ ] no next job is enqueued once the loop holds
-- [ ] a second reconcile reports `in_sync`: no duplicate artifacts, no events, no jobs, no advancement
-- [ ] the domain observations match the golden oracle for the needs-human case
-- [ ] no test performs network I/O, and no test invokes a live producer
+- [x] the fixture agent has a deterministic needs-human script: a proposal with a critical gap/assumption the concept draft does not address
+- [x] the evaluator walks that scenario to `needs_human` through the ordinary worker contour, not by a direct `NextStage` call
+- [x] the loop's terminal status and the artifacts that caused it are readable through the canonical `View` — a person can see *why* it holds without reading the database
+- [x] no next job is enqueued once the loop holds
+- [x] a second reconcile reports `in_sync`: no duplicate artifacts, no events, no jobs, no advancement
+- [x] the domain observations match the golden oracle for the needs-human case
+- [x] no test performs network I/O, and no test invokes a live producer
 
 **Out of scope, each for a reason:**
 - **human resume** — blocked by the producer-owned contract (impresario#14); the contract does not exist yet, so there is nothing to port
