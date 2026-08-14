@@ -1,0 +1,44 @@
+name: impresario-contract-drift
+# Guarantee B (two-contract-guarantees): does the producer's contract
+# surface still match our vendored bytes? Copy-integrity (guarantee A)
+# lives in the test suite; this watch compares against upstream HEAD on a
+# schedule. Scheduled observation only — NEVER a required PR check.
+
+on:
+  schedule:
+    - cron: "10 6 * * *"
+  workflow_dispatch:
+    inputs:
+      synthetic:
+        description: "set to 'drift' to verify the red path on a controlled mutation"
+        required: false
+        default: ""
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: andrei-shtanakov/impresario
+          path: .upstream
+      - name: synthetic drift (controlled red path)
+        if: ${{ github.event.inputs.synthetic == 'drift' }}
+        run: echo "# synthetic" >> .upstream/contracts/idea/v1/schema.json
+      - name: compare vendored copies to upstream HEAD
+        run: |
+          status=0
+          for pin in contracts/impresario/*/v1/PIN; do
+            dir="$(dirname "$pin")"
+            src="$(grep '^source:' "$pin" | sed -E 's/^source: impresario@[0-9a-f]+ //')"
+            if ! diff -r --exclude=PIN "$dir" ".upstream/$src" > /dev/null 2>&1; then
+              echo "::warning::drift: $dir vs upstream $src"
+              status=1
+            fi
+          done
+          if [ "$status" -ne 0 ]; then
+            echo "Upstream contract surface moved — plan a re-vendor (scripts/revendor_impresario.sh)."
+            exit 1
+          fi
+          echo "clean: vendored bytes match upstream HEAD"
