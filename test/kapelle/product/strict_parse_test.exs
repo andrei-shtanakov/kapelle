@@ -29,4 +29,17 @@ defmodule Kapelle.Product.StrictParseTest do
   test "garbage is unparseable, not a crash" do
     assert {:error, {:unparseable, _}} = StrictParse.parse(": : nope : :")
   end
+
+  test "a bare JSON scalar is not a document" do
+    assert {:error, {:unparseable, {:not_a_document, 1}}} = StrictParse.parse("1")
+  end
+
+  test "a bare JSON array is not a document" do
+    assert {:error, {:unparseable, {:not_a_document, [1, 2]}}} = StrictParse.parse("[1, 2]")
+  end
+
+  test "a bare YAML sequence is not a document" do
+    assert {:error, {:unparseable, {:not_a_document, ["a", "b"]}}} =
+             StrictParse.parse("- a\n- b\n")
+  end
 end

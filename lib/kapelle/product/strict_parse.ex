@@ -13,11 +13,27 @@ defmodule Kapelle.Product.StrictParse do
           | {:error, {:duplicate_key, String.t()}}
           | {:error, {:unparseable, term()}}
   def parse(input) when is_binary(input) do
+    input
+    |> parse_any()
+    |> ensure_document()
+  end
+
+  defp parse_any(input) do
     case Jason.decode(input, objects: :ordered_objects) do
       {:ok, decoded} -> from_json(decoded)
       {:error, _not_json} -> parse_yaml(input)
     end
   end
+
+  # A syntactically valid JSON/YAML scalar or sequence ("1", "[1, 2]",
+  # "- a\n- b\n") parses cleanly but is not a document (invariant 4: every
+  # artifact is a map before it ever reaches the hasher) — one place for
+  # both the JSON and YAML paths to refuse it, rather than trusting every
+  # caller to re-check `is_map/1` itself (Loader's own guard becomes
+  # redundant, not load-bearing, once this refuses first).
+  defp ensure_document({:ok, doc}) when is_map(doc), do: {:ok, doc}
+  defp ensure_document({:ok, other}), do: {:error, {:unparseable, {:not_a_document, other}}}
+  defp ensure_document(error), do: error
 
   defp from_json(%Jason.OrderedObject{values: pairs}) do
     keys = Enum.map(pairs, fn {k, _v} -> k end)
