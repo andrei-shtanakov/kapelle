@@ -138,32 +138,79 @@ defmodule Kapelle.Product.Workers.StageShell do
 
   # Steps 5-8 (moduledoc), reused for both a just-completed stage and an
   # idempotent replay: always re-derive from a fresh view rather than
-  # trust whatever the caller already had in hand.
+  # trust whatever the caller already had in hand. Delegates to
+  # `repair/1` — the worker shell and `Kapelle.Product.Reconciler` share
+  # the identical repair computation; this just narrows `repair/1`'s
+  # richer `{:ok, classification}` result back down to `run/2`'s own
+  # `:ok | {:cancel, reason}` contract.
   defp advance(loop) do
-    case View.build(loop.loop_id) do
-      {:ok, view} ->
-        outcome = NextStage.compute(view, loop.max_iterations)
-
-        {:ok, _row} =
-          Loops.put_state_projection(loop.loop_id, projection_doc(loop, view, outcome))
-
-        apply_outcome(loop, view, outcome)
-
-      {:error, reason} ->
-        Loops.set_status(loop.loop_id, "failed", inspect(reason))
-        {:cancel, reason}
+    case repair(loop.loop_id) do
+      {:ok, _classification} -> :ok
+      {:error, reason} -> {:cancel, reason}
     end
   end
 
-  defp apply_outcome(loop, _view, {:terminal, verdict, reason}) do
-    Loops.set_status(loop.loop_id, verdict_status(verdict), reason)
-    :ok
+  @doc """
+  Re-derives a loop's stage from a fresh view and repairs whatever has
+  drifted: a stale or missing state projection, and/or a next-stage job
+  that was never actually enqueued — the same computation `run/2`'s own
+  `advance/1` step performs right after a stage completes, exposed here
+  so `Kapelle.Product.Reconciler` (an out-of-band caller, e.g. a periodic
+  sweep or a manual repair after a suspected crash) reconciles exactly
+  the same way: same projection shape, same `input_hash` chain, same
+  `(loop_id, iteration, stage, input_hash)` uniqueness key.
+
+  A terminal loop is `:terminal` and touches nothing. Otherwise the
+  projection is rebuilt unconditionally (idempotent: writing the same
+  bytes twice is a no-op change in effect) and the fresh outcome is
+  applied; the result is `:repaired` when the projection actually
+  changed or the outcome's job needed a real insert (`Oban.Job.conflict?
+  == false`), and `:in_sync` when neither did — calling `repair/1` twice
+  in a row on an already-healthy loop is `:in_sync` the second time.
+  """
+  @spec repair(String.t()) :: {:ok, :terminal | :repaired | :in_sync} | {:error, term()}
+  def repair(loop_id) when is_binary(loop_id) do
+    loop = Loops.get!(loop_id)
+
+    if terminal?(loop) do
+      {:ok, :terminal}
+    else
+      do_repair(loop)
+    end
   end
 
-  defp apply_outcome(loop, view, {:run, {stage, iteration}}) do
+  defp do_repair(loop) do
+    case View.build(loop.loop_id) do
+      {:ok, view} ->
+        outcome = NextStage.compute(view, loop.max_iterations)
+        new_projection = projection_doc(loop, view, outcome)
+        projection_stale? = new_projection != loop.latest_state
+
+        {:ok, _row} = Loops.put_state_projection(loop.loop_id, new_projection)
+
+        classify_and_apply(loop, view, outcome, projection_stale?)
+
+      {:error, reason} ->
+        Loops.set_status(loop.loop_id, "failed", inspect(reason))
+        {:error, reason}
+    end
+  end
+
+  defp classify_and_apply(loop, _view, {:terminal, verdict, reason}, _projection_stale?) do
+    Loops.set_status(loop.loop_id, verdict_status(verdict), reason)
+    {:ok, :repaired}
+  end
+
+  defp classify_and_apply(loop, view, {:run, {stage, iteration}}, projection_stale?) do
     input_hash = input_hash_for(stage, iteration, view)
-    {:ok, _job} = enqueue_stage(worker_for(stage), loop.loop_id, {stage, iteration}, input_hash)
-    :ok
+
+    {:ok, job} = enqueue_stage(worker_for(stage), loop.loop_id, {stage, iteration}, input_hash)
+
+    if projection_stale? or not job.conflict? do
+      {:ok, :repaired}
+    else
+      {:ok, :in_sync}
+    end
   end
 
   defp verdict_status(:ready), do: "ready"
@@ -255,7 +302,19 @@ defmodule Kapelle.Product.Workers.StageShell do
     persist_document(:exchange_log, doc, loop.loop_id)
   end
 
-  @doc "Current time as the ISO-8601 string the vendored timestamp schemas require."
+  @doc """
+  Current time as the ISO-8601 string the vendored timestamp schemas
+  require. Resolved through an overridable clock (owner's decision,
+  2026-08-14, resolving Task 8's sanctioned-divergence STOP over
+  `Loop.start/2`'s own `now_iso` opt): defaults to `DateTime.utc_now/0`,
+  but `Application.put_env(:kapelle, :product_clock, fn -> "..." end)`
+  pins it — the e2e happy-path test does this to match the golden
+  oracle's own baked-in timestamps, since full canonical-hash equality
+  against a golden fixture is otherwise unreachable (every stamped field
+  would differ by construction).
+  """
   @spec now_iso() :: String.t()
-  def now_iso, do: DateTime.utc_now() |> DateTime.to_iso8601()
+  def now_iso, do: Application.get_env(:kapelle, :product_clock, &default_clock/0).()
+
+  defp default_clock, do: DateTime.utc_now() |> DateTime.to_iso8601()
 end
