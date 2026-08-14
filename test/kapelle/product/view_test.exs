@@ -3,13 +3,13 @@ defmodule Kapelle.Product.ViewTest do
 
   import ExUnit.CaptureLog
 
-  alias Kapelle.Product.{Loader, Store, View}
+  alias Kapelle.Product.{Contracts, Loader, Store, View}
   alias Kapelle.Product.Records.ArtifactRow
   alias Kapelle.Repo
 
   defp load!(kind, rel) do
     {:ok, record} =
-      Loader.load(kind, File.read!(Path.join(Kapelle.Product.Contracts.dir!(kind), rel)))
+      Loader.load(kind, File.read!(Path.join(Contracts.dir!(kind), rel)))
 
     record
   end
@@ -107,5 +107,64 @@ defmodule Kapelle.Product.ViewTest do
              result
 
     assert log =~ "dropping corrupted gate_decision artifact"
+  end
+
+  test "a concept draft whose based_on_research.ref names a different research pack than the one at its own iteration fails closed on reference mismatch" do
+    {:ok, _} = Store.put(load!(:idea, "fixtures/valid/idea-001.yaml"), "LOOP-V8")
+    {:ok, _} = Store.put(load!(:research_pack, "fixtures/valid/rp-001.yaml"), "LOOP-V8")
+
+    # A second, real research pack under iteration 1 — this is the pack the
+    # concept draft below actually needs to agree with once it moves to
+    # iteration 1, since RP-001 lives at iteration 0.
+    rp2_record = load!(:research_pack, "fixtures/valid/rp-001.yaml")
+    rp2_doc = Map.merge(rp2_record.doc, %{"id" => "RP-002", "iteration" => 1})
+    rp2_record = %{rp2_record | id: "RP-002", doc: rp2_doc}
+    {:ok, _} = Store.put(rp2_record, "LOOP-V8")
+
+    # cd-001 keeps its fixture's based_on_research.ref (research-pack://RP-001)
+    # but is stored under iteration 1, where RP-002 — not RP-001 — is the
+    # research pack of record.
+    cd_record = load!(:concept_draft, "fixtures/valid/cd-001.yaml")
+    cd_record = %{cd_record | doc: Map.put(cd_record.doc, "iteration", 1)}
+    {:ok, _} = Store.put(cd_record, "LOOP-V8")
+
+    assert {:error,
+            {:reference_mismatch,
+             %{
+               kind: :concept_draft,
+               iteration: 1,
+               expected: "research-pack://RP-002",
+               got: "research-pack://RP-001"
+             }}} = View.build("LOOP-V8")
+  end
+
+  test "a research pack whose idea_ref names a different idea than the view's fails closed on reference mismatch" do
+    {:ok, _} = Store.put(load!(:idea, "fixtures/valid/idea-001.yaml"), "LOOP-V9")
+
+    rp_record = load!(:research_pack, "fixtures/valid/rp-001.yaml")
+    rp_record = %{rp_record | doc: Map.put(rp_record.doc, "idea_ref", "idea://IDEA-999")}
+    {:ok, _} = Store.put(rp_record, "LOOP-V9")
+
+    assert {:error,
+            {:reference_mismatch,
+             %{
+               kind: :research_pack,
+               iteration: 0,
+               expected: "idea://IDEA-001",
+               got: "idea://IDEA-999"
+             }}} = View.build("LOOP-V9")
+  end
+
+  test "a product proposal whose idea_ref names a different idea than the view's fails closed on reference mismatch" do
+    {:ok, _} = Store.put(load!(:idea, "fixtures/valid/idea-001.yaml"), "LOOP-V10")
+
+    pp_record = load!(:product_proposal, "fixtures/valid/pp-001.yaml")
+    pp_record = %{pp_record | doc: Map.put(pp_record.doc, "idea_ref", "idea://IDEA-999")}
+    {:ok, _} = Store.put(pp_record, "LOOP-V10")
+
+    assert {:error,
+            {:reference_mismatch,
+             %{kind: :product_proposal, expected: "idea://IDEA-001", got: "idea://IDEA-999"}}} =
+             View.build("LOOP-V10")
   end
 end

@@ -62,7 +62,8 @@ defmodule Kapelle.Product.View do
               | :hash_mismatch
               | :identity_mismatch
               | :competing_artifacts
-              | :impossible_sequence, term()}}
+              | :impossible_sequence
+              | :reference_mismatch, term()}}
   def build(loop_id) when is_binary(loop_id) do
     with {:ok, checked, dropped} <- check_rows(Store.all(loop_id)),
          {:ok, grouped} <- group(checked) do
@@ -142,7 +143,8 @@ defmodule Kapelle.Product.View do
          {:ok, exchange_log} <- singleton(rows, :exchange_log),
          {:ok, research_packs} <- by_iteration(rows, :research_pack),
          {:ok, concept_drafts} <- by_iteration(rows, :concept_draft),
-         :ok <- check_sequence(research_packs, concept_drafts) do
+         :ok <- check_sequence(research_packs, concept_drafts),
+         :ok <- check_references(idea, proposal, research_packs, concept_drafts) do
       {:ok,
        %{
          idea: idea,
@@ -231,6 +233,74 @@ defmodule Kapelle.Product.View do
     case Map.keys(research_packs) ++ Map.keys(concept_drafts) do
       [] -> nil
       keys -> Enum.max(keys)
+    end
+  end
+
+  # Reference validation (design doc §5 step 2): grouping only checks that
+  # the loop's artifact *shape* is causally sane, not that its documents
+  # actually agree with each other about identity. A concept draft naming
+  # the wrong research pack, or a research pack/proposal naming the wrong
+  # idea, is a semantic corruption that grouping alone would let through —
+  # so it fails the whole view closed, the same as :hash_mismatch does.
+  defp check_references(idea, proposal, research_packs, concept_drafts) do
+    with :ok <- check_concept_draft_refs(concept_drafts, research_packs) do
+      check_idea_refs(idea, proposal, research_packs)
+    end
+  end
+
+  defp check_concept_draft_refs(concept_drafts, research_packs) do
+    Enum.find_value(concept_drafts, :ok, fn {i, cd} ->
+      concept_draft_ref_error(i, cd, research_packs)
+    end)
+  end
+
+  defp concept_draft_ref_error(i, cd, research_packs) do
+    expected = "research-pack://" <> research_packs[i]["id"]
+    got = get_in(cd, ["based_on_research", "ref"])
+
+    if got == expected do
+      nil
+    else
+      {:error,
+       {:reference_mismatch, %{kind: :concept_draft, iteration: i, expected: expected, got: got}}}
+    end
+  end
+
+  # With no idea in the view there is nothing for a research pack or the
+  # proposal to agree with; reference agreement against it is vacuous.
+  defp check_idea_refs(nil, _proposal, _research_packs), do: :ok
+
+  defp check_idea_refs(idea, proposal, research_packs) do
+    expected = "idea://" <> idea["id"]
+
+    with :ok <- check_proposal_idea_ref(proposal, expected) do
+      Enum.find_value(research_packs, :ok, fn {i, rp} ->
+        research_pack_idea_ref_error(i, rp, expected)
+      end)
+    end
+  end
+
+  defp check_proposal_idea_ref(nil, _expected), do: :ok
+
+  defp check_proposal_idea_ref(proposal, expected) do
+    case proposal["idea_ref"] do
+      ^expected ->
+        :ok
+
+      got ->
+        {:error, {:reference_mismatch, %{kind: :product_proposal, expected: expected, got: got}}}
+    end
+  end
+
+  defp research_pack_idea_ref_error(i, rp, expected) do
+    case rp["idea_ref"] do
+      ^expected ->
+        nil
+
+      got ->
+        {:error,
+         {:reference_mismatch,
+          %{kind: :research_pack, iteration: i, expected: expected, got: got}}}
     end
   end
 
