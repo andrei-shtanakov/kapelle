@@ -37,18 +37,64 @@ defmodule Kapelle.Product.ParityHappyTest do
 
     stored = Store.all(loop_id)
 
-    @golden
-    |> Path.join("normalized.json")
-    |> File.read!()
-    |> Jason.decode!()
-    |> Enum.filter(&Map.has_key?(&1, "artifact_hash"))
-    |> Enum.each(&assert_observation_stored(&1, stored))
+    observations =
+      @golden
+      |> Path.join("normalized.json")
+      |> File.read!()
+      |> Jason.decode!()
+      |> Enum.filter(&Map.has_key?(&1, "artifact_hash"))
+
+    # N1 (S2 carry-forward): the golden happy path is exactly two
+    # iterations of research+creator (RP-001/CD-001, RP-002/CD-002) —
+    # asserted explicitly so a future golden regeneration that silently
+    # drops or duplicates an artifact_written observation fails loudly
+    # here instead of the `Enum.each` below quietly checking fewer rows.
+    assert length(observations) == 4
+
+    Enum.each(observations, &assert_observation_stored(&1, stored))
 
     # Pins cross-language hash agreement on a real document: the golden
     # loop.state's own idea_input_hash (computed by the Python producer) must
     # equal what Kapelle.Product.CanonicalHash — this codebase's hash — gets
     # from the same idea document once it is in the view.
     assert Loops.get!(loop_id).latest_state["idea_input_hash"] == CanonicalHash.hash(view.idea)
+  end
+
+  test "the proposal chain's transitions are consistent with the golden trace's transition observations" do
+    loop_id = "LOOP-GOLDEN-TRANSITIONS"
+    seed_golden_workspace(loop_id)
+
+    assert {:ok, view} = View.build(loop_id)
+
+    trace_transitions =
+      @golden
+      |> Path.join("raw-trace.jsonl")
+      |> File.stream!()
+      |> Enum.map(&Jason.decode!/1)
+      |> Enum.filter(&(&1["event"] == "transition"))
+
+    # (a) the golden trace's own transitions are internally consistent:
+    # each one names a strictly higher proposal_version than the last.
+    versions = Enum.map(trace_transitions, & &1["proposal_version"])
+    assert versions == Enum.sort(versions)
+    assert Enum.uniq(versions) == versions
+
+    # (b) the workspace ships only the FINAL product-proposal snapshot —
+    # the producer overwrites proposal.yaml in place as the loop runs, so
+    # earlier versions are not recoverable from a static workspace replay.
+    # Our proposal_chain therefore has exactly one stored revision and
+    # yields no (from, to) transition pair of its own to compare against
+    # the trace's full sequence. What IS honestly checkable here is that
+    # our single snapshot agrees with the trace's own last word: the
+    # final transition's destination status and version. Full
+    # transition-SEQUENCE equality (this test's eventual promise) only
+    # becomes meaningful once Kapelle itself produces a multi-snapshot
+    # chain by actually running the loop end to end — that is task 8's
+    # e2e test, not a workspace replay.
+    assert [_single_snapshot] = view.proposal_chain
+    last_transition = List.last(trace_transitions)
+    assert view.proposal["status"] == last_transition["to"]
+    assert view.proposal["version"] == last_transition["proposal_version"]
   end
 
   test "the normalizer matches the committed normalized golden" do
