@@ -1,0 +1,37 @@
+defmodule Kapelle.Product.FixtureParityTest do
+  use ExUnit.Case, async: true
+
+  alias Kapelle.Product.{Contracts, Loader, Record}
+
+  for kind <-
+        ~w(idea research_pack concept_draft product_proposal exchange_log loop_state gate_decision)a do
+    describe "#{kind} fixtures" do
+      test "every valid fixture loads into a typed record" do
+        dir = Path.join(Contracts.dir!(unquote(kind)), "fixtures/valid")
+
+        for path <- Path.wildcard(Path.join(dir, "*.yaml")) do
+          assert {:ok, %Record{kind: unquote(kind), doc: doc} = record} =
+                   Loader.load(unquote(kind), File.read!(path)),
+                 "expected #{path} to load"
+
+          assert is_map(doc)
+          if Map.has_key?(doc, "id"), do: assert(record.id == doc["id"])
+        end
+      end
+
+      test "every invalid fixture is a typed invalid_artifact" do
+        dir = Path.join(Contracts.dir!(unquote(kind)), "fixtures/invalid")
+
+        for path <- Path.wildcard(Path.join(dir, "*.yaml")) do
+          assert {:error, {:invalid_artifact, unquote(kind), _errors}} =
+                   Loader.load(unquote(kind), File.read!(path)),
+                 "expected #{path} to be rejected"
+        end
+      end
+    end
+  end
+
+  test "unparseable YAML is a typed unparseable error, not a crash" do
+    assert {:error, {:unparseable, _}} = Loader.load(:idea, ": : definitely not yaml : :")
+  end
+end
