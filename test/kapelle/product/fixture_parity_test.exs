@@ -8,8 +8,10 @@ defmodule Kapelle.Product.FixtureParityTest do
     describe "#{kind} fixtures" do
       test "every valid fixture loads into a typed record" do
         dir = Path.join(Contracts.dir!(unquote(kind)), "fixtures/valid")
+        paths = Path.wildcard(Path.join(dir, "*.{yaml,json}"))
+        assert paths != [], "no fixtures found for #{unquote(kind)} in #{dir}"
 
-        for path <- Path.wildcard(Path.join(dir, "*.yaml")) do
+        for path <- paths do
           assert {:ok, %Record{kind: unquote(kind), doc: doc} = record} =
                    Loader.load(unquote(kind), File.read!(path)),
                  "expected #{path} to load"
@@ -21,8 +23,10 @@ defmodule Kapelle.Product.FixtureParityTest do
 
       test "every invalid fixture is a typed invalid_artifact" do
         dir = Path.join(Contracts.dir!(unquote(kind)), "fixtures/invalid")
+        paths = Path.wildcard(Path.join(dir, "*.{yaml,json}"))
+        assert paths != [], "no fixtures found for #{unquote(kind)} in #{dir}"
 
-        for path <- Path.wildcard(Path.join(dir, "*.yaml")) do
+        for path <- paths do
           assert {:error, {:invalid_artifact, unquote(kind), _errors}} =
                    Loader.load(unquote(kind), File.read!(path)),
                  "expected #{path} to be rejected"
