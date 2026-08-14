@@ -30,4 +30,8 @@ defmodule Kapelle.Product.ValidatorTest do
   test "an unknown kind is a typed unknown_contract failure" do
     assert {:error, {:unknown_contract, :no_such_kind}} = Validator.validate(:no_such_kind, %{})
   end
+
+  test "a non-map document is a typed unparseable failure" do
+    assert {:error, {:unparseable, {:not_a_document, _}}} = Validator.validate(:idea, [1, 2])
+  end
 end
