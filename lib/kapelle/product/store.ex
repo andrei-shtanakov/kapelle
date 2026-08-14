@@ -1,9 +1,12 @@
 defmodule Kapelle.Product.Store do
   @moduledoc """
-  The immutable artifact store (design doc §5; owner's S2 preamble item 4).
-  put/2 is idempotent by canonical hash: identical bytes are a no-op,
-  divergent bytes under the same identity are a typed conflict. The write
-  IS the authoritative commit; the Event goes out only after it succeeds.
+  The immutable artifact store (design doc §5; owner's revision-snapshot
+  decision, 2026-08-14). put/2 is idempotent by canonical hash under the
+  four-part key `(loop_id, kind, identity, revision)`: identical bytes at
+  the same revision are a no-op, divergent bytes at the same revision are
+  a typed conflict, a new admissible revision is a new immutable row. The
+  write IS the authoritative commit; the Event goes out only after it
+  succeeds.
   """
 
   alias Kapelle.Product.{CanonicalHash, Event, Events, Record}
@@ -20,14 +23,30 @@ defmodule Kapelle.Product.Store do
     gate_decision: "gate-decision"
   }
 
+  @doc """
+  The revision component of a kind's storage key (owner's decision,
+  2026-08-14): `product_proposal` revisions by its own `version`,
+  `exchange_log` by its entry count, every other stored kind is `0`.
+  """
+  @spec revision_of(atom(), map()) :: integer()
+  def revision_of(:product_proposal, doc), do: doc["version"]
+  def revision_of(:exchange_log, doc), do: length(doc["entries"])
+  def revision_of(_kind, _doc), do: 0
+
   @spec put(Record.t(), String.t()) ::
           {:ok, :inserted | :noop}
           | {:error, {:artifact_conflict, atom(), String.t(), String.t(), String.t()}}
           | {:error, Ecto.Changeset.t()}
   def put(%Record{kind: kind, id: id, doc: doc}, loop_id) when is_binary(loop_id) do
     hash = CanonicalHash.hash(doc)
+    revision = revision_of(kind, doc)
 
-    case Repo.get_by(ArtifactRow, loop_id: loop_id, kind: to_string(kind), identity: id) do
+    case Repo.get_by(ArtifactRow,
+           loop_id: loop_id,
+           kind: to_string(kind),
+           identity: id,
+           revision: revision
+         ) do
       %ArtifactRow{canonical_hash: ^hash} ->
         {:ok, :noop}
 
@@ -35,16 +54,17 @@ defmodule Kapelle.Product.Store do
         {:error, {:artifact_conflict, kind, id, existing, hash}}
 
       nil ->
-        insert_new(kind, id, doc, hash, loop_id)
+        insert_new(kind, id, doc, hash, revision, loop_id)
     end
   end
 
-  defp insert_new(kind, id, doc, hash, loop_id) do
+  defp insert_new(kind, id, doc, hash, revision, loop_id) do
     %ArtifactRow{}
     |> ArtifactRow.changeset(%{
       loop_id: loop_id,
       kind: to_string(kind),
       identity: id,
+      revision: revision,
       canonical_hash: hash,
       doc: doc
     })
@@ -57,6 +77,7 @@ defmodule Kapelle.Product.Store do
           artifact_kind: kind,
           artifact_ref: "#{@kind_refs[kind]}://#{id}",
           artifact_hash: hash,
+          artifact_revision: revision,
           producer: nil
         })
 
@@ -78,7 +99,13 @@ defmodule Kapelle.Product.Store do
   end
 
   @spec all(String.t()) :: [
-          %{kind: atom(), id: String.t(), doc: map(), canonical_hash: String.t()}
+          %{
+            kind: atom(),
+            id: String.t(),
+            doc: map(),
+            canonical_hash: String.t(),
+            revision: integer()
+          }
         ]
   def all(loop_id) do
     import Ecto.Query, only: [from: 2]
@@ -89,7 +116,8 @@ defmodule Kapelle.Product.Store do
         kind: String.to_existing_atom(row.kind),
         id: row.identity,
         doc: row.doc,
-        canonical_hash: row.canonical_hash
+        canonical_hash: row.canonical_hash,
+        revision: row.revision
       }
     end)
   end

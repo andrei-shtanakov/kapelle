@@ -2,9 +2,13 @@ defmodule Kapelle.Product.Records.ArtifactRow do
   @moduledoc """
   Ecto schema for the `product_artifacts` table.
 
-  One row per stored artifact, keyed by the composite primary key
-  `(loop_id, kind, identity)` — that triple IS the immutable identity
-  (design doc §5; owner's S2 preamble, item 2). No surrogate UUID.
+  One row per stored immutable snapshot, keyed by the composite primary
+  key `(loop_id, kind, identity, revision)` — that quadruple IS the
+  immutable identity (design doc §5; owner's revision-snapshot decision,
+  2026-08-14). `revision` is `doc["version"]` for `product_proposal`,
+  `length(doc["entries"])` for `exchange_log`, and `0` for every other
+  stored kind (see `Kapelle.Product.Store.revision_of/2`). No surrogate
+  UUID.
   """
 
   use Ecto.Schema
@@ -16,6 +20,7 @@ defmodule Kapelle.Product.Records.ArtifactRow do
     field :loop_id, :string, primary_key: true
     field :kind, :string, primary_key: true
     field :identity, :string, primary_key: true
+    field :revision, :integer, primary_key: true
     field :canonical_hash, :string
     field :doc, :map
 
@@ -26,6 +31,7 @@ defmodule Kapelle.Product.Records.ArtifactRow do
           loop_id: String.t() | nil,
           kind: String.t() | nil,
           identity: String.t() | nil,
+          revision: integer() | nil,
           canonical_hash: String.t() | nil,
           doc: map() | nil,
           inserted_at: DateTime.t() | nil
@@ -40,8 +46,8 @@ defmodule Kapelle.Product.Records.ArtifactRow do
   @spec changeset(t(), map()) :: Ecto.Changeset.t()
   def changeset(row, attrs) do
     row
-    |> cast(attrs, [:loop_id, :kind, :identity, :canonical_hash, :doc])
-    |> validate_required([:loop_id, :kind, :identity, :canonical_hash, :doc])
+    |> cast(attrs, [:loop_id, :kind, :identity, :revision, :canonical_hash, :doc])
+    |> validate_required([:loop_id, :kind, :identity, :revision, :canonical_hash, :doc])
     |> unique_constraint(:identity, name: :product_artifacts_pkey)
   end
 end
