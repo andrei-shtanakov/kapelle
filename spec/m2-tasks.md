@@ -130,3 +130,42 @@ iteration order, and the reported cycle must be the minimal cycle segment
 **Traces to:** [REQ-104]
 **Depends on:** [TASK-101]
 **Blocks:** —
+
+---
+
+### TASK-105: Needs-human hold path with inspectable state
+🟠 P1 | ⬜ TODO | Est: 1d
+
+The happy path lands on `ready_for_business`; the other terminal branch has
+never been walked through the contour. `NextStage` already computes
+`{:terminal, :needs_human, reason}` — what does not exist is the behaviour
+around it: the evaluator moving the loop into `needs_human`, the state and its
+causal artifacts being inspectable through the canonical `View`, the queue
+staying empty afterwards, and a repeated reconcile neither duplicating nor
+advancing anything.
+
+This is a **hold**, not a failure: the loop stops and waits for a person, with
+everything that person needs to decide already on the record.
+
+Scope is one scenario, deliberately: the fixture agent produces a proposal
+carrying a **critical unresolved gap/assumption**, and the loop holds. Not a
+matrix, not a resume.
+
+**Checklist:**
+- [ ] the fixture agent has a deterministic needs-human script: a proposal with a critical gap/assumption the concept draft does not address
+- [ ] the evaluator walks that scenario to `needs_human` through the ordinary worker contour, not by a direct `NextStage` call
+- [ ] the loop's terminal status and the artifacts that caused it are readable through the canonical `View` — a person can see *why* it holds without reading the database
+- [ ] no next job is enqueued once the loop holds
+- [ ] a second reconcile reports `in_sync`: no duplicate artifacts, no events, no jobs, no advancement
+- [ ] the domain observations match the golden oracle for the needs-human case
+- [ ] no test performs network I/O, and no test invokes a live producer
+
+**Out of scope, each for a reason:**
+- **human resume** — blocked by the producer-owned contract (impresario#14); the contract does not exist yet, so there is nothing to port
+- the full fault-injection matrix through the contour
+- LiveView for the product surface
+- a real LLM anywhere in the path
+- any second S4 scenario
+
+**Depends on:** [TASK-104]
+**Blocks:** —
