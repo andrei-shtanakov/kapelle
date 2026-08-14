@@ -4,8 +4,23 @@ defmodule Kapelle.Product.Event do
   after `Kapelle.Product.Store.put/2` commits an insert (design doc §5).
   """
 
-  @enforce_keys [:loop_id, :kind, :artifact_kind, :artifact_ref, :artifact_hash]
-  defstruct [:loop_id, :kind, :artifact_kind, :artifact_ref, :artifact_hash, :producer]
+  @enforce_keys [
+    :loop_id,
+    :kind,
+    :artifact_kind,
+    :artifact_ref,
+    :artifact_hash,
+    :artifact_revision
+  ]
+  defstruct [
+    :loop_id,
+    :kind,
+    :artifact_kind,
+    :artifact_ref,
+    :artifact_hash,
+    :artifact_revision,
+    :producer
+  ]
 
   @type t :: %__MODULE__{
           loop_id: String.t(),
@@ -13,6 +28,7 @@ defmodule Kapelle.Product.Event do
           artifact_kind: atom(),
           artifact_ref: String.t(),
           artifact_hash: String.t(),
+          artifact_revision: integer(),
           producer: term()
         }
 end

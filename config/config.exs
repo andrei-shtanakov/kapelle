@@ -15,7 +15,7 @@ config :kapelle,
 config :kapelle, Oban,
   engine: Oban.Engines.Basic,
   repo: Kapelle.Repo,
-  queues: [orchestrator: 5, executor: 10, evaluator: 5]
+  queues: [orchestrator: 5, executor: 10, evaluator: 5, product: 5]
 
 # Configure the endpoint
 config :kapelle, KapelleWeb.Endpoint,

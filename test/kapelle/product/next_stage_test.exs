@@ -132,6 +132,33 @@ defmodule Kapelle.Product.NextStageTest do
     assert NextStage.compute(v, 2) == {:run, {:research, 1}}
   end
 
+  test "a round's own fresh proposal (iteration 0, empty delta_log) still runs apply — not evaluate" do
+    # Regression (Task 7): `Loop.start`'s real initial snapshot is
+    # `iteration: 0, content: %{"delta_log" => []}` — the exact
+    # `iteration` value round 0's own apply will later produce too.
+    # Reading `delta_applied?` off the bare `iteration` field alone
+    # cannot tell these apart; it must consult `content.delta_log`
+    # once `content` is present.
+    v =
+      view(%{
+        research_packs: %{0 => rp(0, [open_gap("SMB capacity unknown")])},
+        concept_drafts: %{0 => cd(0)},
+        proposal: %{"iteration" => 0, "content" => %{"delta_log" => []}}
+      })
+
+    assert NextStage.compute(v, 3) == {:run, {:apply, 0}}
+  end
+
+  test "delta_applied?/2 consults content.delta_log by entry iteration, not the bare iteration field" do
+    proposal = %{"iteration" => 0, "content" => %{"delta_log" => [%{"iteration" => 0}]}}
+
+    assert NextStage.delta_applied?(proposal, 0)
+    refute NextStage.delta_applied?(proposal, 1)
+    refute NextStage.delta_applied?(%{"iteration" => 5, "content" => %{"delta_log" => []}}, 0)
+    assert NextStage.delta_applied?(%{"iteration" => 0}, 0)
+    refute NextStage.delta_applied?(nil, 0)
+  end
+
   test "a fully replayed multi-iteration view reaches ready instead of re-running iteration 0" do
     # Regression: iteration 0 left an open gap/assumption/request (so, taken
     # alone, it would "advance" to research 1), but the view already holds

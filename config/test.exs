@@ -23,6 +23,12 @@ config :kapelle, KapelleWeb.Endpoint,
 # Run Oban inline assertions in tests, no background processing
 config :kapelle, Oban, testing: :manual
 
+# The Ecto SQL sandbox wraps every test in a transaction; without this,
+# Kapelle.Product.Store's ambient-transaction guard would refuse every
+# write in the whole suite. This is the explicit, documented, test-only
+# carve-out (owner's decision, 2026-08-14) — not a general bypass.
+config :kapelle, sandbox?: true
+
 # Print only warnings and errors during test
 config :logger, level: :warning
 

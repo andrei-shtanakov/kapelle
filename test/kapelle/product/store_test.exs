@@ -18,6 +18,32 @@ defmodule Kapelle.Product.StoreTest do
     record
   end
 
+  # Schema-valid product_proposal doc through Loader, overriding only
+  # `version` — the revision-bearing field for this kind (owner's
+  # decision, 2026-08-14). Based on the vendored valid fixture pp-001.
+  defp proposal_record(version: version) do
+    yaml = """
+    proposal_id: PP-001
+    idea_ref: idea://IDEA-001
+    version: #{version}
+    status: business_approved
+    iteration: 2
+    refs:
+      latest_research_pack: research-pack://RP-001
+      latest_concept_draft: concept-draft://CD-001
+      exchange_log: exchange-log://XL-001
+    content:
+      research_summary: "Доля типовых запросов подтверждена; ёмкость SMB оценена."
+      concept: "Self-service портал; модели Premium-тариф / плата за инцидент."
+      economics_draft: "Себестоимость-гипотеза и бюджет запроса v1."
+    created_at: 2026-08-11T08:00:00Z
+    updated_at: 2026-08-12T10:00:00Z
+    """
+
+    {:ok, record} = Loader.load(:product_proposal, yaml)
+    record
+  end
+
   test "first put inserts and broadcasts one post-commit event" do
     :ok = Events.subscribe("LOOP-T1")
     assert {:ok, :inserted} = Store.put(rp_record(), "LOOP-T1")
@@ -57,5 +83,57 @@ defmodule Kapelle.Product.StoreTest do
 
     assert [%{kind: :research_pack, id: "RP-001", doc: %{"id" => "RP-001"}}] =
              Store.all("LOOP-T4")
+  end
+
+  test "a new admissible revision of the proposal is a new immutable row, event carries the revision" do
+    v1 = proposal_record(version: 1)
+    v2 = proposal_record(version: 2)
+    :ok = Events.subscribe("LOOP-R1")
+    assert {:ok, :inserted} = Store.put(v1, "LOOP-R1")
+    assert_receive %Event{artifact_revision: 1}
+    assert {:ok, :inserted} = Store.put(v2, "LOOP-R1")
+    assert_receive %Event{artifact_revision: 2}
+
+    assert [%{revision: 1}, %{revision: 2}] =
+             Store.all("LOOP-R1")
+             |> Enum.filter(&(&1.kind == :product_proposal))
+             |> Enum.sort_by(& &1.revision)
+  end
+
+  test "same revision with different content is a conflict; a re-put of the same bytes is a no-op" do
+    v2 = proposal_record(version: 2)
+    assert {:ok, :inserted} = Store.put(v2, "LOOP-R2")
+    assert {:ok, :noop} = Store.put(v2, "LOOP-R2")
+
+    # put_in over the `v2.doc["content"]` path already returns the whole
+    # updated Record — wrapping it again in `%{v2 | doc: ...}` would nest
+    # a Record where a map is expected.
+    mutated = put_in(v2.doc["content"], %{"delta_log" => ["x"]})
+
+    assert {:error, {:artifact_conflict, :product_proposal, _, _, _}} =
+             Store.put(mutated, "LOOP-R2")
+  end
+
+  test "a loop_state record is refused — it is a projection surface, not an authoritative artifact" do
+    {:ok, record} =
+      Loader.load(
+        :loop_state,
+        File.read!(Path.join(Contracts.dir!(:loop_state), "fixtures/valid/running.json"))
+      )
+
+    assert {:error, {:projection_kind, :loop_state}} = Store.put(record, "LOOP-T5")
+    assert Store.all("LOOP-T5") == []
+  end
+
+  test "a late lower revision still inserts — Store never polices latest, the View does" do
+    v2 = proposal_record(version: 2)
+    v1 = proposal_record(version: 1)
+    assert {:ok, :inserted} = Store.put(v2, "LOOP-R3")
+    assert {:ok, :inserted} = Store.put(v1, "LOOP-R3")
+
+    assert [%{revision: 1}, %{revision: 2}] =
+             Store.all("LOOP-R3")
+             |> Enum.filter(&(&1.kind == :product_proposal))
+             |> Enum.sort_by(& &1.revision)
   end
 end
