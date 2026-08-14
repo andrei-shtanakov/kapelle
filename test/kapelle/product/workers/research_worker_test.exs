@@ -102,10 +102,10 @@ defmodule Kapelle.Product.Workers.ResearchWorkerTest do
     :ok = Events.subscribe(loop_id)
 
     # The research/0 job replays after concept/0 has already been
-    # enqueued — modeling Oban redelivering and re-invoking `perform/1`
-    # on the same already-completed job row (a node crash or a stale
-    # visibility timeout, not a second `unique` insert), see spec §8's
-    # crash/retry exit gate.
+    # enqueued — modeling Oban's ordinary retry re-invoking `perform/1`
+    # on the same already-completed job row after a later transient
+    # failure (this shell's own `{:infrastructure, reason}` route), not
+    # a second `unique` insert, see spec §8's crash/retry exit gate.
     assert :ok = perform_job(ResearchWorker, job_args(loop_id, 0))
 
     after_replay = Store.all(loop_id) |> Enum.map(&{&1.kind, &1.id, &1.revision}) |> Enum.sort()

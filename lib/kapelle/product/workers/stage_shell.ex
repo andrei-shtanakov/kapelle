@@ -19,17 +19,22 @@ defmodule Kapelle.Product.Workers.StageShell do
        if it names *this* job's own `(stage, iteration)`, the stage's
        `execute` callback runs. Otherwise, if this job's own output is
        already in the view (a same-args replay after a completed run —
-       genuinely possible two ways: `enqueue_stage/4`'s `unique` uses
-       the default `states: :successful`, which *does* cover `completed`
-       jobs [Oban 2.20+], but only for the default `period: 60` window —
-       past that, an identical-args insert lands as a real second row;
-       separately, and with no insert involved at all, Oban can
-       redeliver and re-invoke `perform/1` on the very same
-       already-completed job row after a node crash or a stale
-       visibility timeout — see spec §8's crash/retry exit gate), the
-       job is idempotent: skip straight to re-deriving the projection
-       and the next enqueue. Otherwise the job is truly stale
-       (superseded by other progress) and is a no-op.
+       `enqueue_stage/4`'s `unique` uses the default `states:
+       :successful` [the default since Oban v2.23.1], which does cover
+       `completed`, but only dedupes a second *insert* within the
+       default `period: 60` window; past that, an identical-args insert
+       lands as a genuine new row instead. The replay this branch
+       actually exists for has no insert involved at all: Oban's
+       ordinary retry re-invokes `perform/1` on the very same row after
+       step 4's `{:infrastructure, reason}` route returns an error — a
+       stage that already persisted its own artifact before that later
+       failure lands right back here on retry. A raw BEAM crash
+       mid-`perform/1`, by contrast, leaves the row stuck in `executing`
+       forever unless `Oban.Plugins.Lifeline` is configured, which this
+       app does not do — see spec §8's crash/retry exit gate), the job
+       is idempotent: skip straight to re-deriving the projection and
+       the next enqueue. Otherwise the job is truly stale (superseded by
+       other progress) and is a no-op.
     4. `execute`'s `{:infrastructure, reason}` becomes `{:error, reason}`
        (Oban retries); `{:domain, reason}`/`{:invalid_artifact, reason}`
        marks the loop `"failed"` and cancels the job (fail-closed, no
@@ -356,7 +361,10 @@ defmodule Kapelle.Product.Workers.StageShell do
   works identically whether the log already exists in `view` or not.
   """
   @spec append_exchange_entry(LoopRow.t(), View.t(), map()) ::
-          :ok | {:error, {:invalid_artifact, term()}}
+          :ok
+          | {:error, {:invalid_artifact, term()}}
+          | {:error, :ambient_transaction}
+          | {:error, {:artifact_conflict, atom(), String.t(), String.t(), String.t()}}
   def append_exchange_entry(loop, view, entry) do
     existing_entries = if view.exchange_log, do: view.exchange_log["entries"], else: []
 
