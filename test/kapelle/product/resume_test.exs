@@ -174,6 +174,21 @@ defmodule Kapelle.Product.ResumeTest do
       assert_hold_intact(loop_id, jobs_before)
     end
 
+    # Regression: an unknown loop_id must be a typed fail-closed refusal
+    # like every other input to consume/2 — never an unhandled
+    # Ecto.NoResultsError from an eager Loops.get!/1 inside a pure-looking
+    # check. The empty-list case must not even reach the DB: :no_decision
+    # is decidable from the presented data alone.
+    test "unknown loop_id with no decision presented refuses without touching the loop row" do
+      assert {:error, :no_decision} = Resume.consume("LOOP-999", [])
+    end
+
+    test "unknown loop_id with a decision presented refuses typed, not a raise" do
+      valid = decision("LOOP-999", "LRD-001")
+
+      assert {:error, :not_found} = Resume.consume("LOOP-999", [valid])
+    end
+
     test "schema-invalid decision" do
       loop_id = start_held_loop!("LOOP-603")
       jobs_before = enqueued_count()

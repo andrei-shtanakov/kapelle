@@ -68,7 +68,7 @@ defmodule Kapelle.Product.Resume do
     View
   }
 
-  alias Kapelle.Product.Records.ArtifactRow
+  alias Kapelle.Product.Records.{ArtifactRow, LoopRow}
   alias Kapelle.Product.Workers.StageShell
   alias Kapelle.Repo
 
@@ -127,8 +127,21 @@ defmodule Kapelle.Product.Resume do
   # Skipped entirely when the loop isn't currently held: in that case
   # `resolve_active/1` and `check_wait/2` still run and produce the more
   # specific `:not_held` refusal.
+  #
+  # An empty presented set never reaches the DB at all: `:no_decision` is
+  # decidable from the presented data alone (`resolve_active/1` below),
+  # so there is nothing here to filter against a wait yet. An unknown
+  # `loop_id` is itself a typed `:not_found` refusal rather than a raised
+  # `Ecto.NoResultsError` — every other input to `consume/2` is
+  # fail-closed per this module's own moduledoc, and a nonexistent loop
+  # is no different.
+  defp filter_to_wait_subject(_loop_id, []), do: {:ok, []}
+
   defp filter_to_wait_subject(loop_id, decisions) do
-    case Loops.get!(loop_id) do
+    case Repo.get(LoopRow, loop_id) do
+      nil ->
+        {:error, :not_found}
+
       %{status: "needs_human"} = loop ->
         wait_subject = %{"loop_id" => loop.loop_id, "iteration" => held_iteration(loop)}
 
