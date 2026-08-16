@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Generate a golden scenario's evidence from the PINNED reference runner.
 # Usage: scripts/gen_golden.sh <path-to-impresario-checkout> [scenario]
-#        scenario: happy (default) | needs_human | resume
+#        scenario: happy (default) | needs_human | resume | invalid_artifact
 # Explicit, reviewable golden update (owner's S2 preamble, item 6):
 # never run automatically, never on test failure.
 #
@@ -14,8 +14,8 @@ set -euo pipefail
 IMPRESARIO="${1:?path to impresario checkout}"
 SCENARIO="${2:-happy}"
 case "$SCENARIO" in
-  happy|needs_human|resume) ;;
-  *) echo "unknown scenario '$SCENARIO' (expected: happy | needs_human | resume)" >&2; exit 2 ;;
+  happy|needs_human|resume|invalid_artifact) ;;
+  *) echo "unknown scenario '$SCENARIO' (expected: happy | needs_human | resume | invalid_artifact)" >&2; exit 2 ;;
 esac
 # Single producer pin, same as priv/contracts/impresario (anti-mix across
 # vendor and goldens). The resume scenario REQUIRES this pin or later: the

@@ -1,0 +1,16 @@
+[
+  {
+    "proposal_transition": "draft->in_iteration"
+  },
+  {
+    "artifact_kind": "research_pack",
+    "iteration": 0,
+    "rejected": true,
+    "stage": "researcher"
+  },
+  {
+    "iteration": 0,
+    "stop_reason_class": "researcher produced invalid artifact",
+    "verdict": "failed"
+  }
+]
