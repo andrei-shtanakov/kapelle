@@ -247,7 +247,7 @@ fault-matrix work item.
 **Blocks:** —
 
 ### TASK-107: Fault-injection matrix through the contour
-🟠 P1 | 🔄 IN_PROGRESS | Est: 1d
+🟠 P1 | ✅ DONE | Est: 1d
 
 **Description:**
 The design doc names six mandatory fault-injection points (§5) and makes
@@ -278,21 +278,21 @@ derivable from the proposal's own delta_log) or detected-and-failed-
 closed — and test it; silent incompleteness is no longer acceptable.
 
 **Checklist:**
-- [ ] each of the six points has at least one test injecting the fault
+- [x] each of the six points has at least one test injecting the fault
       through the ordinary contour (workers + reconciler; no direct
       `NextStage` calls) and asserting: convergence to the golden
       outcome or a typed fail-closed stop; no duplicate artifacts,
       events, or jobs; a repeat reconcile reports `in_sync`/`terminal`
-- [ ] the happy-path faults (points 1-4) converge to the happy golden
+- [x] the happy-path faults (points 1-4) converge to the happy golden
       by canonical hash (artifacts, final proposal, exchange log)
-- [ ] the evaluate/apply tear has a decided, tested behavior — heal or
+- [x] the evaluate/apply tear has a decided, tested behavior — heal or
       detect-and-fail-closed — and the `StageShell` moduledoc's scope
       note is updated accordingly
-- [ ] corruption faults (points 5-6) stay fail-closed with the store
+- [x] corruption faults (points 5-6) stay fail-closed with the store
       untouched by any repair attempt (no new revisions written)
-- [ ] existing fault-adjacent tests (reconciler a-d, crash parity,
+- [x] existing fault-adjacent tests (reconciler a-d, crash parity,
       store guards) are referenced or extended, not duplicated
-- [ ] no test performs network I/O, and no test invokes a live producer
+- [x] no test performs network I/O, and no test invokes a live producer
 
 **Out of scope, each for a reason:**
 - **chaos tooling / random injection** — the six points are named and
