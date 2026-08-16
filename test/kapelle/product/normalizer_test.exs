@@ -52,8 +52,43 @@ defmodule Kapelle.Product.Oracle.NormalizerTest do
     "proposal_version" => 3
   }
 
-  test "version is v1" do
-    assert Normalizer.version() == "v1"
+  @artifact_rejected_event %{
+    "event" => "artifact_rejected",
+    "key" => "LOOP-001:0:researcher",
+    "kind" => "research-pack",
+    "errors" => ["SCHEMA"]
+  }
+
+  @stopped_failed_event %{
+    "event" => "stopped",
+    "verdict" => "failed",
+    "reason" => "researcher produced invalid artifact",
+    "iteration" => 0
+  }
+
+  test "an artifact_rejected keeps iteration/stage/kind but drops the producer-specific error codes" do
+    assert Normalizer.normalize([@artifact_rejected_event]) == [
+             %{
+               "iteration" => 0,
+               "stage" => "researcher",
+               "artifact_kind" => "research_pack",
+               "rejected" => true
+             }
+           ]
+  end
+
+  test "a stopped event keeps verdict/iteration and the reason class, like a verdict observation" do
+    assert Normalizer.normalize([@stopped_failed_event]) == [
+             %{
+               "iteration" => 0,
+               "verdict" => "failed",
+               "stop_reason_class" => "researcher produced invalid artifact"
+             }
+           ]
+  end
+
+  test "version is v2" do
+    assert Normalizer.version() == "v2"
   end
 
   test "a researcher artifact_written normalizes iteration/stage from the key and hyphenated kind/ref" do

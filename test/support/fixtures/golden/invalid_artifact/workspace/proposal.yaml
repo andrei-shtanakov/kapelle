@@ -1,0 +1,11 @@
+proposal_id: PP-001
+idea_ref: idea://IDEA-001
+version: 2
+status: in_iteration
+iteration: 0
+refs:
+  exchange_log: exchange-log://XL-001
+content:
+  delta_log: []
+created_at: '2026-08-12T18:00:00Z'
+updated_at: '2026-08-12T18:00:00Z'

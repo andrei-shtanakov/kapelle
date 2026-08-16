@@ -155,10 +155,21 @@ RESUME_UNSTUCK_SCRIPT = {
     "creator": {**STUCK_SCRIPT["creator"], 2: _cd(3, 2, 3, assumption_open=False)},
 }
 
+# Byte-for-byte the `broken` fixture of the producer's own
+# `test_invalid_artifact_fails_closed`: the researcher's iteration-0 document
+# violates the research-pack schema (empty brief_for_creator), the runner
+# refuses to persist it (artifact_rejected in the trace) and stops fail-closed
+# with verdict `failed` at iteration 0.
+INVALID_ARTIFACT_SCRIPT = {
+    "researcher": {0: {**_rp(1, 0, gap_open=True), "brief_for_creator": ""}},
+    "creator": {},
+}
+
 SCENARIOS = {
     "happy": (HAPPY_SCRIPT, "ready_for_business"),
     "needs_human": (STUCK_SCRIPT, "needs_human"),
     "resume": (STUCK_SCRIPT, "needs_human"),
+    "invalid_artifact": (INVALID_ARTIFACT_SCRIPT, "failed"),
 }
 
 
@@ -169,7 +180,7 @@ def main(argv: list[str]) -> None:
     if len(argv) < 3:
         raise SystemExit(
             "usage: gen_golden_run.py <extracted-producer-root> "
-            "<output-workspace-dir> [happy|needs_human|resume]"
+            "<output-workspace-dir> [happy|needs_human|resume|invalid_artifact]"
         )
     root = Path(argv[1]).resolve()
     workspace = Path(argv[2]).resolve()

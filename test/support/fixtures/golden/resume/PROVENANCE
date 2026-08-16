@@ -2,10 +2,10 @@ scenario: resume
 producer: impresario@8082e53b743169137f9e8c72c279043c7166ab03 (full tree via git archive)
 generated: 2026-08-16
 generator: scripts/gen_golden.sh + scripts/gen_golden_run.py
-generator argv: gen_golden_run.py /var/folders/lw/5hflts_12r9c3cc008jzzzwh0000gn/T/tmp.0CghrVj0ey /var/folders/lw/5hflts_12r9c3cc008jzzzwh0000gn/T/tmp.0CghrVj0ey/ws resume
-generator sha256: d052e1ece70395263a47bff4280c92da1ca68a27b1884c95cb0a85e753383309  scripts/gen_golden.sh
-generator sha256: 8c2114685d3ca2beb43b02e5525dacc9ed9ffacdf8b1264d6be8612ac39e4cd1  scripts/gen_golden_run.py
-normalizer: lib/kapelle/product/oracle/normalizer.ex version() = v1
+generator argv: gen_golden_run.py /var/folders/lw/5hflts_12r9c3cc008jzzzwh0000gn/T/tmp.IZb1vjChzj /var/folders/lw/5hflts_12r9c3cc008jzzzwh0000gn/T/tmp.IZb1vjChzj/ws resume
+generator sha256: b22c040a76644375c5a59ba0b9210db7d478bd28900b7e1e721ccea42858aceb  scripts/gen_golden.sh
+generator sha256: 9129ec6ebaffa09247933bf8307bc39a9dab1ac7fd84d8a9124e8f11fa58e000  scripts/gen_golden_run.py
+normalizer: lib/kapelle/product/oracle/normalizer.ex version() = v2
 sha256 ./normalized.json: 62fc2931ccf9fa23b0175ab631353a798bd1619459e22bb262a958089ff4ce4a
 sha256 ./raw-trace.jsonl: 14db9c68885236d1ce6930f1987dbce27b1622165d2d612a860c85bb2b508a5b
 sha256 ./workspace/cd-001.yaml: 12aff2615efc83de488b6900587f5cd817ccf12e447e5a1cf33580cc19e32266
