@@ -34,13 +34,19 @@ defmodule Kapelle.Product.View do
   iteration with a creator/orchestration entry but no researcher entry
   of its own).
 
-  `gate_decision` rows are carried as a best-effort projection: they are
-  still re-checked, but a row that fails the check is dropped from the
-  projection rather than failing the whole view — it never participates
-  in the sequence check and never feeds `Kapelle.Product.NextStage`. A
-  drop is never silent: it is logged (`Logger.warning/1`) and recorded
-  in the `dropped` field so tampering with a lenient-kind row stays
-  visible even though it doesn't fail the build.
+  `gate_decision` and `loop_resume_decision` rows are carried as a
+  best-effort projection: they are still re-checked, but a row that
+  fails the check is dropped from the projection rather than failing
+  the whole view — neither participates in the sequence check and
+  neither feeds `Kapelle.Product.NextStage`. Both are externally-authored
+  documents (a human's gate call, a human's resume authorization) that
+  this view only ever reads after they've already done their one-time
+  job of driving a transition, so re-validating them forever against a
+  schema a later re-vendored contract might tighten would otherwise
+  flip an old, already-resumed loop's view closed for no domain reason.
+  A drop is never silent: it is logged (`Logger.warning/1`) and
+  recorded in the `dropped` field so tampering with a lenient-kind row
+  stays visible even though it doesn't fail the build.
 
   `loop_state` has no place in this view at all (owner's
   loop-state-leaves-the-store decision, 2026-08-14): it is not stored in
@@ -80,7 +86,7 @@ defmodule Kapelle.Product.View do
           dropped: [%{kind: atom(), identity: String.t(), reason: term()}]
         }
 
-  @lenient_kinds [:gate_decision]
+  @lenient_kinds [:gate_decision, :loop_resume_decision]
 
   # The reference FSM this checker enforces (design doc §5, owner's
   # decision, 2026-08-14): only the native loop's own transitions. A

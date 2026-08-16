@@ -214,11 +214,16 @@ CAS as the external backend's own responsibility.
       `supersedes`; more than one active decision
 - [x] a superseded chain (LRD-001 ← LRD-002) consumes the successor,
       never the superseded original
-- [x] the domain observations match the golden oracle for the resume
-      case (producer's `forconcept resume` is the oracle; the
-      needs-human parity case's hold assertion from TASK-105 flips to a
-      resume assertion here)
+- [x] the domain observations for the needs-human hold itself still
+      match the golden oracle's pre-resume hashes (TASK-105's parity
+      case, re-run here with its hold assertion flipped to a resume
+      assertion); full resume-golden parity — draining after resume
+      against a `forconcept resume` golden workspace — was not verified,
+      since no such golden workspace exists yet (see follow-up below)
 - [x] no test performs network I/O, and no test invokes a live producer
+
+**Follow-up:** full resume-golden parity (drain after resume against a
+`forconcept resume` golden workspace) — follow-up.
 
 **Out of scope, each for a reason:**
 - **creating decisions** — a producer-side human act; kapelle authoring

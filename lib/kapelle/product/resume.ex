@@ -21,7 +21,14 @@ defmodule Kapelle.Product.Resume do
       always — refuses the whole call rather than silently ignoring the
       bad edge. A decision is active when no presented document names it
       as its own `supersedes` target; more than one surviving active
-      decision is ambiguous and refuses rather than guessing.
+      decision is ambiguous and refuses rather than guessing. A dangling
+      `supersedes` target — naming a decision not among those presented
+      — is exactly such an inadmissible edge, never a resolvable
+      absence: the producer's own ruling (impresario#14, comment of
+      2026-08-16) is that a superseded original is immutable evidence
+      and travels together with its successor, so a successor presented
+      without its target is refused, not silently treated as if it had
+      no predecessor.
 
   Any failure — including the absence of a decision — is a fail-closed
   refusal: `{:error, reason}`, the hold left exactly as it was, nothing
@@ -41,8 +48,11 @@ defmodule Kapelle.Product.Resume do
   committed — nothing observable before the artifact that justifies it.
 
   Re-presenting an already-consumed decision (byte-identical, matched by
-  canonical hash) is a no-op: the fresh outcome is recomputed and
-  returned, but nothing is re-written, re-enqueued or re-broadcast.
+  canonical hash) is a no-op: nothing is re-written, re-enqueued or
+  re-broadcast, and the answer reports `stage: :already_consumed` rather
+  than recomputing "where is the loop now" — the loop may since have
+  progressed for reasons unrelated to this decision, so replaying it is
+  never a request to re-derive its current position.
   """
 
   alias Ecto.Multi
@@ -63,18 +73,20 @@ defmodule Kapelle.Product.Resume do
   alias Kapelle.Repo
 
   @type stage :: {:research | :concept | :apply, non_neg_integer()}
-  @type result :: %{decision_ref: String.t(), stage: stage()}
+  @type result :: %{decision_ref: String.t(), stage: stage() | :already_consumed}
 
   @spec consume(String.t(), [map()]) :: {:ok, result()} | {:error, term()}
   def consume(loop_id, decisions) when is_binary(loop_id) and is_list(decisions) do
     with {:ok, valid} <- validate_all(decisions),
-         {:ok, active} <- resolve_active(valid) do
+         {:ok, unique} <- reject_duplicate_ids(valid),
+         {:ok, on_subject} <- filter_to_wait_subject(loop_id, unique),
+         {:ok, active} <- resolve_active(on_subject) do
       {:ok, decision_id} = Identity.of(:loop_resume_decision, active)
       hash = CanonicalHash.hash(active)
 
       case already_consumed(loop_id, decision_id, hash) do
         :fresh -> consume_fresh(loop_id, active, decision_id, hash)
-        :idempotent -> replay(loop_id, decision_id)
+        :idempotent -> replay(decision_id)
         {:error, _reason} = error -> error
       end
     end
@@ -91,6 +103,42 @@ defmodule Kapelle.Product.Resume do
     |> case do
       {:ok, acc} -> {:ok, Enum.reverse(acc)}
       error -> error
+    end
+  end
+
+  # Duplicate `decision_id` values in the presented set are refused
+  # explicitly rather than silently resolved by `resolve_active/1`'s own
+  # `Map.new/2` (which would otherwise keep whichever copy happens to
+  # come last and drop the rest without a trace).
+  defp reject_duplicate_ids(decisions) do
+    ids = Enum.map(decisions, & &1["decision_id"])
+
+    case Enum.uniq(ids -- Enum.uniq(ids)) do
+      [] -> {:ok, decisions}
+      duplicate_ids -> {:error, {:duplicate_decision_id, duplicate_ids}}
+    end
+  end
+
+  # The presented set is the operator's claim about THIS wait: a decision
+  # determinately naming a different `(loop_id, iteration)` is an
+  # operator error, not a document to quietly set aside while resolving
+  # the rest — refused fail-closed, before `resolve_active/1` ever runs,
+  # so a foreign decision can never skew the exactly-one-active count.
+  # Skipped entirely when the loop isn't currently held: in that case
+  # `resolve_active/1` and `check_wait/2` still run and produce the more
+  # specific `:not_held` refusal.
+  defp filter_to_wait_subject(loop_id, decisions) do
+    case Loops.get!(loop_id) do
+      %{status: "needs_human"} = loop ->
+        wait_subject = %{"loop_id" => loop.loop_id, "iteration" => held_iteration(loop)}
+
+        case Enum.find(decisions, &(&1["subject"] != wait_subject)) do
+          nil -> {:ok, decisions}
+          foreign -> {:error, {:subject_mismatch, foreign["subject"]}}
+        end
+
+      _not_held ->
+        {:ok, decisions}
     end
   end
 
@@ -198,6 +246,14 @@ defmodule Kapelle.Product.Resume do
     end
   end
 
+  # `:foreign_subject` here is defense-in-depth, not the primary guard:
+  # `filter_to_wait_subject/2` already refuses any presented decision
+  # whose subject disagrees with the wait before this runs, using the
+  # loop row it read at that point. This re-checks against a freshly
+  # re-fetched `loop` (this function's own caller re-fetches, and
+  # `do_consume/4`'s `Multi` re-fetches again under `FOR UPDATE`), so it
+  # still catches the loop having moved to a different wait in the
+  # narrow window between the two reads.
   defp check_wait(loop, active) do
     %{"loop_id" => subject_loop_id, "iteration" => subject_iteration} = active["subject"]
 
@@ -277,19 +333,17 @@ defmodule Kapelle.Product.Resume do
     end
   end
 
-  defp replay(loop_id, decision_id) do
-    loop = Loops.get!(loop_id)
-
-    case View.build(loop_id) do
-      {:ok, view} ->
-        case next_stage(loop, view) do
-          {:ok, {:run, stage}} -> {:ok, %{decision_ref: decision_ref(decision_id), stage: stage}}
-          error -> error
-        end
-
-      error ->
-        error
-    end
+  # Re-presenting an already-consumed decision is a no-op, not a request
+  # to recompute "where is the loop now": the loop may since have
+  # progressed (or even reached a terminal status) for reasons that have
+  # nothing to do with this decision, and `NextStage.compute/2` would
+  # then answer a question nobody asked — a `{:terminal, ...}` verdict
+  # has no `{:run, _}` shape to report here, which is exactly what
+  # produced the `{:unexpected_outcome, ...}` false refusal this
+  # replaced. The truthful answer is position-independent: this decision
+  # was already consumed, full stop.
+  defp replay(decision_id) do
+    {:ok, %{decision_ref: decision_ref(decision_id), stage: :already_consumed}}
   end
 
   defp decision_ref(decision_id), do: "loop-resume-decision://" <> decision_id

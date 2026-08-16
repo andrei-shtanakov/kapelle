@@ -99,14 +99,20 @@ defmodule Kapelle.Product.Loops do
   returns and buys no protection against a concurrent resume of the same
   loop. Returns typed refusals rather than raising when the row no
   longer agrees with what the caller already checked (a race the
-  in-Elixir precheck in `Kapelle.Product.Resume` cannot itself close).
+  in-Elixir precheck in `Kapelle.Product.Resume` cannot itself close),
+  including for an unknown `loop_id` (`:not_found`) rather than raising
+  a `CaseClauseError` on the `nil` `Repo.one/1` returns for it.
   """
   @spec resume(String.t(), pos_integer()) ::
-          {:ok, LoopRow.t()} | {:error, :not_held | :non_widening_budget}
+          {:ok, LoopRow.t()}
+          | {:error, :not_found | :not_held | :non_widening_budget}
   def resume(loop_id, new_max_iterations) when is_integer(new_max_iterations) do
     query = from(l in LoopRow, where: l.loop_id == ^loop_id, lock: "FOR UPDATE")
 
     case Repo.one(query) do
+      nil ->
+        {:error, :not_found}
+
       %LoopRow{status: "needs_human", max_iterations: current}
       when current < new_max_iterations ->
         {1, _} =

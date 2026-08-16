@@ -6,7 +6,12 @@ defmodule Kapelle.Product.ResumeTest do
   parts of the checklist the frozen `test/task_106_red_test.exs` doesn't:
   idempotency, the refusal matrix, the superseded-chain resolution rule,
   and the golden-oracle parity flip (TASK-105's hold assertion, flipped
-  to a resume assertion).
+  to a resume assertion). Also carries its own copy of the one assertion
+  unique to the frozen red file (the stored artifact's canonical hash
+  equals the presented decision's own canonical hash — folded into "a
+  superseded chain..." below) so the frozen file stays load-bearing for
+  nothing; it is kept only by this repo's own convention of never
+  editing a red file after it goes green.
 
   Every test walks the same needs-human hold as `test/task_105_red_test.exs`
   and `test/task_106_red_test.exs` — same golden fixtures, same
@@ -20,6 +25,7 @@ defmodule Kapelle.Product.ResumeTest do
   use Oban.Testing, repo: Kapelle.Repo
 
   alias Kapelle.Product.{
+    CanonicalHash,
     Events,
     FixtureAgent,
     Loop,
@@ -30,7 +36,9 @@ defmodule Kapelle.Product.ResumeTest do
     StrictParse
   }
 
+  alias Kapelle.Product.Records.LoopRow
   alias Kapelle.Product.Workers.ResearchWorker
+  alias Kapelle.Repo
 
   @golden "test/support/fixtures/golden/needs_human"
   @now_iso "2026-08-12T18:00:00Z"
@@ -107,16 +115,17 @@ defmodule Kapelle.Product.ResumeTest do
       loop_id = start_held_loop!("LOOP-601")
       d = decision(loop_id, "LRD-001")
 
-      assert {:ok, %{decision_ref: ref, stage: {:research, 2}} = first} =
-               Resume.consume(loop_id, [d])
-
+      assert {:ok, %{decision_ref: ref, stage: {:research, 2}}} = Resume.consume(loop_id, [d])
       assert ref == "loop-resume-decision://LRD-001"
 
       stored_before = Store.all(loop_id)
       jobs_before = enqueued_count()
 
       :ok = Events.subscribe(loop_id)
-      assert {:ok, ^first} = Resume.consume(loop_id, [d])
+
+      assert {:ok, %{decision_ref: ^ref, stage: :already_consumed}} =
+               Resume.consume(loop_id, [d])
+
       refute_receive _any_event, 100
 
       assert Store.all(loop_id) == stored_before
@@ -125,6 +134,34 @@ defmodule Kapelle.Product.ResumeTest do
       assert {:ok, :in_sync} = Reconciler.reconcile(loop_id)
       assert {:ok, :in_sync} = Reconciler.reconcile(loop_id)
       assert enqueued_count() == jobs_before
+    end
+
+    test "re-presenting a consumed decision after the loop has since progressed is still a position-independent no-op, not a recomputed (and possibly failing) outcome" do
+      loop_id = start_held_loop!("LOOP-613")
+      d = decision(loop_id, "LRD-001")
+
+      assert {:ok, %{decision_ref: ref, stage: {:research, 2}}} = Resume.consume(loop_id, [d])
+
+      # Simulate the loop having progressed well past the point this
+      # decision resumed it to, for reasons unrelated to this decision —
+      # replay must not try to recompute "where is the loop now" against
+      # this new state, since `NextStage.compute/2` has no `{:run, _}`
+      # answer for a terminal status.
+      {1, _} =
+        Repo.update_all(
+          Ecto.Query.from(l in LoopRow, where: l.loop_id == ^loop_id),
+          set: [status: "ready", stop_reason: nil]
+        )
+
+      stored_before = Store.all(loop_id)
+      jobs_before = enqueued_count()
+
+      assert {:ok, %{decision_ref: ^ref, stage: :already_consumed}} =
+               Resume.consume(loop_id, [d])
+
+      assert Store.all(loop_id) == stored_before
+      assert enqueued_count() == jobs_before
+      assert Loops.get!(loop_id).status == "ready"
     end
   end
 
@@ -147,17 +184,74 @@ defmodule Kapelle.Product.ResumeTest do
       assert_hold_intact(loop_id, jobs_before)
     end
 
-    test "foreign subject" do
+    test "foreign subject: the sole presented decision names a different (loop_id, iteration)" do
       loop_id = start_held_loop!("LOOP-604")
       jobs_before = enqueued_count()
 
       foreign =
         decision(loop_id, "LRD-001", %{"subject" => %{"loop_id" => loop_id, "iteration" => 99}})
 
-      assert {:error, {:foreign_subject, %{"iteration" => 99}}} =
+      assert {:error, {:subject_mismatch, %{"iteration" => 99}}} =
                Resume.consume(loop_id, [foreign])
 
       assert_hold_intact(loop_id, jobs_before)
+    end
+
+    # m1: a decision naming a different (loop_id, iteration) is the
+    # operator's error, refused fail-closed before the exactly-one-active
+    # check even runs — never silently filtered out and reconsidered as
+    # "only one decision left, so it must be active".
+    test "subject mismatch: a decision naming a different (loop_id, iteration) is refused even when presented alongside a matching one" do
+      loop_id = start_held_loop!("LOOP-614")
+      jobs_before = enqueued_count()
+
+      matching = decision(loop_id, "LRD-001")
+
+      foreign =
+        decision(loop_id, "LRD-002", %{"subject" => %{"loop_id" => loop_id, "iteration" => 99}})
+
+      assert {:error, {:subject_mismatch, %{"iteration" => 99}}} =
+               Resume.consume(loop_id, [matching, foreign])
+
+      assert_hold_intact(loop_id, jobs_before)
+      refute Enum.any?(Store.all(loop_id), &(&1.kind == :loop_resume_decision))
+    end
+
+    # m2: two presented decisions sharing one decision_id is refused
+    # explicitly rather than `resolve_active/1`'s own `Map.new/2` silently
+    # keeping whichever copy comes last.
+    test "duplicate decision_id in the presented set" do
+      loop_id = start_held_loop!("LOOP-615")
+      jobs_before = enqueued_count()
+
+      a = decision(loop_id, "LRD-001", %{"new_max_iterations" => 3})
+      b = decision(loop_id, "LRD-001", %{"new_max_iterations" => 4})
+
+      assert {:error, {:duplicate_decision_id, ["LRD-001"]}} = Resume.consume(loop_id, [a, b])
+      assert_hold_intact(loop_id, jobs_before)
+    end
+
+    # F2a: a dangling `supersedes` target (not among the presented
+    # decisions) is an inadmissible edge per the producer's ruling
+    # (impresario#14, comment of 2026-08-16) — a superseded original is
+    # immutable evidence that must travel with its successor, so a
+    # successor presented alone refuses the whole call rather than being
+    # treated as if it had no predecessor.
+    test "dangling supersedes target: only the successor is presented, its target absent" do
+      loop_id = start_held_loop!("LOOP-616")
+      jobs_before = enqueued_count()
+
+      successor =
+        decision(loop_id, "LRD-002", %{
+          "new_max_iterations" => 4,
+          "supersedes" => "loop-resume-decision://LRD-001"
+        })
+
+      assert {:error, {:inadmissible_supersedes, :unresolved_target, "LRD-002"}} =
+               Resume.consume(loop_id, [successor])
+
+      assert_hold_intact(loop_id, jobs_before)
+      refute Enum.any?(Store.all(loop_id), &(&1.kind == :loop_resume_decision))
     end
 
     test "non-widening budget" do
@@ -251,7 +345,15 @@ defmodule Kapelle.Product.ResumeTest do
     assert Loops.get!(loop_id).status == "running"
 
     stored = Store.all(loop_id)
-    assert Enum.find(stored, &(&1.kind == :loop_resume_decision and &1.id == "LRD-002"))
+
+    stored_decision =
+      Enum.find(stored, &(&1.kind == :loop_resume_decision and &1.id == "LRD-002"))
+
+    assert stored_decision
+    # Folded in from the frozen test/task_106_red_test.exs (m4): the
+    # stored artifact's canonical hash is the presented decision
+    # document's own canonical hash, not a re-derived or re-encoded one.
+    assert stored_decision.canonical_hash == CanonicalHash.hash(successor)
     refute Enum.find(stored, &(&1.kind == :loop_resume_decision and &1.id == "LRD-001"))
 
     assert_enqueued(
