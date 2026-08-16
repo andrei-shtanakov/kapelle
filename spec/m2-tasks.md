@@ -161,11 +161,73 @@ matrix, not a resume.
 - [x] no test performs network I/O, and no test invokes a live producer
 
 **Out of scope, each for a reason:**
-- **human resume** — blocked by the producer-owned contract (impresario#14); the contract does not exist yet, so there is nothing to port
+- **human resume** — blocked by the producer-owned contract (impresario#14); the contract does not exist yet, so there is nothing to port (unblocked 2026-08-16 → [TASK-106])
 - the full fault-injection matrix through the contour
 - LiveView for the product surface
 - a real LLM anywhere in the path
 - any second S4 scenario
 
 **Depends on:** [TASK-104]
+**Blocks:** [TASK-106]
+
+### TASK-106: Human resume as a pure consumer of loop-resume-decision/v1
+🟠 P1 | ⬜ TODO | Est: 1d
+
+**Description:**
+The producer shipped the contract TASK-105 was waiting for:
+`loop-resume-decision/v1` — an immutable authorization for resuming one
+specific `(loop_id, iteration)` wait — is vendored at
+`impresario@8082e53` (impresario#14 carries the pin and the consumer
+checklist; live example: the producer's backfilled
+`pilot/forconcept/pp-101/decisions/lrd-001.yaml`). This task gives the
+TASK-105 hold its typed exit: a resume-policy adapter that **accepts** an
+existing active decision and never creates one — authoring a decision is
+a producer-side human act, kapelle only consumes.
+
+The adapter's acceptance rules are the producer's checklist, verbatim:
+the document validates against the pinned schema; its `subject` equals
+the active wait's `(loop_id, iteration)`; `new_max_iterations` is
+strictly greater than the loop's current budget; the decision is
+**active** — not superseded via an admissible `supersedes` edge
+(admissible = resolves among the presented decisions, same identity, not
+a self-loop, not part of a cycle; an inadmissible edge is a violation
+and deactivates nothing). Any failure — and the absence of a decision —
+is a fail-closed refusal: the hold stays, nothing is enqueued.
+
+The consume transition (re-check the wait → widen the budget → clear the
+hold → enqueue the next stage → record the resume with a
+`loop-resume-decision://LRD-…` ref) is atomic in **our store** (a DB
+transaction): the producer's file runner guarantees this with a
+single-writer lock over the whole transition, and names the store-level
+CAS as the external backend's own responsibility.
+
+**Checklist:**
+- [ ] the adapter consumes a valid active decision: budget widened to
+      `new_max_iterations`, hold cleared, next stage enqueued, resume
+      recorded with the decision ref — all in one transaction
+- [ ] idempotency: re-presenting the consumed decision is a no-op; a
+      second reconcile reports `in_sync` (no duplicate artifacts, events
+      or jobs)
+- [ ] refusal matrix, each case leaving the hold intact and the queue
+      empty: no decision; schema-invalid; foreign `subject`;
+      non-widening budget; superseded decision; self/cyclic
+      `supersedes`; more than one active decision
+- [ ] a superseded chain (LRD-001 ← LRD-002) consumes the successor,
+      never the superseded original
+- [ ] the domain observations match the golden oracle for the resume
+      case (producer's `forconcept resume` is the oracle; the
+      needs-human parity case's hold assertion from TASK-105 flips to a
+      resume assertion here)
+- [ ] no test performs network I/O, and no test invokes a live producer
+
+**Out of scope, each for a reason:**
+- **creating decisions** — a producer-side human act; kapelle authoring
+  one would forge authorization it must only verify
+- **how decisions arrive** (operator drop, API, sync) — the adapter takes
+  a presented document; transport is a later, separate decision
+- the full fault-injection matrix through the contour
+- LiveView for the product surface
+- a real LLM anywhere in the path
+
+**Depends on:** [TASK-105]
 **Blocks:** —
