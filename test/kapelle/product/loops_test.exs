@@ -68,4 +68,29 @@ defmodule Kapelle.Product.LoopsTest do
 
     assert %{status: "ready", latest_state: ^updated_doc} = Loops.get!("LOOP-L5")
   end
+
+  test "resume/2 on an unknown loop_id is a typed refusal, not a CaseClauseError" do
+    assert {:error, :not_found} = Loops.resume("LOOP-UNKNOWN", 3)
+  end
+
+  test "resume/2 widens a held loop's budget and clears the hold" do
+    {:ok, _} = Loops.create(valid_attrs("LOOP-L6"))
+    {:ok, :transitioned} = Loops.set_status("LOOP-L6", "needs_human", "blocked")
+
+    assert {:ok, %{status: "running", max_iterations: 3, stop_reason: nil}} =
+             Loops.resume("LOOP-L6", 3)
+  end
+
+  test "resume/2 refuses a non-widening budget on a held loop" do
+    {:ok, _} = Loops.create(valid_attrs("LOOP-L7"))
+    {:ok, :transitioned} = Loops.set_status("LOOP-L7", "needs_human", "blocked")
+
+    assert {:error, :non_widening_budget} = Loops.resume("LOOP-L7", 2)
+  end
+
+  test "resume/2 refuses a loop that isn't held" do
+    {:ok, _} = Loops.create(valid_attrs("LOOP-L8"))
+
+    assert {:error, :not_held} = Loops.resume("LOOP-L8", 3)
+  end
 end

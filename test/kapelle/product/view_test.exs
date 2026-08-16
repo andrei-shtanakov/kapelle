@@ -149,6 +149,28 @@ defmodule Kapelle.Product.ViewTest do
     assert log =~ "dropping corrupted gate_decision artifact"
   end
 
+  test "a stored loop_resume_decision row whose doc was corrupted post-hoc is dropped, not failed closed, and is visible" do
+    {:ok, _} = Store.put(load!(:idea, "fixtures/valid/idea-001.yaml"), "LOOP-V9")
+    {:ok, _} = Store.put(load!(:loop_resume_decision, "fixtures/valid/lrd-001.yaml"), "LOOP-V9")
+
+    row = Repo.get_by!(ArtifactRow, loop_id: "LOOP-V9", kind: "loop_resume_decision")
+    corrupted = Map.put(row.doc, "reason", "")
+
+    Repo.update_all(
+      Ecto.Query.from(a in ArtifactRow,
+        where: a.loop_id == "LOOP-V9" and a.kind == "loop_resume_decision"
+      ),
+      set: [doc: corrupted]
+    )
+
+    {result, log} = with_log(fn -> View.build("LOOP-V9") end)
+
+    assert {:ok, %View{dropped: [%{kind: :loop_resume_decision, identity: "LRD-001"}]}} =
+             result
+
+    assert log =~ "dropping corrupted loop_resume_decision artifact"
+  end
+
   test "a concept draft whose based_on_research.ref names a different research pack than the one at its own iteration fails closed on reference mismatch" do
     {:ok, _} = Store.put(load!(:idea, "fixtures/valid/idea-001.yaml"), "LOOP-V8")
     {:ok, _} = Store.put(load!(:research_pack, "fixtures/valid/rp-001.yaml"), "LOOP-V8")
