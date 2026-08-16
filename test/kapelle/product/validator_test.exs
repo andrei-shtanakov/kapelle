@@ -4,10 +4,10 @@ defmodule Kapelle.Product.ValidatorTest do
   alias Kapelle.Product.Contracts
   alias Kapelle.Product.Validator
 
-  test "kinds/0 lists exactly the seven vendored kinds" do
+  test "kinds/0 lists exactly the eight vendored kinds" do
     assert Enum.sort(Contracts.kinds()) ==
              Enum.sort(
-               ~w(idea research_pack concept_draft product_proposal exchange_log loop_state gate_decision)a
+               ~w(idea research_pack concept_draft product_proposal exchange_log loop_state gate_decision loop_resume_decision)a
              )
   end
 

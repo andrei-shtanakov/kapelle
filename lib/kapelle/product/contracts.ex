@@ -1,6 +1,6 @@
 defmodule Kapelle.Product.Contracts do
   @moduledoc """
-  Registry of the seven vendored impresario contract schemas (design doc §7).
+  Registry of the eight vendored impresario contract schemas (design doc §7).
   Reads only the vendored bytes under `priv/contracts/impresario/` — never
   the neighbouring impresario checkout. Schemas declare JSON Schema 2020-12
   but use only draft-compatible keywords; the `$schema` member is stripped
@@ -21,7 +21,8 @@ defmodule Kapelle.Product.Contracts do
     product_proposal: "product-proposal",
     exchange_log: "exchange-log",
     loop_state: "loop-state",
-    gate_decision: "gate-decision"
+    gate_decision: "gate-decision",
+    loop_resume_decision: "loop-resume-decision"
   }
 
   @spec kinds() :: [atom()]

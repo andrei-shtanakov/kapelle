@@ -1,6 +1,6 @@
 defmodule Kapelle.Product.Record do
   @moduledoc """
-  A validated product document of one of the seven vendored kinds
+  A validated product document of one of the eight vendored kinds
   (design doc §7). Carries identity plus the full validated document;
   per-field typing grows per consumer need in later slices.
 

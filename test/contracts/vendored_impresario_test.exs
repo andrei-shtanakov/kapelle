@@ -2,7 +2,7 @@ defmodule Kapelle.Contracts.VendoredImpresarioTest do
   use ExUnit.Case, async: true
 
   @vendor_root Path.join(File.cwd!(), "priv/contracts/impresario")
-  @expected_kinds ~w(idea research-pack concept-draft product-proposal exchange-log loop-state gate-decision)
+  @expected_kinds ~w(idea research-pack concept-draft product-proposal exchange-log loop-state gate-decision loop-resume-decision)
 
   defp pins do
     Path.wildcard(Path.join(@vendor_root, "*/v1/PIN"))
@@ -27,7 +27,7 @@ defmodule Kapelle.Contracts.VendoredImpresarioTest do
     %{source: source, hashes: hashes, dir: Path.dirname(pin_path)}
   end
 
-  test "exactly the seven expected contracts are vendored, each with a PIN" do
+  test "exactly the eight expected contracts are vendored, each with a PIN" do
     found =
       pins()
       |> Enum.map(&(&1 |> Path.dirname() |> Path.dirname() |> Path.basename()))

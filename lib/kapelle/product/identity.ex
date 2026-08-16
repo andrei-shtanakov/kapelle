@@ -13,7 +13,8 @@ defmodule Kapelle.Product.Identity do
     exchange_log: "id",
     product_proposal: "proposal_id",
     loop_state: "loop_id",
-    gate_decision: "decision_id"
+    gate_decision: "decision_id",
+    loop_resume_decision: "decision_id"
   }
 
   @spec field(atom()) :: String.t()

@@ -1,5 +1,5 @@
-source: impresario@f84d5ac5a2aea1e95f9a52f5a266cf37f42f1fd1 contracts/gate-decision/v1
-vendored: 2026-08-14
+source: impresario@8082e53b743169137f9e8c72c279043c7166ab03 contracts/gate-decision/v1
+vendored: 2026-08-16
 purpose: airun M3 — Kapelle.Product consumer copy (design doc §7)
 sha256 fixtures/invalid/agent-authority.yaml: 9a4c6f35dd134c4229fdc7aa3ddc9a606b03338bc7c9f91101e8f601a0cda9cb
 sha256 fixtures/invalid/qg4-approve.yaml: ba3c2edaff438971fd1fae732bddd8e8b877572031a13a905ebd676f47455f40

@@ -1,5 +1,5 @@
-source: impresario@f84d5ac5a2aea1e95f9a52f5a266cf37f42f1fd1 contracts/exchange-log/v1
-vendored: 2026-08-14
+source: impresario@8082e53b743169137f9e8c72c279043c7166ab03 contracts/exchange-log/v1
+vendored: 2026-08-16
 purpose: airun M3 — Kapelle.Product consumer copy (design doc §7)
 sha256 fixtures/invalid/empty-entries.yaml: fada0d19fa880b0ea6ec05c01dc5b9dbb2dbaf79e9675995d330ffb60fd26b83
 sha256 fixtures/invalid/unknown-actor.yaml: a8b20641214c657b0c459a2c318a19697d04c3d56602379710f187e5b1300c2f

@@ -4,7 +4,7 @@ defmodule Kapelle.Product.FixtureParityTest do
   alias Kapelle.Product.{Contracts, Loader, Record}
 
   for kind <-
-        ~w(idea research_pack concept_draft product_proposal exchange_log loop_state gate_decision)a do
+        ~w(idea research_pack concept_draft product_proposal exchange_log loop_state gate_decision loop_resume_decision)a do
     describe "#{kind} fixtures" do
       test "every valid fixture loads into a typed record" do
         dir = Path.join(Contracts.dir!(unquote(kind)), "fixtures/valid")

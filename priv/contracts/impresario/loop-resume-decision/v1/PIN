@@ -1,0 +1,12 @@
+source: impresario@8082e53b743169137f9e8c72c279043c7166ab03 contracts/loop-resume-decision/v1
+vendored: 2026-08-16
+purpose: airun M3 — Kapelle.Product consumer copy (design doc §7)
+sha256 fixtures/invalid/lrd-empty-reason.yaml: 0b140446a3540d9d29349531689cc9444d3c4b9ff3d4f54048ad8955d75532b3
+sha256 fixtures/invalid/lrd-extra-field.yaml: a7b0271ea73689587d8da585c2a802da9f74b75db723da2ea4b8a9a7be131920
+sha256 fixtures/invalid/lrd-foreign-supersedes.yaml: 9ef1a83614879f83d01b334079949355e04b9256be2ccaa899646c165e2648c7
+sha256 fixtures/invalid/lrd-missing-iteration.yaml: 43bf7c62d8bbb6c2446f6c17ab39361e47d5453ce60f8514a8b0df242b20e971
+sha256 fixtures/invalid/lrd-non-human-actor.yaml: 81c7195e088d279d59bd5bfb89673a46d8910caefc191fcd6354a2249c40bf33
+sha256 fixtures/invalid/lrd-zero-budget.yaml: e4ba1437297acfda4c1f6d11701a7ae596a03c2c20c63ab934bb854b57c8da74
+sha256 fixtures/valid/lrd-001.yaml: 6abf2ca0ffcf3e88e2d3bea2395e4c75a78c0a8c7a727b382e49a6d776ad4487
+sha256 fixtures/valid/lrd-002-supersedes.yaml: 1cf5ea17d1e80a314345b5c2abb41221478c84743e860acbc23ae20f1270affc
+sha256 schema.json: 49baaa38c566d2985f42a0f5bff4f1a1f806de8cc24700d37bc8f5f75539cd2f
