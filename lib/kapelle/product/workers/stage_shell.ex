@@ -30,13 +30,21 @@ defmodule Kapelle.Product.Workers.StageShell do
   mismatch, a genuinely absent artifact, an out-of-order entry not
   explained by a missing append) is not derivable from an artifact
   alone and stays fail-closed exactly as before. The evaluate/apply
-  stage (`EvaluateWorker`) has its own multi-write tear window between
-  its `apply_delta` persist and its `maybe_finalize_ready` persist
-  (`do_repair/1`'s own `classify_and_apply/4` comment on
-  `:projection_drift` documents the read side of this same gap) — that
-  window is currently UNDETECTED by `View` (no chain rule fires on it)
-  and is NOT healed by this fix; it stays whatever `View`/`NextStage`
-  already do with it today.
+  stage (`EvaluateWorker`) has a second tear window, between its own
+  `apply_delta` persist (a durable, authoritative write of the round's
+  delta onto the proposal's own `delta_log`) and its
+  `append_exchange_entry/3` call for that round's `"orchestration"`
+  entry (TASK-107) — distinct from the `apply_delta`/`maybe_finalize_ready`
+  window (`do_repair/1`'s own `classify_and_apply/4` comment on
+  `:projection_drift` documents the read side of that other gap, which
+  this fix does not touch). This `"orchestration"`-entry window is
+  UNDETECTED by `View` (no chain rule fires on a missing orchestration
+  entry, unlike `:missing_researcher_entry`) but IS healed the same way
+  as the researcher/creator tear: the missing entry is mechanically
+  re-derivable from the proposal's own `delta_log` entry for the round
+  (`iteration`; the artifact ref is the proposal itself), so
+  `heal_missing_exchange_entries/1` reconstructs it too instead of
+  leaving the exchange log silently incomplete forever.
 
   The invariant shell, in order:
 
@@ -546,8 +554,10 @@ defmodule Kapelle.Product.Workers.StageShell do
   # Heals a crash tear between a stage's own artifact persist and its
   # exchange-log append (moduledoc): derives whichever entries are
   # missing directly from the loop's stored `:research_pack`/
-  # `:concept_draft` rows and appends them, mirroring
-  # `append_exchange_entry/3`'s own persistence path — the only
+  # `:concept_draft` rows, plus the evaluate/apply tear's own
+  # `"orchestration"` entries (derived from the latest stored
+  # `:product_proposal`'s `delta_log`, TASK-107), and appends them,
+  # mirroring `append_exchange_entry/3`'s own persistence path — the only
   # difference is where the "current" log doc comes from. `View.build/1`
   # is deliberately NOT used here: it is exactly what fails closed on the
   # state this function exists to heal. The current log is instead read
@@ -555,15 +565,16 @@ defmodule Kapelle.Product.Workers.StageShell do
   # looks at.
   #
   # Missing entries are appended in deterministic order — iteration
-  # ascending, researcher before creator within an iteration — regardless
-  # of how many are missing or what order `Store.all/1` happens to return
-  # its rows in. Absent a concurrent repair racing this same call, at
-  # most one trailing entry is ever actually missing (only one worker
-  # runs a given stage at a time) — but a concurrent repair CAN widen
-  # that window (`persist_exchange_log_tolerant/2`'s own moduledoc), so
-  # the deterministic-order handling here is not just defensive
-  # decoration. Already-present entries (same `iteration` + `actor`) are
-  # never re-appended, so calling this on an already-healthy log is
+  # ascending, researcher before creator before orchestration within an
+  # iteration — regardless of how many are missing or what order
+  # `Store.all/1` happens to return its rows in. Absent a concurrent
+  # repair racing this same call, at most one trailing entry is ever
+  # actually missing (only one worker runs a given stage at a time) — but
+  # a concurrent repair CAN widen that window
+  # (`persist_exchange_log_tolerant/2`'s own moduledoc), so the
+  # deterministic-order handling here is not just defensive decoration.
+  # Already-present entries (same `iteration` + `actor`) are never
+  # re-appended, so calling this on an already-healthy log is
   # `{:ok, :nothing_to_heal}`. When the log does not exist yet at all
   # (an iteration-0 researcher tear), it is born here the same way
   # `append_exchange_entry/3` would have born it: `entries` starts from
@@ -624,7 +635,8 @@ defmodule Kapelle.Product.Workers.StageShell do
   end
 
   defp correctly_ordered_entries?(entries) do
-    entries_iteration_ascending?(entries) and researcher_before_creator?(entries)
+    entries_iteration_ascending?(entries) and researcher_before_creator?(entries) and
+      creator_before_orchestration?(entries)
   end
 
   defp entries_iteration_ascending?(entries) do
@@ -652,6 +664,26 @@ defmodule Kapelle.Product.Workers.StageShell do
 
   defp entry_actor_index(indexed, actor) do
     Enum.find_value(indexed, fn {entry, index} -> if entry["actor"] == actor, do: index end)
+  end
+
+  # Same guard as `researcher_before_creator?/1`, for the evaluate/apply
+  # tear's own derived entry: a corrupted (not merely torn) log that
+  # already carries a LATER "orchestration" entry with an EARLIER
+  # iteration's "creator" entry still absent is not a safe append either.
+  defp creator_before_orchestration?(entries) do
+    entries
+    |> Enum.with_index()
+    |> Enum.group_by(fn {entry, _index} -> entry["iteration"] end)
+    |> Enum.all?(fn {_iteration, indexed} ->
+      creator_index = entry_actor_index(indexed, "creator")
+      orchestration_index = entry_actor_index(indexed, "orchestration")
+
+      if creator_index && orchestration_index do
+        creator_index < orchestration_index
+      else
+        true
+      end
+    end)
   end
 
   # `persist_document/3`'s own `:artifact_conflict` is honest disagreement
@@ -730,7 +762,8 @@ defmodule Kapelle.Product.Workers.StageShell do
   defp derive_missing_entries(rows, existing_entries) do
     candidates =
       missing_derived_entries(rows, existing_entries, :research_pack, "researcher") ++
-        missing_derived_entries(rows, existing_entries, :concept_draft, "creator")
+        missing_derived_entries(rows, existing_entries, :concept_draft, "creator") ++
+        missing_orchestration_entries(rows, existing_entries)
 
     Enum.sort_by(candidates, &{&1["iteration"], actor_rank(&1["actor"])})
   end
@@ -740,6 +773,53 @@ defmodule Kapelle.Product.Workers.StageShell do
     |> Enum.filter(&(&1.kind == kind))
     |> Enum.reject(&entry_present?(existing_entries, &1.doc["iteration"], actor))
     |> Enum.map(&derived_entry(&1.doc, actor))
+  end
+
+  # The evaluate/apply tear (StageShell moduledoc): `EvaluateWorker.execute/3`
+  # persists its own `apply_delta` proposal snapshot — a durable,
+  # authoritative write recording the round's delta in the proposal's own
+  # `delta_log` — before ever appending the round's `"orchestration"`
+  # exchange entry. A crash in that window leaves the delta_log entry
+  # stored with no matching exchange entry, same shape as the
+  # researcher/creator tear above, and just as mechanically re-derivable:
+  # the round's own `delta_log` entry already carries everything the
+  # entry needs (`iteration`; the artifact ref is the proposal itself, not
+  # the concept draft). Sourced from the latest stored `:product_proposal`
+  # revision directly (same as `latest_exchange_log_entries/1` does for
+  # the log side) rather than `View`, which is exactly what stays silent
+  # over this window (moduledoc).
+  defp missing_orchestration_entries(rows, existing_entries) do
+    case latest_proposal(rows) do
+      nil ->
+        []
+
+      proposal ->
+        proposal
+        |> get_in(["content", "delta_log"])
+        |> List.wrap()
+        |> Enum.reject(&entry_present?(existing_entries, &1["iteration"], "orchestration"))
+        |> Enum.map(&orchestration_entry(&1, proposal))
+    end
+  end
+
+  defp latest_proposal(rows) do
+    rows
+    |> Enum.filter(&(&1.kind == :product_proposal))
+    |> Enum.max_by(& &1.revision, fn -> nil end)
+    |> case do
+      nil -> nil
+      row -> row.doc
+    end
+  end
+
+  defp orchestration_entry(delta_entry, proposal) do
+    %{
+      "iteration" => delta_entry["iteration"],
+      "actor" => "orchestration",
+      "artifact_kind" => "product_proposal_patch",
+      "artifact_ref" => "proposal://" <> proposal["proposal_id"],
+      "at" => now_iso()
+    }
   end
 
   defp entry_present?(existing_entries, iteration, actor) do
@@ -765,6 +845,7 @@ defmodule Kapelle.Product.Workers.StageShell do
 
   defp actor_rank("researcher"), do: 0
   defp actor_rank("creator"), do: 1
+  defp actor_rank("orchestration"), do: 2
 
   @doc """
   Current time as the ISO-8601 string the vendored timestamp schemas
