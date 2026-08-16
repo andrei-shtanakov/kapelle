@@ -245,3 +245,61 @@ fault-matrix work item.
 
 **Depends on:** [TASK-105]
 **Blocks:** —
+
+### TASK-107: Fault-injection matrix through the contour
+🟠 P1 | ⬜ TODO | Est: 1d
+
+**Description:**
+The design doc names six mandatory fault-injection points (§5) and makes
+them an S4 exit gate. Parity work already walked some informally — the
+crash tear at "after artifact, before its exchange entry" produced the
+heal in `StageShell`, and its review recorded the evaluate/apply tear as
+undetected. What does not exist is the systematic suite: every one of
+the six points injected through the ordinary worker contour (no direct
+`NextStage` calls), each asserting the invariant the design promises —
+the loop either heals to the same outcome as the uncrashed run (golden
+oracle) or fails closed, and re-delivery/re-execution never duplicates
+an artifact, an event, or a job.
+
+The six points, verbatim from the design doc:
+1. after artifact persistence, before projection;
+2. after projection, before enqueue;
+3. after enqueue, before ack;
+4. worker re-run after its artifact is already written;
+5. derived row deliberately stale or contradicting the artifacts;
+6. artifact present but hash/schema/identity corrupted.
+
+One decision is part of the task, not optional: the evaluate/apply tear
+(proposal delta persisted, orchestration exchange entry lost — recorded
+in TASK-106's follow-up) is today structurally invisible to `View` and
+silently completes with an incomplete exchange log. The task must give
+it a decided behavior — healed like research/concept (the entry is
+derivable from the proposal's own delta_log) or detected-and-failed-
+closed — and test it; silent incompleteness is no longer acceptable.
+
+**Checklist:**
+- [ ] each of the six points has at least one test injecting the fault
+      through the ordinary contour (workers + reconciler; no direct
+      `NextStage` calls) and asserting: convergence to the golden
+      outcome or a typed fail-closed stop; no duplicate artifacts,
+      events, or jobs; a repeat reconcile reports `in_sync`/`terminal`
+- [ ] the happy-path faults (points 1-4) converge to the happy golden
+      by canonical hash (artifacts, final proposal, exchange log)
+- [ ] the evaluate/apply tear has a decided, tested behavior — heal or
+      detect-and-fail-closed — and the `StageShell` moduledoc's scope
+      note is updated accordingly
+- [ ] corruption faults (points 5-6) stay fail-closed with the store
+      untouched by any repair attempt (no new revisions written)
+- [ ] existing fault-adjacent tests (reconciler a-d, crash parity,
+      store guards) are referenced or extended, not duplicated
+- [ ] no test performs network I/O, and no test invokes a live producer
+
+**Out of scope, each for a reason:**
+- **chaos tooling / random injection** — the six points are named and
+  deterministic; randomness would blur which invariant failed
+- **LiveView surfacing of failed/healed states** — the product surface
+  is a separate slice
+- a real LLM anywhere in the path
+
+**Depends on:** [TASK-106]
+**Blocks:** —
