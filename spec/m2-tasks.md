@@ -161,7 +161,7 @@ matrix, not a resume.
 - [x] no test performs network I/O, and no test invokes a live producer
 
 **Out of scope, each for a reason:**
-- **human resume** — blocked by the producer-owned contract (impresario#14); the contract does not exist yet, so there is nothing to port (unblocked 2026-08-16 → [TASK-106])
+- **human resume** — blocked at the time by the producer-owned contract (impresario#14): it did not exist yet, so there was nothing to port. Resolved 2026-08-16 — the contract is vendored and its consumption is [TASK-106]
 - the full fault-injection matrix through the contour
 - LiveView for the product surface
 - a real LLM anywhere in the path
