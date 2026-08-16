@@ -267,4 +267,123 @@ defmodule Kapelle.Product.ParityCrashTest do
 
     assert Loops.get!(loop_id).status == "failed"
   end
+
+  test "a concurrent heal/append race that lands the same entry with a different timestamp is a tolerated no-op, not a conflict failure" do
+    loop_id = "LOOP-005"
+    script = FixtureAgent.script_from_golden!()
+
+    {:ok, _} =
+      Loop.start(File.read!(Path.join(@golden, "workspace/idea.yaml")),
+        loop_id: loop_id,
+        proposal_id: "PP-001",
+        exchange_log_id: "XL-001",
+        max_iterations: 2,
+        agent: script,
+        now_iso: @now_iso
+      )
+
+    {:ok, rp_doc} = FixtureAgent.produce(:researcher, 0, %{key: "golden"})
+    assert :ok = StageShell.persist_document(:research_pack, rp_doc, loop_id)
+
+    loop = Loops.get!(loop_id)
+
+    # Simulate the concurrent winner: a `Reconciler` sweep's own heal (or
+    # another worker's own append) lands FIRST, at revision 1, stamped
+    # with its own clock reading.
+    winner_entry = %{
+      "iteration" => 0,
+      "actor" => "researcher",
+      "artifact_kind" => "research_pack",
+      "artifact_ref" => "research-pack://" <> rp_doc["id"],
+      "at" => "2020-01-01T00:00:00Z"
+    }
+
+    winner_doc = %{
+      "id" => loop.exchange_log_id,
+      "proposal_ref" => "proposal://" <> loop.proposal_id,
+      "entries" => [winner_entry]
+    }
+
+    assert :ok = StageShell.persist_document(:exchange_log, winner_doc, loop_id)
+
+    # The racing caller's own view was captured BEFORE the winner's write
+    # landed (`exchange_log: nil`, exactly the view a researcher's own
+    # `execute/3` would have held going into its own append) — it
+    # independently builds the SAME logical entry, stamped with its own
+    # (different) clock reading, and tries to append it.
+    stale_view = %View{loop_id: loop_id}
+
+    racing_entry = %{
+      "iteration" => 0,
+      "actor" => "researcher",
+      "artifact_kind" => "research_pack",
+      "artifact_ref" => "research-pack://" <> rp_doc["id"],
+      "at" => @now_iso
+    }
+
+    assert :ok = StageShell.append_exchange_entry(loop, stale_view, racing_entry)
+
+    # Tolerated: no duplicate, no corruption, no failure — the winner's
+    # own entry (its own timestamp) is what's actually stored.
+    assert {:ok, view} = View.build(loop_id)
+    assert view.exchange_log["entries"] == [winner_entry]
+    assert Loops.get!(loop_id).status == "running"
+
+    # Same tolerance from the heal side: reconciling this loop now must
+    # not re-attempt (or fail over) an entry that's already effectively
+    # there.
+    assert {:ok, :repaired} = Reconciler.reconcile(loop_id)
+    assert Loops.get!(loop_id).status == "running"
+  end
+
+  test "a genuinely divergent exchange-log conflict (not just a differing timestamp) still fails closed" do
+    loop_id = "LOOP-006"
+    script = FixtureAgent.script_from_golden!()
+
+    {:ok, _} =
+      Loop.start(File.read!(Path.join(@golden, "workspace/idea.yaml")),
+        loop_id: loop_id,
+        proposal_id: "PP-001",
+        exchange_log_id: "XL-001",
+        max_iterations: 2,
+        agent: script,
+        now_iso: @now_iso
+      )
+
+    {:ok, rp_doc} = FixtureAgent.produce(:researcher, 0, %{key: "golden"})
+    assert :ok = StageShell.persist_document(:research_pack, rp_doc, loop_id)
+
+    loop = Loops.get!(loop_id)
+
+    # A winner that names a DIFFERENT artifact entirely — a real,
+    # semantic disagreement, not merely a differing timestamp.
+    winner_entry = %{
+      "iteration" => 0,
+      "actor" => "researcher",
+      "artifact_kind" => "research_pack",
+      "artifact_ref" => "research-pack://SOME-OTHER-PACK",
+      "at" => "2020-01-01T00:00:00Z"
+    }
+
+    winner_doc = %{
+      "id" => loop.exchange_log_id,
+      "proposal_ref" => "proposal://" <> loop.proposal_id,
+      "entries" => [winner_entry]
+    }
+
+    assert :ok = StageShell.persist_document(:exchange_log, winner_doc, loop_id)
+
+    stale_view = %View{loop_id: loop_id}
+
+    racing_entry = %{
+      "iteration" => 0,
+      "actor" => "researcher",
+      "artifact_kind" => "research_pack",
+      "artifact_ref" => "research-pack://" <> rp_doc["id"],
+      "at" => @now_iso
+    }
+
+    assert {:error, {:artifact_conflict, :exchange_log, _id, _existing_hash, _new_hash}} =
+             StageShell.append_exchange_entry(loop, stale_view, racing_entry)
+  end
 end

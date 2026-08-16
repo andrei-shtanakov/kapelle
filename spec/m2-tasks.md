@@ -230,6 +230,10 @@ at the same pin, byte-stable), producer-authored `decisions/lrd-001.yaml`
 consumed as-is, drain-after-resume parity in
 `test/kapelle/product/parity_resume_test.exs`.
 
+evaluate/apply-stage tear window (proposal persisted, orchestration
+exchange-entry lost) is structurally invisible to `View` and unhealed —
+fault-matrix work item.
+
 **Out of scope, each for a reason:**
 - **creating decisions** — a producer-side human act; kapelle authoring
   one would forge authorization it must only verify
