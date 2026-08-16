@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Re-vendor the seven impresario contracts at one producer commit.
+# Re-vendor the eight impresario contracts at one producer commit.
 # Usage: scripts/revendor_impresario.sh <path-to-impresario-checkout> <commit>
 # Operator tooling: runtime code never references the impresario checkout.
 set -euo pipefail
 
 IMPRESARIO="${1:?path to impresario checkout}"
 COMMIT="${2:?producer commit}"
-KINDS=(idea research-pack concept-draft product-proposal exchange-log loop-state gate-decision)
+KINDS=(idea research-pack concept-draft product-proposal exchange-log loop-state gate-decision loop-resume-decision)
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEST="$ROOT/priv/contracts/impresario"
 SHA="$(git -C "$IMPRESARIO" rev-parse "$COMMIT")"

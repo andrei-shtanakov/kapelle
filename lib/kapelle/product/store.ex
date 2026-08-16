@@ -36,7 +36,8 @@ defmodule Kapelle.Product.Store do
     concept_draft: "concept-draft",
     product_proposal: "proposal",
     exchange_log: "exchange-log",
-    gate_decision: "gate-decision"
+    gate_decision: "gate-decision",
+    loop_resume_decision: "loop-resume-decision"
   }
 
   @doc """
