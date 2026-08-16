@@ -9,6 +9,26 @@ defmodule Kapelle.Product.Workers.StageShell do
   here so the three workers stay thin wrappers around their own
   produce/validate/persist logic.
 
+  Fail-closed stays the rule for every torn or corrupted state a view
+  build can detect — with exactly one narrow exception. Each stage
+  worker's `execute/3` persists its own artifact and appends the
+  matching exchange-log entry as two separate authoritative writes
+  (design doc §5's durable-boundary order); a crash between them leaves
+  the artifact stored with its own entry missing. That missing entry is
+  not lost information — it is mechanically re-derivable from the
+  artifact row itself (the producer's own model: artifacts are the
+  durable truth, the exchange log is derived evidence of them), so
+  `heal_missing_exchange_entries/1` reconstructs it byte-for-byte
+  instead of the loop failing terminally over what is really a
+  recoverable infrastructure gap. This mirrors the producer's own
+  resume-from-artifacts semantics, and is exactly what the oracle's
+  crash-parity guarantee requires: a crash at any boundary must converge
+  byte-identically to the uncrashed run. Anything else a view build
+  rejects (a rewritten history, a reference mismatch, a genuinely absent
+  artifact, an out-of-order entry not explained by a missing append) is
+  not derivable from an artifact alone and stays fail-closed exactly as
+  before.
+
   The invariant shell, in order:
 
     1. A terminal loop discards the job (`:ok`, nothing else runs).
@@ -113,7 +133,7 @@ defmodule Kapelle.Product.Workers.StageShell do
     if terminal?(loop) do
       :ok
     else
-      case View.build(loop_id) do
+      case build_view_with_heal(loop) do
         {:ok, view} ->
           handle_stage(loop, view, stage, iteration, stage_impl)
 
@@ -123,6 +143,42 @@ defmodule Kapelle.Product.Workers.StageShell do
       end
     end
   end
+
+  # The one narrow exception to fail-closed (moduledoc): a view build
+  # that fails on exactly a missing-exchange-entry chain violation is a
+  # crash tear whose missing piece is derivable from the loop's own
+  # stored artifacts, not a genuine corruption. Heal and rebuild once;
+  # any other error (including the rebuilt view still failing, or there
+  # being nothing to heal) falls straight back to fail-closed. This is
+  # `run/2`'s own defensive backstop, reactive rather than unconditional
+  # (unlike `do_repair/1`'s own pre-pass, see there for why the two
+  # callers need different strategies even though both end up calling
+  # `heal_missing_exchange_entries/1`).
+  defp build_view_with_heal(loop) do
+    case View.build(loop.loop_id) do
+      {:ok, view} -> {:ok, view}
+      {:error, reason} -> heal_and_rebuild_or_fail(loop, reason)
+    end
+  end
+
+  defp heal_and_rebuild_or_fail(loop, reason) do
+    if missing_entry_violation?(reason) do
+      case heal_missing_exchange_entries(loop) do
+        {:ok, :healed} -> View.build(loop.loop_id)
+        _not_healed -> {:error, reason}
+      end
+    else
+      {:error, reason}
+    end
+  end
+
+  @missing_entry_rule ~r/^missing_.*_entry$/
+
+  defp missing_entry_violation?({:chain_violation, %{kind: :exchange_log, rule: rule}}) do
+    rule |> Atom.to_string() |> then(&Regex.match?(@missing_entry_rule, &1))
+  end
+
+  defp missing_entry_violation?(_reason), do: false
 
   defp terminal?(%LoopRow{status: status}), do: status != "running"
 
@@ -216,7 +272,43 @@ defmodule Kapelle.Product.Workers.StageShell do
     end
   end
 
+  # `do_repair/1` heals unconditionally, *before* ever building a view —
+  # unlike `run/2`'s own initial build, which only reacts to an actual
+  # `View.build/1` failure (moduledoc's `build_view_with_heal/1`).
+  # `do_repair/1` is what decides and enqueues a loop's *next* stage
+  # (`classify_and_apply/4` below), so it runs strictly before the
+  # window this heal needs to close: an exchange log that does not exist
+  # yet at all is an EMPTY chain, and `View.build/1` raises no violation
+  # over an empty chain — the log is simply absent, not malformed. A
+  # reactive-only heal would therefore let a crash-tear survive
+  # unnoticed straight through `do_repair/1`'s own `View.build/1` call,
+  # all the way to the next stage's worker actually running: that
+  # worker's own `append_exchange_entry/3` would then found the log with
+  # ITS entry alone (e.g. a lone "creator" entry with no "researcher"
+  # entry for the same iteration) — which IS a violation, but by then
+  # it is durably committed as revision 1, and the exchange-log chain's
+  # own immutable-prefix rule (`View`'s `check_exchange_prefix/1`) makes
+  # that revision un-fixable after the fact: no later revision can ever
+  # re-order what an earlier, already-stored revision fixed. Healing
+  # unconditionally here — before `Reconciler.reconcile/1` (an
+  # out-of-band caller that may be the very first thing to touch a loop
+  # after a crash) ever decides what runs next — closes that window
+  # instead of reacting to its aftermath. The heal itself is a cheap
+  # no-op (`{:ok, :nothing_to_heal}`, no write) whenever nothing is
+  # actually missing, which is every ordinary (non-crash) repair, so
+  # this costs nothing on the hot path.
   defp do_repair(loop) do
+    case heal_missing_exchange_entries(loop) do
+      {:error, reason} ->
+        Loops.set_status(loop.loop_id, "failed", inspect(reason))
+        {:error, reason}
+
+      {:ok, _healed_or_not} ->
+        build_and_process(loop)
+    end
+  end
+
+  defp build_and_process(loop) do
     case View.build(loop.loop_id) do
       # `view.idea == nil` means literally nothing has been persisted for
       # this loop yet (`Loop.start/2` always writes the idea before
@@ -441,6 +533,106 @@ defmodule Kapelle.Product.Workers.StageShell do
 
     persist_document(:exchange_log, doc, loop.loop_id)
   end
+
+  @doc """
+  Heals a crash tear between a stage's own artifact persist and its
+  exchange-log append (moduledoc): derives whichever entries are
+  missing directly from the loop's stored `:research_pack`/
+  `:concept_draft` rows and appends them, mirroring
+  `append_exchange_entry/3`'s own persistence path — the only
+  difference is where the "current" log doc comes from. `View.build/1`
+  is deliberately NOT used here: it is exactly what fails closed on the
+  state this function exists to heal. The current log is instead read
+  straight off `Store.all/1`, same as every other row this function
+  looks at.
+
+  Missing entries are appended in deterministic order — iteration
+  ascending, researcher before creator within an iteration — regardless
+  of how many are missing or what order `Store.all/1` happens to return
+  its rows in, though in practice at most one trailing entry can ever
+  be missing (only one worker runs a given stage at a time). Already-
+  present entries (same `iteration` + `actor`) are never re-appended,
+  so calling this on an already-healthy log is `{:ok, :nothing_to_heal}`.
+  When the log does not exist yet at all (an iteration-0 researcher
+  tear), it is born here the same way `append_exchange_entry/3` would
+  have born it: `entries` starts from `[]`.
+  """
+  @spec heal_missing_exchange_entries(LoopRow.t()) ::
+          {:ok, :healed | :nothing_to_heal} | {:error, term()}
+  def heal_missing_exchange_entries(%LoopRow{} = loop) do
+    rows = Store.all(loop.loop_id)
+    existing_entries = latest_exchange_log_entries(rows)
+
+    case derive_missing_entries(rows, existing_entries) do
+      [] ->
+        {:ok, :nothing_to_heal}
+
+      missing ->
+        doc = %{
+          "id" => loop.exchange_log_id,
+          "proposal_ref" => "proposal://" <> loop.proposal_id,
+          "entries" => existing_entries ++ missing
+        }
+
+        case persist_document(:exchange_log, doc, loop.loop_id) do
+          :ok -> {:ok, :healed}
+          {:error, reason} -> {:error, reason}
+        end
+    end
+  end
+
+  defp latest_exchange_log_entries(rows) do
+    rows
+    |> Enum.filter(&(&1.kind == :exchange_log))
+    |> Enum.max_by(& &1.revision, fn -> nil end)
+    |> case do
+      nil -> []
+      row -> row.doc["entries"]
+    end
+  end
+
+  # Candidate entries for every stored artifact that has no matching
+  # exchange-log entry yet, sorted `{iteration, actor_rank}` ascending so
+  # a researcher entry always lands before its own iteration's creator
+  # entry no matter what order the artifacts themselves are found in.
+  defp derive_missing_entries(rows, existing_entries) do
+    candidates =
+      missing_derived_entries(rows, existing_entries, :research_pack, "researcher") ++
+        missing_derived_entries(rows, existing_entries, :concept_draft, "creator")
+
+    Enum.sort_by(candidates, &{&1["iteration"], actor_rank(&1["actor"])})
+  end
+
+  defp missing_derived_entries(rows, existing_entries, kind, actor) do
+    rows
+    |> Enum.filter(&(&1.kind == kind))
+    |> Enum.reject(&entry_present?(existing_entries, &1.doc["iteration"], actor))
+    |> Enum.map(&derived_entry(&1.doc, actor))
+  end
+
+  defp entry_present?(existing_entries, iteration, actor) do
+    Enum.any?(existing_entries, &(&1["iteration"] == iteration and &1["actor"] == actor))
+  end
+
+  @derived_entry_shape %{
+    "researcher" => {"research_pack", "research-pack"},
+    "creator" => {"concept_draft", "concept-draft"}
+  }
+
+  defp derived_entry(doc, actor) do
+    {artifact_kind, ref_scheme} = Map.fetch!(@derived_entry_shape, actor)
+
+    %{
+      "iteration" => doc["iteration"],
+      "actor" => actor,
+      "artifact_kind" => artifact_kind,
+      "artifact_ref" => ref_scheme <> "://" <> doc["id"],
+      "at" => now_iso()
+    }
+  end
+
+  defp actor_rank("researcher"), do: 0
+  defp actor_rank("creator"), do: 1
 
   @doc """
   Current time as the ISO-8601 string the vendored timestamp schemas
