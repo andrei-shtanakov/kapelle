@@ -826,6 +826,11 @@ defmodule Kapelle.Product.Workers.StageShell do
     Enum.any?(existing_entries, &(&1["iteration"] == iteration and &1["actor"] == actor))
   end
 
+  # "orchestration" deliberately has no entry in this table: it derives
+  # from the proposal's own `delta_log` (`missing_orchestration_entries/2`,
+  # `orchestration_entry/2`), not from a `research_pack`/`concept_draft`
+  # artifact row like the two actors below — a different derivation path,
+  # not an oversight.
   @derived_entry_shape %{
     "researcher" => {"research_pack", "research-pack"},
     "creator" => {"concept_draft", "concept-draft"}
