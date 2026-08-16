@@ -19,11 +19,12 @@ defmodule Kapelle.Task107RedTest do
   The task decides this must be healed the same way the research/concept
   tear already is: the missing `"orchestration"` entry is mechanically
   re-derivable from the proposal's own `delta_log` entry for the round
-  (`iteration`, the delta's own `concept_draft` id), so a repair should
-  reconstruct it — mirroring `heal_missing_exchange_entries/1`'s
-  existing researcher/creator heal instead of leaving the log
-  incomplete forever. This test injects exactly that tear through the
-  ordinary contour (workers for research/creator, a hand-simulated
+  (`iteration`; the artifact ref is the proposal itself, not the
+  `concept_draft` id), so a repair should reconstruct it — mirroring
+  `heal_missing_exchange_entries/1`'s existing researcher/creator heal
+  instead of leaving the log incomplete forever. This test injects
+  exactly that tear through the ordinary contour (workers for
+  research/creator, a hand-simulated
   `apply_delta`-only persist for the tear itself — no direct
   `NextStage` call) and asserts the decided behavior: after
   `Kapelle.Product.Reconciler.reconcile/1`, the exchange log carries the

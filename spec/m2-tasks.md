@@ -276,6 +276,11 @@ silently completes with an incomplete exchange log. The task must give
 it a decided behavior — healed like research/concept (the entry is
 derivable from the proposal's own delta_log) or detected-and-failed-
 closed — and test it; silent incompleteness is no longer acceptable.
+Decision taken (PR #25 review): heal, exactly like research/concept —
+plus a new `View` chain rule (`:missing_orchestration_entry`) as the
+fail-closed backstop for the cases the heal itself must decline (a
+later iteration's entries already committed past the gap), so a
+declined heal can no longer complete silently either.
 
 **Checklist:**
 - [x] each of the six points has at least one test injecting the fault
