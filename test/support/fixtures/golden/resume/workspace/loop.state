@@ -1,0 +1,14 @@
+{
+  "loop_id": "LOOP-001",
+  "idea_ref": "idea://IDEA-001",
+  "idea_input_hash": "sha256:04cd6eb4872bbf3634539fbb1d8b9294945b96247ecf33467923cf5ed87999c2",
+  "proposal_id": "PP-001",
+  "exchange_log_id": "XL-001",
+  "max_iterations": 3,
+  "stop": {
+    "verdict": "ready_for_business",
+    "reason": "no open critical assumptions/gaps and no open requests",
+    "iteration": 2,
+    "at": "2026-08-12T18:00:00Z"
+  }
+}

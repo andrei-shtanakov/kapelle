@@ -146,9 +146,19 @@ STUCK_SCRIPT = {
     },
 }
 
+# The resume scenario replays the producer's own `test_needs_human_resume_path`:
+# STUCK to `needs_human`, a human `resume_loop` (which, at the pinned commit,
+# authors an immutable loop-resume-decision into decisions/), then iteration 2
+# closes the gap and answers the assumption -> `ready_for_business`.
+RESUME_UNSTUCK_SCRIPT = {
+    "researcher": {**STUCK_SCRIPT["researcher"], 2: _rp(3, 2, gap_open=False)},
+    "creator": {**STUCK_SCRIPT["creator"], 2: _cd(3, 2, 3, assumption_open=False)},
+}
+
 SCENARIOS = {
     "happy": (HAPPY_SCRIPT, "ready_for_business"),
     "needs_human": (STUCK_SCRIPT, "needs_human"),
+    "resume": (STUCK_SCRIPT, "needs_human"),
 }
 
 
@@ -159,7 +169,7 @@ def main(argv: list[str]) -> None:
     if len(argv) < 3:
         raise SystemExit(
             "usage: gen_golden_run.py <extracted-producer-root> "
-            "<output-workspace-dir> [happy|needs_human]"
+            "<output-workspace-dir> [happy|needs_human|resume]"
         )
     root = Path(argv[1]).resolve()
     workspace = Path(argv[2]).resolve()
@@ -195,6 +205,30 @@ def main(argv: list[str]) -> None:
         raise SystemExit(
             f"expected {expected_verdict}, got {result.verdict}: {result.stop_reason}"
         )
+
+    if scenario == "resume":
+        from impresario.loop import resume_loop
+
+        decision_ref = resume_loop(
+            workspace,
+            contracts_dir,
+            max_iterations=3,
+            actor="andrei",
+            reason="owner resolved the blocking critical items",
+            now_iso=NOW,
+        )
+        print(f"resumed via {decision_ref}")
+        result = run_loop(
+            workspace,
+            contracts_dir,
+            ScriptedAgent(RESUME_UNSTUCK_SCRIPT),
+            now_iso=NOW,
+        )
+        if result.verdict != "ready_for_business":
+            raise SystemExit(
+                f"expected ready_for_business after resume, got "
+                f"{result.verdict}: {result.stop_reason}"
+            )
     print(
         f"verdict={result.verdict} iteration={result.iteration} "
         f"proposal_version={result.proposal_version}"

@@ -1,0 +1,10 @@
+decision_id: LRD-001
+subject:
+  loop_id: LOOP-001
+  iteration: 1
+new_max_iterations: 3
+decided_by:
+  kind: human
+  id: andrei
+decided_at: '2026-08-12T18:00:00Z'
+reason: owner resolved the blocking critical items
