@@ -247,7 +247,7 @@ fault-matrix work item.
 **Blocks:** —
 
 ### TASK-107: Fault-injection matrix through the contour
-🟠 P1 | ⬜ TODO | Est: 1d
+🟠 P1 | 🔄 IN_PROGRESS | Est: 1d
 
 **Description:**
 The design doc names six mandatory fault-injection points (§5) and makes
