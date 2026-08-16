@@ -87,4 +87,46 @@ defmodule Kapelle.Product.Loops do
 
     {:ok, get!(loop_id)}
   end
+
+  @doc """
+  The one non-monotonic transition this module allows: a held
+  (`"needs_human"`) loop back to `"running"` with a strictly widened
+  budget, clearing `stop_reason` — the DB-transaction-safe half of
+  `Kapelle.Product.Resume`'s atomic consume transition (design doc §7).
+  Row-locks (`FOR UPDATE`) the loop before re-checking hold and budget,
+  so it must run inside the caller's own `Repo.transaction`/`Ecto.Multi`;
+  called outside one, the lock is released the instant this query
+  returns and buys no protection against a concurrent resume of the same
+  loop. Returns typed refusals rather than raising when the row no
+  longer agrees with what the caller already checked (a race the
+  in-Elixir precheck in `Kapelle.Product.Resume` cannot itself close).
+  """
+  @spec resume(String.t(), pos_integer()) ::
+          {:ok, LoopRow.t()} | {:error, :not_held | :non_widening_budget}
+  def resume(loop_id, new_max_iterations) when is_integer(new_max_iterations) do
+    query = from(l in LoopRow, where: l.loop_id == ^loop_id, lock: "FOR UPDATE")
+
+    case Repo.one(query) do
+      %LoopRow{status: "needs_human", max_iterations: current}
+      when current < new_max_iterations ->
+        {1, _} =
+          Repo.update_all(
+            from(l in LoopRow, where: l.loop_id == ^loop_id),
+            set: [
+              status: "running",
+              max_iterations: new_max_iterations,
+              stop_reason: nil,
+              updated_at: DateTime.utc_now()
+            ]
+          )
+
+        {:ok, get!(loop_id)}
+
+      %LoopRow{status: "needs_human"} ->
+        {:error, :non_widening_budget}
+
+      %LoopRow{} ->
+        {:error, :not_held}
+    end
+  end
 end

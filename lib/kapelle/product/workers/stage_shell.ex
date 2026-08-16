@@ -78,6 +78,22 @@ defmodule Kapelle.Product.Workers.StageShell do
   @spec enqueue_stage(module(), String.t(), {atom(), non_neg_integer()}, String.t()) ::
           {:ok, Oban.Job.t()} | {:error, Ecto.Changeset.t()}
   def enqueue_stage(worker_module, loop_id, {stage, iteration}, input_hash) do
+    worker_module
+    |> stage_job_changeset(loop_id, {stage, iteration}, input_hash)
+    |> Oban.insert()
+  end
+
+  @doc """
+  Builds (without inserting) a stage job's changeset under the shared
+  idempotency/uniqueness key `enqueue_stage/4` inserts — exposed for a
+  caller that composes its own `Ecto.Multi`/`Oban.insert/3` transaction
+  (`Kapelle.Product.Resume`'s atomic consume transition), so the job it
+  enqueues is byte-identical to one the ordinary worker contour would
+  have produced.
+  """
+  @spec stage_job_changeset(module(), String.t(), {atom(), non_neg_integer()}, String.t()) ::
+          Ecto.Changeset.t()
+  def stage_job_changeset(worker_module, loop_id, {stage, iteration}, input_hash) do
     args = %{
       "loop_id" => loop_id,
       "iteration" => iteration,
@@ -85,9 +101,7 @@ defmodule Kapelle.Product.Workers.StageShell do
       "input_hash" => input_hash
     }
 
-    args
-    |> worker_module.new(unique: [fields: [:worker, :args]])
-    |> Oban.insert()
+    worker_module.new(args, unique: [fields: [:worker, :args]])
   end
 
   @doc "The invariant stage-worker shell (moduledoc) — see there for the step-by-step contract."
@@ -292,24 +306,30 @@ defmodule Kapelle.Product.Workers.StageShell do
   defp verdict_status(:ready), do: "ready"
   defp verdict_status(:needs_human), do: "needs_human"
 
-  defp worker_for(:research), do: ResearchWorker
-  defp worker_for(:concept), do: CreatorWorker
-  defp worker_for(:apply), do: EvaluateWorker
+  @doc "The worker module that runs `stage` — shared with `Kapelle.Product.Resume`."
+  @spec worker_for(atom()) :: module()
+  def worker_for(:research), do: ResearchWorker
+  def worker_for(:concept), do: CreatorWorker
+  def worker_for(:apply), do: EvaluateWorker
 
   # input_hash for the stage about to be enqueued (owner's decision,
   # 2026-08-14): the primary input document that stage will consume —
   # research always re-reads the (unchanging) idea, concept reads its
   # own iteration's research pack, apply reads its own iteration's
   # concept draft.
-  defp input_hash_for(:research, _iteration, view), do: CanonicalHash.hash(view.idea)
+  @doc "The `input_hash` a fresh enqueue of `stage`/`iteration` carries — shared with `Kapelle.Product.Resume`."
+  @spec input_hash_for(atom(), non_neg_integer(), View.t()) :: String.t()
+  def input_hash_for(:research, _iteration, view), do: CanonicalHash.hash(view.idea)
 
-  defp input_hash_for(:concept, iteration, view),
+  def input_hash_for(:concept, iteration, view),
     do: CanonicalHash.hash(view.research_packs[iteration])
 
-  defp input_hash_for(:apply, iteration, view),
+  def input_hash_for(:apply, iteration, view),
     do: CanonicalHash.hash(view.concept_drafts[iteration])
 
-  defp projection_doc(loop, view, outcome) do
+  @doc "The loop's `latest_state` projection document for `outcome` — shared with `Kapelle.Product.Resume`."
+  @spec projection_doc(LoopRow.t(), View.t(), NextStage.stage() | NextStage.verdict()) :: map()
+  def projection_doc(loop, view, outcome) do
     %{
       "loop_id" => loop.loop_id,
       "idea_ref" => "idea://" <> loop.idea_identity,
