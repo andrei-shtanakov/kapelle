@@ -386,4 +386,65 @@ defmodule Kapelle.Product.ParityCrashTest do
     assert {:error, {:artifact_conflict, :exchange_log, _id, _existing_hash, _new_hash}} =
              StageShell.append_exchange_entry(loop, stale_view, racing_entry)
   end
+
+  test "a chain-violating state where the missing entry cannot be safely appended (a later entry already exists) stays fail-closed, and the heal writes nothing" do
+    loop_id = "LOOP-007"
+    script = FixtureAgent.script_from_golden!()
+
+    {:ok, _} =
+      Loop.start(File.read!(Path.join(@golden, "workspace/idea.yaml")),
+        loop_id: loop_id,
+        proposal_id: "PP-001",
+        exchange_log_id: "XL-001",
+        max_iterations: 2,
+        agent: script,
+        now_iso: @now_iso
+      )
+
+    {:ok, rp_doc} = FixtureAgent.produce(:researcher, 0, %{key: "golden"})
+    {:ok, cd_doc} = FixtureAgent.produce(:creator, 0, %{key: "golden"})
+    assert :ok = StageShell.persist_document(:research_pack, rp_doc, loop_id)
+    assert :ok = StageShell.persist_document(:concept_draft, cd_doc, loop_id)
+
+    # Corrupted, not merely torn: the log already carries a LATER entry
+    # (iteration 0's creator) with the EARLIER one (iteration 0's
+    # researcher) still absent. Appending the derived researcher entry
+    # at the tail here would produce `[creator, researcher]` — a new
+    # committed revision that is MORE broken than the state it started
+    # from. The heal must recognize this is not a safe append and write
+    # nothing.
+    corrupted_log = %{
+      "id" => "XL-001",
+      "proposal_ref" => "proposal://PP-001",
+      "entries" => [
+        %{
+          "iteration" => 0,
+          "actor" => "creator",
+          "artifact_kind" => "concept_draft",
+          "artifact_ref" => "concept-draft://" <> cd_doc["id"],
+          "at" => @now_iso
+        }
+      ]
+    }
+
+    assert :ok = StageShell.persist_document(:exchange_log, corrupted_log, loop_id)
+
+    stored_before = Store.all(loop_id)
+    exchange_log_rows_before = Enum.filter(stored_before, &(&1.kind == :exchange_log))
+    assert length(exchange_log_rows_before) == 1
+
+    assert {:error, {:chain_violation, %{kind: :exchange_log, rule: :missing_researcher_entry}}} =
+             Reconciler.reconcile(loop_id)
+
+    assert Loops.get!(loop_id).status == "failed"
+
+    stored_after = Store.all(loop_id)
+    exchange_log_rows_after = Enum.filter(stored_after, &(&1.kind == :exchange_log))
+
+    # (b) no new revision was written by the heal's own attempt.
+    assert length(exchange_log_rows_after) == 1
+
+    # (c) the stored log bytes are untouched.
+    assert exchange_log_rows_after == exchange_log_rows_before
+  end
 end

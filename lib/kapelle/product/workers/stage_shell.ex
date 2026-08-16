@@ -584,17 +584,74 @@ defmodule Kapelle.Product.Workers.StageShell do
         {:ok, :nothing_to_heal}
 
       missing ->
-        doc = %{
-          "id" => loop.exchange_log_id,
-          "proposal_ref" => "proposal://" <> loop.proposal_id,
-          "entries" => existing_entries ++ missing
-        }
-
-        case persist_exchange_log_tolerant(doc, loop.loop_id) do
-          :ok -> {:ok, :healed}
-          {:error, reason} -> {:error, reason}
-        end
+        heal_with_candidate_entries(loop, existing_entries ++ missing)
     end
+  end
+
+  # A missing entry is only safe to heal by *appending* it when the
+  # existing log has no LATER entry already sitting past the gap — e.g.
+  # a corrupted (not merely torn) log that already carries iteration 0's
+  # creator entry with iteration 0's researcher entry still absent
+  # (`View`'s own `:missing_researcher_entry` fires on this, which is
+  # inside the heal's trigger family, but appending the derived
+  # researcher entry at the tail here would produce `[creator,
+  # researcher]` — MORE broken than before, a new committed revision
+  # that also trips `:entry_order`; PR #23 review, Copilot). Guard
+  # against ever writing that: validate the full candidate entries list
+  # against the same order rule `View`'s own `check_entry_order/1`
+  # enforces (`check_entries_iteration_order/1` +
+  # `check_researcher_before_creator/1`, `lib/kapelle/product/view.ex`)
+  # BEFORE persisting anything. Only a correctly-ordered result — the
+  # missing entries genuinely forming the log's own correct suffix — is
+  # written; anything else is left alone as `{:ok, :nothing_to_heal}`,
+  # so the caller's own `View.build/1` still fails closed on the
+  # corruption exactly as before this fix, with zero extra revisions.
+  defp heal_with_candidate_entries(loop, candidate_entries) do
+    if correctly_ordered_entries?(candidate_entries) do
+      doc = %{
+        "id" => loop.exchange_log_id,
+        "proposal_ref" => "proposal://" <> loop.proposal_id,
+        "entries" => candidate_entries
+      }
+
+      case persist_exchange_log_tolerant(doc, loop.loop_id) do
+        :ok -> {:ok, :healed}
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      {:ok, :nothing_to_heal}
+    end
+  end
+
+  defp correctly_ordered_entries?(entries) do
+    entries_iteration_ascending?(entries) and researcher_before_creator?(entries)
+  end
+
+  defp entries_iteration_ascending?(entries) do
+    entries
+    |> Enum.map(& &1["iteration"])
+    |> Enum.chunk_every(2, 1, :discard)
+    |> Enum.all?(fn [a, b] -> b >= a end)
+  end
+
+  defp researcher_before_creator?(entries) do
+    entries
+    |> Enum.with_index()
+    |> Enum.group_by(fn {entry, _index} -> entry["iteration"] end)
+    |> Enum.all?(fn {_iteration, indexed} ->
+      researcher_index = entry_actor_index(indexed, "researcher")
+      creator_index = entry_actor_index(indexed, "creator")
+
+      if researcher_index && creator_index do
+        researcher_index < creator_index
+      else
+        true
+      end
+    end)
+  end
+
+  defp entry_actor_index(indexed, actor) do
+    Enum.find_value(indexed, fn {entry, index} -> if entry["actor"] == actor, do: index end)
   end
 
   # `persist_document/3`'s own `:artifact_conflict` is honest disagreement
