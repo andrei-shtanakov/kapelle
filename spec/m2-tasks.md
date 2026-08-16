@@ -171,7 +171,7 @@ matrix, not a resume.
 **Blocks:** [TASK-106]
 
 ### TASK-106: Human resume as a pure consumer of loop-resume-decision/v1
-🟠 P1 | 🔄 IN_PROGRESS | Est: 1d
+🟠 P1 | ✅ DONE | Est: 1d
 
 **Description:**
 The producer shipped the contract TASK-105 was waiting for:
@@ -202,23 +202,23 @@ single-writer lock over the whole transition, and names the store-level
 CAS as the external backend's own responsibility.
 
 **Checklist:**
-- [ ] the adapter consumes a valid active decision: budget widened to
+- [x] the adapter consumes a valid active decision: budget widened to
       `new_max_iterations`, hold cleared, next stage enqueued, resume
       recorded with the decision ref — all in one transaction
-- [ ] idempotency: re-presenting the consumed decision is a no-op; a
+- [x] idempotency: re-presenting the consumed decision is a no-op; a
       second reconcile reports `in_sync` (no duplicate artifacts, events
       or jobs)
-- [ ] refusal matrix, each case leaving the hold intact and the queue
+- [x] refusal matrix, each case leaving the hold intact and the queue
       empty: no decision; schema-invalid; foreign `subject`;
       non-widening budget; superseded decision; self/cyclic
       `supersedes`; more than one active decision
-- [ ] a superseded chain (LRD-001 ← LRD-002) consumes the successor,
+- [x] a superseded chain (LRD-001 ← LRD-002) consumes the successor,
       never the superseded original
-- [ ] the domain observations match the golden oracle for the resume
+- [x] the domain observations match the golden oracle for the resume
       case (producer's `forconcept resume` is the oracle; the
       needs-human parity case's hold assertion from TASK-105 flips to a
       resume assertion here)
-- [ ] no test performs network I/O, and no test invokes a live producer
+- [x] no test performs network I/O, and no test invokes a live producer
 
 **Out of scope, each for a reason:**
 - **creating decisions** — a producer-side human act; kapelle authoring
