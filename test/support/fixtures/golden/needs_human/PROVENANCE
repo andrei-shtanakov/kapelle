@@ -1,10 +1,10 @@
 scenario: needs_human
-producer: impresario@f84d5ac5a2aea1e95f9a52f5a266cf37f42f1fd1 (full tree via git archive)
-generated: 2026-08-14
+producer: impresario@8082e53b743169137f9e8c72c279043c7166ab03 (full tree via git archive)
+generated: 2026-08-16
 generator: scripts/gen_golden.sh + scripts/gen_golden_run.py
-generator argv: gen_golden_run.py /var/folders/lw/5hflts_12r9c3cc008jzzzwh0000gn/T/tmp.pX3yvaRMnk /var/folders/lw/5hflts_12r9c3cc008jzzzwh0000gn/T/tmp.pX3yvaRMnk/ws needs_human
-generator sha256: 468ebdba2a1eab98e3c948ff936297c0ddeb2182789a48c7fd450bfe4d360ae2  scripts/gen_golden.sh
-generator sha256: 9ba4cf7803f1920c8eb818650325a7fdd1126d7089ca300dbecca85528394aae  scripts/gen_golden_run.py
+generator argv: gen_golden_run.py /var/folders/lw/5hflts_12r9c3cc008jzzzwh0000gn/T/tmp.8kA4Y8myMV /var/folders/lw/5hflts_12r9c3cc008jzzzwh0000gn/T/tmp.8kA4Y8myMV/ws needs_human
+generator sha256: d052e1ece70395263a47bff4280c92da1ca68a27b1884c95cb0a85e753383309  scripts/gen_golden.sh
+generator sha256: 8c2114685d3ca2beb43b02e5525dacc9ed9ffacdf8b1264d6be8612ac39e4cd1  scripts/gen_golden_run.py
 normalizer: lib/kapelle/product/oracle/normalizer.ex version() = v1
 sha256 ./normalized.json: f93d588fb0618762e4fb9caa215e30b09b4018ad371c09608184fb57b6736b15
 sha256 ./raw-trace.jsonl: af8ffff90c12b6917c3a92a3b57e6ad4f7a862d60731005daadaaf0298110885

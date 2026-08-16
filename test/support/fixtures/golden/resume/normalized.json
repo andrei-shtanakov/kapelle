@@ -1,0 +1,70 @@
+[
+  {
+    "proposal_transition": "draft->in_iteration"
+  },
+  {
+    "artifact_hash": "sha256:bf726281050cdee117573f69d5ea9640bdbaa00aad2f947717afa06d51d44eb2",
+    "artifact_kind": "research_pack",
+    "artifact_ref": "research-pack://RP-001",
+    "iteration": 0,
+    "stage": "researcher"
+  },
+  {
+    "artifact_hash": "sha256:7ef8b3abf87b358c519c52a19908155ee4ad84b83a2eccaa010a490bd4e822be",
+    "artifact_kind": "concept_draft",
+    "artifact_ref": "concept-draft://CD-001",
+    "iteration": 0,
+    "stage": "creator"
+  },
+  {
+    "iteration": 0,
+    "stop_reason_class": "open",
+    "verdict": "continue"
+  },
+  {
+    "artifact_hash": "sha256:80600faca9f3878a2a70e609bd1536ebe60903d48304cbb8f686b4edfb45474b",
+    "artifact_kind": "research_pack",
+    "artifact_ref": "research-pack://RP-002",
+    "iteration": 1,
+    "stage": "researcher"
+  },
+  {
+    "artifact_hash": "sha256:c0bc6bc35f31af71884e875fd624ac59b49931737211415e9f35392e9d08283d",
+    "artifact_kind": "concept_draft",
+    "artifact_ref": "concept-draft://CD-002",
+    "iteration": 1,
+    "stage": "creator"
+  },
+  {
+    "iteration": 1,
+    "stop_reason_class": "max_iterations reached with open critical items",
+    "verdict": "needs_human"
+  },
+  {
+    "iteration": 1,
+    "stop_reason_class": "open",
+    "verdict": "continue"
+  },
+  {
+    "artifact_hash": "sha256:0ebbd6b2c89fadd74a16299b41d1f76459fbb108f87a14c6992b72d3bc749b72",
+    "artifact_kind": "research_pack",
+    "artifact_ref": "research-pack://RP-003",
+    "iteration": 2,
+    "stage": "researcher"
+  },
+  {
+    "artifact_hash": "sha256:4e55eb2113f05c4d96af3903c4b1bb945b5d998a6ba806d7e92e44a63c6343d1",
+    "artifact_kind": "concept_draft",
+    "artifact_ref": "concept-draft://CD-003",
+    "iteration": 2,
+    "stage": "creator"
+  },
+  {
+    "iteration": 2,
+    "stop_reason_class": "no open critical assumptions/gaps and no open requests",
+    "verdict": "ready_for_business"
+  },
+  {
+    "proposal_transition": "in_iteration->ready_for_business"
+  }
+]

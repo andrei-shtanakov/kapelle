@@ -223,7 +223,12 @@ CAS as the external backend's own responsibility.
 - [x] no test performs network I/O, and no test invokes a live producer
 
 **Follow-up:** full resume-golden parity (drain after resume against a
-`forconcept resume` golden workspace) — follow-up.
+`forconcept resume` golden workspace) — **done 2026-08-16**: golden
+`resume` scenario generated from the producer at the vendored pin
+(`8082e53`, generator gained the scenario; happy/needs_human regenerated
+at the same pin, byte-stable), producer-authored `decisions/lrd-001.yaml`
+consumed as-is, drain-after-resume parity in
+`test/kapelle/product/parity_resume_test.exs`.
 
 **Out of scope, each for a reason:**
 - **creating decisions** — a producer-side human act; kapelle authoring

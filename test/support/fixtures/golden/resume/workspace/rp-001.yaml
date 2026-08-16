@@ -1,0 +1,20 @@
+id: RP-001
+idea_ref: idea://IDEA-001
+proposal_ref: proposal://PP-001
+iteration: 0
+findings:
+- claim: claim
+  source_ref: ref://x
+  confidence: high
+constraints: []
+gaps:
+- what: critical gap
+  blocks_approval: true
+brief_for_creator: brief
+requests_to_creator: []
+produced_by:
+  kind: agent
+  id: researcher
+  model: vendor/model-x
+  prompt_version: researcher/v1
+produced_at: '2026-08-12T18:00:00Z'

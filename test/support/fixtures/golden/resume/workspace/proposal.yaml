@@ -1,0 +1,22 @@
+proposal_id: PP-001
+idea_ref: idea://IDEA-001
+version: 6
+status: ready_for_business
+iteration: 2
+refs:
+  exchange_log: exchange-log://XL-001
+  latest_research_pack: research-pack://RP-003
+  latest_concept_draft: concept-draft://CD-003
+content:
+  delta_log:
+  - iteration: 0
+    concept_draft: CD-001
+    delta: delta 0
+  - iteration: 1
+    concept_draft: CD-002
+    delta: delta 1
+  - iteration: 2
+    concept_draft: CD-003
+    delta: delta 2
+created_at: '2026-08-12T18:00:00Z'
+updated_at: '2026-08-12T18:00:00Z'
