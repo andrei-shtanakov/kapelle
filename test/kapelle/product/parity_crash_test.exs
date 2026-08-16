@@ -447,4 +447,114 @@ defmodule Kapelle.Product.ParityCrashTest do
     # (c) the stored log bytes are untouched.
     assert exchange_log_rows_after == exchange_log_rows_before
   end
+
+  test "a decline-guarded orchestration gap (delta_log entry present, its own exchange entry missing, a LATER iteration's entry already committed) fails the loop closed instead of completing with a permanently short log (TASK-107 PR #25 review, I1)" do
+    loop_id = "LOOP-008"
+    script = FixtureAgent.script_from_golden!()
+
+    {:ok, _} =
+      Loop.start(File.read!(Path.join(@golden, "workspace/idea.yaml")),
+        loop_id: loop_id,
+        proposal_id: "PP-001",
+        exchange_log_id: "XL-001",
+        max_iterations: 2,
+        agent: script,
+        now_iso: @now_iso
+      )
+
+    {:ok, rp0_doc} = FixtureAgent.produce(:researcher, 0, %{key: "golden"})
+    {:ok, cd0_doc} = FixtureAgent.produce(:creator, 0, %{key: "golden"})
+    assert :ok = StageShell.persist_document(:research_pack, rp0_doc, loop_id)
+    assert :ok = StageShell.persist_document(:concept_draft, cd0_doc, loop_id)
+
+    # Mirrors `EvaluateWorker.execute/3`'s own first persist (`apply_delta`,
+    # `test/task_107_red_test.exs`'s own `simulate_apply_delta_tear!/2`)
+    # byte-for-byte, then stops exactly where a real crash would: the
+    # round's delta lands on the proposal's own `delta_log`, but its
+    # `"orchestration"` exchange entry never gets appended.
+    {:ok, view} = View.build(loop_id)
+
+    flipped = %{
+      view.proposal
+      | "status" => "in_iteration",
+        "version" => view.proposal["version"] + 1,
+        "updated_at" => @now_iso
+    }
+
+    assert :ok = StageShell.persist_document(:product_proposal, flipped, loop_id)
+
+    delta_entry = %{
+      "iteration" => 0,
+      "concept_draft" => cd0_doc["id"],
+      "delta" => cd0_doc["proposal_delta"]
+    }
+
+    applied = %{
+      flipped
+      | "version" => flipped["version"] + 1,
+        "iteration" => 0,
+        "content" => Map.put(flipped["content"] || %{}, "delta_log", [delta_entry]),
+        "refs" =>
+          Map.merge(flipped["refs"], %{
+            "latest_research_pack" => "research-pack://" <> rp0_doc["id"],
+            "latest_concept_draft" => "concept-draft://" <> cd0_doc["id"]
+          }),
+        "updated_at" => @now_iso
+    }
+
+    assert :ok = StageShell.persist_document(:product_proposal, applied, loop_id)
+
+    # This is exactly the ordinary, still-healable tear on its own — so
+    # far `View.build/1` still succeeds (the moduledoc's own "torn, not
+    # corrupted" window), same as `task_107_red_test.exs` observes at the
+    # identical point.
+    assert {:ok, _view_before_later_round} = View.build(loop_id)
+
+    # Now iteration 1's own researcher entry lands, past iteration 0's
+    # still-missing orchestration entry — the shape that makes a tail
+    # append genuinely unsafe (`StageShell.heal_with_candidate_entries/2`'s
+    # own order guard: appending orchestration/0 after researcher/1 would
+    # produce a non-ascending iteration sequence, MORE broken than
+    # before). No artifact backs this entry — same convention as
+    # `parity_crash_test.exs`'s own LOOP-006 winner_entry — because only
+    # the exchange log's own shape is under test here.
+    {:ok, view_after_tear} = View.build(loop_id)
+
+    later_entry = %{
+      "iteration" => 1,
+      "actor" => "researcher",
+      "artifact_kind" => "research_pack",
+      "artifact_ref" => "research-pack://RP-002",
+      "at" => @now_iso
+    }
+
+    assert :ok =
+             StageShell.append_exchange_entry(Loops.get!(loop_id), view_after_tear, later_entry)
+
+    stored_before = Store.all(loop_id)
+    jobs_before = all_enqueued() |> length()
+
+    # The heal's own order guard declines (candidate tail append would be
+    # `[researcher/0, creator/0, researcher/1, orchestration/0]` —
+    # non-ascending), and the new `:missing_orchestration_entry` rule is
+    # the fail-closed backstop that catches what the decline leaves
+    # behind: without it, `do_repair/1` would sail straight through to a
+    # terminal status with iteration 0's orchestration entry silently
+    # never recorded, forever.
+    assert {:error,
+            {:chain_violation,
+             %{kind: :exchange_log, rule: :missing_orchestration_entry, detail: %{iteration: 0}}}} =
+             Reconciler.reconcile(loop_id)
+
+    assert Loops.get!(loop_id).status == "failed"
+
+    # Fail-closed means fail-closed: the decline writes nothing, and
+    # neither does the failed repair attempt.
+    assert Store.all(loop_id) == stored_before
+    assert all_enqueued() |> length() == jobs_before
+
+    assert {:ok, :terminal} = Reconciler.reconcile(loop_id)
+    assert Store.all(loop_id) == stored_before
+    assert all_enqueued() |> length() == jobs_before
+  end
 end

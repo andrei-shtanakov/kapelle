@@ -15,7 +15,17 @@ defmodule Kapelle.Product.ReconcilerTest do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Kapelle.Product.{CanonicalHash, Contracts, FixtureAgent, Loop, Loops, Reconciler, View}
+  alias Kapelle.Product.{
+    CanonicalHash,
+    Contracts,
+    FixtureAgent,
+    Loop,
+    Loops,
+    Reconciler,
+    Store,
+    View
+  }
+
   alias Kapelle.Product.Records.LoopRow
   alias Kapelle.Product.Workers.{CreatorWorker, EvaluateWorker, ResearchWorker, StageShell}
 
@@ -172,11 +182,18 @@ defmodule Kapelle.Product.ReconcilerTest do
                "at" => "2026-08-01T00:00:00Z"
              })
 
+    # (TASK-107 PR #25 review, C2) baseline right before the failing
+    # reconcile, so "zero new artifact revisions written" — the claim
+    # `fault_injection_matrix_test.exs`'s own moduledoc makes about this
+    # test — is asserted here explicitly rather than merely implied.
+    stored_before = Store.all(loop_id)
+
     assert {:error,
             {:projection_drift, %{expected: "ready_for_business", actual: "in_iteration"}}} =
              Reconciler.reconcile(loop_id)
 
     assert Loops.get!(loop_id).status == "failed"
+    assert Store.all(loop_id) == stored_before
   end
 
   test "e) a config row with no persisted idea reconciles to a typed error instead of raising" do

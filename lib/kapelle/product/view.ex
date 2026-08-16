@@ -30,9 +30,34 @@ defmodule Kapelle.Product.View do
   proposal chains for `:initial_version`, `:identity_drift`,
   `:terminal_superseded`, `:fsm_regression`, `:iteration_decrease`;
   exchange-log chains for `:history_rewritten` (byte-canonical prefix
-  property), `:entry_order`, and `:missing_researcher_entry` (an
+  property), `:entry_order`, `:missing_researcher_entry` (an
   iteration with a creator/orchestration entry but no researcher entry
-  of its own).
+  of its own), and `:missing_orchestration_entry` (TASK-107 PR #25
+  review, finding I1: for every iteration the loop's own `product_proposal`
+  chain already records in `content.delta_log`, a matching
+  `"orchestration"` exchange entry must exist IF the exchange log
+  already carries some later iteration's entry). The last one is the
+  fail-closed backstop for `StageShell.heal_with_candidate_entries/2`'s
+  own order guard: when that guard declines to append a derived
+  orchestration entry because a later iteration's entries already sit
+  past the gap (a corrupted, not merely torn, log — the same shape
+  `:missing_researcher_entry` already catches for the researcher/creator
+  tear), nothing previously caught the equivalent corruption for the
+  orchestration entry, so the loop could reach a terminal status with a
+  permanently short exchange log and no one ever told. The "later
+  iteration already present" guard is deliberate, not incidental: an
+  ordinary, still-healable tear (the round's own delta_log entry
+  persisted, its orchestration exchange entry not appended YET, and
+  nothing after it) must stay exactly as invisible to `View` as it
+  always has been — `do_repair/1`'s unconditional pre-pass heals that
+  window before `View.build/1` ever runs in the ordinary contour, and
+  `test/task_107_red_test.exs`'s own frozen red test builds and inspects
+  a `View` in precisely that torn-not-corrupted state before healing it.
+  Failing closed on every missing orchestration entry unconditionally
+  (mirroring `check_researcher_present/1` verbatim) would reject that
+  legitimate, everyday tear too — so this rule only fires once the log
+  already holds proof that the gap can no longer be safely closed by a
+  tail append.
 
   `gate_decision` and `loop_resume_decision` rows are carried as a
   best-effort projection: they are still re-checked, but a row that
@@ -191,7 +216,7 @@ defmodule Kapelle.Product.View do
          {:ok, {proposal, proposal_chain}} <- build_chain(rows, :product_proposal),
          :ok <- check_proposal_chain(proposal_chain),
          {:ok, {exchange_log, exchange_log_chain}} <- build_chain(rows, :exchange_log),
-         :ok <- check_exchange_chain(exchange_log_chain),
+         :ok <- check_exchange_chain(exchange_log_chain, proposal),
          {:ok, research_packs} <- by_iteration(rows, :research_pack),
          {:ok, concept_drafts} <- by_iteration(rows, :concept_draft),
          :ok <- check_sequence(research_packs, concept_drafts),
@@ -410,11 +435,11 @@ defmodule Kapelle.Product.View do
 
   # --- exchange-log chain rules (ascending docs) ---
 
-  defp check_exchange_chain([]), do: :ok
+  defp check_exchange_chain([], proposal), do: check_orchestration_present([], proposal)
 
-  defp check_exchange_chain(chain) do
+  defp check_exchange_chain(chain, proposal) do
     with :ok <- check_exchange_prefix(chain) do
-      check_entry_order(chain)
+      check_entry_order(chain, proposal)
     end
   end
 
@@ -450,12 +475,13 @@ defmodule Kapelle.Product.View do
   # property already guarantees every earlier snapshot's entries are an
   # exact prefix of the latest's, so a valid order on the latest implies
   # a valid order on every prefix of it too.
-  defp check_entry_order(chain) do
+  defp check_entry_order(chain, proposal) do
     entries = List.last(chain)["entries"]
 
     with :ok <- check_entries_iteration_order(entries),
-         :ok <- check_researcher_present(entries) do
-      check_researcher_before_creator(entries)
+         :ok <- check_researcher_present(entries),
+         :ok <- check_researcher_before_creator(entries) do
+      check_orchestration_present(entries, proposal)
     end
   end
 
@@ -478,6 +504,45 @@ defmodule Kapelle.Product.View do
           %{
             kind: :exchange_log,
             rule: :missing_researcher_entry,
+            detail: %{iteration: iteration}
+          }}}
+      end
+    end)
+  end
+
+  # I1 (TASK-107 PR #25 review), moduledoc: for every iteration the
+  # latest proposal snapshot's `content.delta_log` already records as
+  # applied, a matching `"orchestration"` entry must exist — but ONLY
+  # once the exchange log already holds some later iteration's entry,
+  # which is what makes `StageShell.heal_with_candidate_entries/2`'s own
+  # order guard decline to append the derived entry at the tail (an
+  # ordinary, still-healable tear has nothing after the gap yet, and
+  # stays vacuous here exactly as before this fix). With no proposal at
+  # all in the view (nothing persisted yet, or `Loop.start/2`'s idea-only
+  # boundary), there is no `delta_log` to check against, so this is
+  # vacuous — same convention as `check_idea_refs/4`/`check_proposal_refs/4`.
+  defp check_orchestration_present(_entries, nil), do: :ok
+
+  defp check_orchestration_present(entries, proposal) do
+    proposal
+    |> get_in(["content", "delta_log"])
+    |> List.wrap()
+    |> Enum.find_value(:ok, fn delta_entry ->
+      iteration = delta_entry["iteration"]
+
+      present? =
+        Enum.any?(entries, &(&1["iteration"] == iteration and &1["actor"] == "orchestration"))
+
+      later_entry_exists? = Enum.any?(entries, &(&1["iteration"] > iteration))
+
+      if present? or not later_entry_exists? do
+        nil
+      else
+        {:error,
+         {:chain_violation,
+          %{
+            kind: :exchange_log,
+            rule: :missing_orchestration_entry,
             detail: %{iteration: iteration}
           }}}
       end
