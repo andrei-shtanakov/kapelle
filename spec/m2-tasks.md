@@ -171,7 +171,7 @@ matrix, not a resume.
 **Blocks:** [TASK-106]
 
 ### TASK-106: Human resume as a pure consumer of loop-resume-decision/v1
-🟠 P1 | ⬜ TODO | Est: 1d
+🟠 P1 | 🔄 IN_PROGRESS | Est: 1d
 
 **Description:**
 The producer shipped the contract TASK-105 was waiting for:
