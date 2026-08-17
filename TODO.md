@@ -44,7 +44,9 @@
   self-integrity) и явно объявить, что закрыто, а что переносится.
   Вердикт: `docs/superpowers/acceptance/2026-08-17-s4-acceptance.md` — все
   шесть exit-gates §8-S4 закрыты (492 теста зелёные на `da7739d`);
-  переносятся четыре пункта (см. ниже). @id:s4-acceptance
+  переносятся четыре пункта (см. ниже). Фактический охват сверки — PR
+  #18–#25: gate «needs_human hold» (TASK-105) влит PR #18/#19, до
+  постановки этого пункта. @id:s4-acceptance
 - [ ] **human_waiver parity case** (carry-forward S3): golden-сценарий
   «критический assumption снят waiver'ом → цикл проходит» + parity-тест;
   сейчас поле покрыто только юнитами `next_stage_test.exs`.
