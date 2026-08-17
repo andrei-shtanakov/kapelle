@@ -17,8 +17,8 @@ description: |
 # Maestro requires absolute or ~-prefixed paths (validate_repo_path);
 # ~ keeps the config free of machine-specific usernames.
 repo_url: https://github.com/andrei-shtanakov/kapelle
-repo_path: ~/labs/kapelle
-workspace_base: ~/labs/kapelle-maestro-ws
+repo_path: ~/labs/all_ai_orchestrators/kapelle
+workspace_base: ~/labs/all_ai_orchestrators/kapelle-maestro-ws
 
 max_concurrent: 2
 base_branch: pilot/s2-maestro
