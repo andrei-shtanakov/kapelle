@@ -38,32 +38,38 @@
 
 ## Активные задачи
 
-- [x] **Финальная приёмка S4**: сверить исполненное (PR #20–#25) с чартером
-  S4 (needs_human resume, per-write идемпотентность / полная fault matrix,
-  single-flight per loop, human_waiver в parity-матрице, PROVENANCE
-  self-integrity) и явно объявить, что закрыто, а что переносится.
+- [x] **Финальная приёмка S4** @id:s4-acceptance — сверить исполненное
+  (PR #20–#25) с чартером S4 (needs_human resume, per-write идемпотентность /
+  полная fault matrix, single-flight per loop, human_waiver в parity-матрице,
+  PROVENANCE self-integrity) и явно объявить, что закрыто, а что переносится.
   Вердикт: `docs/superpowers/acceptance/2026-08-17-s4-acceptance.md` — все
   шесть exit-gates §8-S4 закрыты (492 теста зелёные на `da7739d`);
   переносятся четыре пункта (см. ниже). Фактический охват сверки — PR
   #18–#25: gate «needs_human hold» (TASK-105) влит PR #18/#19, до
-  постановки этого пункта. @id:s4-acceptance
-- [ ] **human_waiver parity case** (carry-forward S3): golden-сценарий
-  «критический assumption снят waiver'ом → цикл проходит» + parity-тест;
-  сейчас поле покрыто только юнитами `next_stage_test.exs`.
-  @id:human-waiver-parity
-- [ ] **PROVENANCE self-integrity** (carry-forward S3, N4–N6): тест, сверяющий
-  golden-фикстуры с sha256 из их PROVENANCE — тихая правка golden-набора
-  сегодня необнаружима. @id:golden-provenance-self-integrity
-- [ ] **Product loop в LiveView + two-axis verdict / cost-visibility**
-  (§8 «S4+», §1): решить судьбу при закрытии M3 — доделывать или явно
-  вынести за срез (сейчас честный `harness=observability_gap`).
-  @id:s4-plus-tail-decision
-- [ ] **Сверка канонических статусов `spec/tasks.md`** с фактически влитыми
-  PR — по правилу project.yaml статусы reconcile'ятся вручную после
-  финального PR волны. @id:tasks-md-reconciliation
-- [ ] **Реальные LLM/provider-адаптеры** вместо fixture-backed deterministic
-  агентов (Research/Creator/Evaluator через behaviour/port) — отдельная веха
-  после M3 (решение 3 дизайна, PR #14). @id:real-provider-adapters
+  постановки этого пункта.
+- [x] **@id-теги на строки чекбоксов** @id:invisible-ids-on-continuation-lines
+  — inbox kapelle#29 (детектор DT-TAG-ON-CONTINUATION, devtools#57):
+  два тега стояли отдельными строками-продолжениями и были невидимы
+  построчным парсерам; заодно подняты на строки чекбоксов остальные
+  четыре `@id` этого файла — они стояли в хвостах строк-продолжений и
+  были невидимы так же, просто не флагуются (детектор нарочно щадит
+  упоминания в прозе).
+- [ ] **human_waiver parity case** @id:human-waiver-parity — carry-forward S3:
+  golden-сценарий «критический assumption снят waiver'ом → цикл проходит» +
+  parity-тест; сейчас поле покрыто только юнитами `next_stage_test.exs`.
+- [ ] **PROVENANCE self-integrity** @id:golden-provenance-self-integrity —
+  carry-forward S3 (N4–N6): тест, сверяющий golden-фикстуры с sha256 из их
+  PROVENANCE — тихая правка golden-набора сегодня необнаружима.
+- [ ] **Product loop в LiveView + two-axis verdict** @id:s4-plus-tail-decision
+  — §8 «S4+», §1 (включая cost-visibility per run): решить судьбу при
+  закрытии M3 — доделывать или явно вынести за срез (сейчас честный
+  `harness=observability_gap`).
+- [ ] **Сверка статусов `spec/tasks.md`** @id:tasks-md-reconciliation —
+  сверить канонические статусы с фактически влитыми PR; по правилу
+  project.yaml статусы reconcile'ятся вручную после финального PR волны.
+- [ ] **Реальные LLM/provider-адаптеры** @id:real-provider-adapters — вместо
+  fixture-backed deterministic агентов (Research/Creator/Evaluator через
+  behaviour/port); отдельная веха после M3 (решение 3 дизайна, PR #14).
 
 ## Ждём от других проектов
 
