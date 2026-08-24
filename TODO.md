@@ -38,6 +38,19 @@
 
 ## Активные задачи
 
+- [ ] **codex-review PR-B: caller-workflow гейта** @id:codex-review-caller —
+  по образцу пилота spec-runner (механика из base, потолки,
+  generated-декларация, экономный триггер по драфту/лейблу) + лейбл
+  `codex-review` + секрет `CODEX_REVIEW_API_KEY` (кладёт владелец в
+  настройки репо) — после мержа PR-A. PR-A: кит завендорен —
+  `scripts/review/` (5 POSIX-скриптов) + `.github/codex/review-schema.json`,
+  PIN @ steward `9916787`; copy-integrity — джоба `review-kit-integrity` в
+  ci.yml (чекер из base, на первом PR — бутстрап-notice); upstream-drift —
+  вахта `review-kit-drift.yml` (не PR-гейт); `review-prompt.md` — данные
+  репо, вне integrity; `.gitattributes` объявил `mix.lock`. Ре-вендор —
+  рецепт в комментарии PIN; kapelle — четвёртый потребитель, проверка
+  POSIX-портируемости кита на Elixir-репо.
+
 - [x] **Финальная приёмка S4** @id:s4-acceptance — сверить исполненное
   (PR #20–#25) с чартером S4 (needs_human resume, per-write идемпотентность /
   полная fault matrix, single-flight per loop, human_waiver в parity-матрице,
