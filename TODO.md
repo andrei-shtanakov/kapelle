@@ -38,7 +38,7 @@
 
 ## Активные задачи
 
-- [ ] **codex-review PR-B: caller-workflow гейта** @id:codex-review-caller —
+- [ ] **codex-review PR-B: caller-workflow гейта** @id:codex-review-caller — @epic:eco.codex-review-rollout
   по образцу пилота spec-runner (механика из base, потолки,
   generated-декларация, экономный триггер по драфту/лейблу) + лейбл
   `codex-review` + секрет `CODEX_REVIEW_API_KEY` (кладёт владелец в
@@ -67,20 +67,20 @@
   четыре `@id` этого файла — они стояли в хвостах строк-продолжений и
   были невидимы так же, просто не флагуются (детектор нарочно щадит
   упоминания в прозе). PR #30.
-- [ ] **human_waiver parity case** @id:human-waiver-parity — carry-forward S3:
+- [ ] **human_waiver parity case** @id:human-waiver-parity — carry-forward S3: @epic:airun.kapelle-m3
   golden-сценарий «критический assumption снят waiver'ом → цикл проходит» +
   parity-тест; сейчас поле покрыто только юнитами `next_stage_test.exs`.
-- [ ] **PROVENANCE self-integrity** @id:golden-provenance-self-integrity —
+- [ ] **PROVENANCE self-integrity** @id:golden-provenance-self-integrity — @epic:airun.kapelle-m3
   carry-forward S3 (N4–N6): тест, сверяющий golden-фикстуры с sha256 из их
   PROVENANCE — тихая правка golden-набора сегодня необнаружима.
-- [ ] **Product loop в LiveView + two-axis verdict** @id:s4-plus-tail-decision
+- [ ] **Product loop в LiveView + two-axis verdict** @id:s4-plus-tail-decision @epic:airun.kapelle-m3
   — §8 «S4+», §1 (включая cost-visibility per run): решить судьбу при
   закрытии M3 — доделывать или явно вынести за срез (сейчас честный
   `harness=observability_gap`).
-- [ ] **Сверка статусов `spec/tasks.md`** @id:tasks-md-reconciliation —
+- [ ] **Сверка статусов `spec/tasks.md`** @id:tasks-md-reconciliation — @epic:airun.kapelle-m3
   сверить канонические статусы с фактически влитыми PR; по правилу
   project.yaml статусы reconcile'ятся вручную после финального PR волны.
-- [ ] **Реальные LLM/provider-адаптеры** @id:real-provider-adapters — вместо
+- [ ] **Реальные LLM/provider-адаптеры** @id:real-provider-adapters — вместо @epic:airun.kapelle-m3
   fixture-backed deterministic агентов (Research/Creator/Evaluator через
   behaviour/port); отдельная веха после M3 (решение 3 дизайна, PR #14).
 
