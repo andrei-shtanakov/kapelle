@@ -38,7 +38,7 @@
 
 ## Активные задачи
 
-- [ ] **codex-review PR-B: caller-workflow гейта** @id:codex-review-caller — @epic:eco.codex-review-rollout
+- [x] **codex-review PR-B: caller-workflow гейта** @id:codex-review-caller — влит #33 (`3c169b4`, 2026-08-24), приёмка одним платным прогоном (minor вне порога) — @epic:eco.codex-review-rollout
   по образцу пилота spec-runner (механика из base, потолки,
   generated-декларация, экономный триггер по драфту/лейблу) + лейбл
   `codex-review` + секрет `CODEX_REVIEW_API_KEY` (кладёт владелец в
