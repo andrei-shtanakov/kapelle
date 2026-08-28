@@ -37,6 +37,7 @@ jobs:
       - run: mix deps.get
       - run: mix format --check-formatted
       - run: mix credo
+      - run: mix deps.audit
       - run: mix test
 
   # Copy-integrity вендор-копии codex-review-кита (продюсер — steward).
