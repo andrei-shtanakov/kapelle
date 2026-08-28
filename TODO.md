@@ -67,11 +67,11 @@
   четыре `@id` этого файла — они стояли в хвостах строк-продолжений и
   были невидимы так же, просто не флагуются (детектор нарочно щадит
   упоминания в прозе). PR #30.
-- [ ] **mix_audit как dev-деп** @id:mix-audit-dev-dep — inbox kapelle#38
-  (ритуал R-2 hardening sweep, ADR-ECO-009): архивная установка mix_audit
-  сломана по построению (не несёт `yaml_elixir`), канонический канал —
-  dev-зависимость проекта `{:mix_audit, "~> 2.1", only: [:dev, :test],
-  runtime: false}` + шаг `mix deps.audit` в CI.
+- [x] **mix_audit как dev-деп** @id:mix-audit-dev-dep — inbox kapelle#38, PR #42:
+  архивная установка mix_audit сломана по построению (не несёт
+  `yaml_elixir`), канонический канал — dev-зависимость проекта
+  `{:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false}` +
+  шаг `mix deps.audit` в CI (ритуал R-2 hardening sweep, ADR-ECO-009).
 - [ ] **human_waiver parity case** @id:human-waiver-parity — carry-forward S3: @epic:airun.kapelle-m3
   golden-сценарий «критический assumption снят waiver'ом → цикл проходит» +
   parity-тест; сейчас поле покрыто только юнитами `next_stage_test.exs`.
