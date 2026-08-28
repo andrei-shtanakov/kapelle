@@ -76,7 +76,8 @@ defmodule Kapelle.MixProject do
       {:toml, "~> 0.7"},
       {:ex_json_schema, "~> 0.10"},
       {:yaml_elixir, "~> 2.9"},
-      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false}
     ]
   end
 
