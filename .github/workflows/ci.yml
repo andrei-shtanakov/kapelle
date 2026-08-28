@@ -37,6 +37,20 @@ jobs:
       - run: mix deps.get
       - run: mix format --check-formatted
       - run: mix credo
+      # mix_audit 2.1.5 молча глотает сбой clone базы advisories и по пустой
+      # базе рапортует pass — поэтому базу кладём сами, с жёстким гейтом на
+      # ошибку clone и на непустоту (путь захардкожен в MixAudit.Repo.path/0).
+      - name: advisory DB для mix deps.audit
+        run: |
+          set -euo pipefail
+          db="$HOME/.local/share/elixir-security-advisories-mirego"
+          git clone --quiet --depth 1 \
+            https://github.com/mirego/elixir-security-advisories.git "$db"
+          count=$(find "$db/packages" -name '*.yml' | wc -l)
+          if [ "$count" -eq 0 ]; then
+            echo "::error::база advisories пуста — аудит не состоялся"
+            exit 1
+          fi
       - run: mix deps.audit
       - run: mix test
 
