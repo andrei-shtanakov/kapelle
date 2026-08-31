@@ -19,7 +19,7 @@ approved_by: ""
 человеческого approve.
 
 ### TASK-001: Каркас проверки — discovery сценариев и fail-closed разбор PROVENANCE
-P1 | TODO   Est: 1d
+P1 | 🔄 IN_PROGRESS   Est: 1d
 
 Модуль проверки целостности golden-набора + позитивный прогон на committed
 фикстурах. Discovery каталогов первого уровня под golden root по файловой
