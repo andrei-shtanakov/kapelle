@@ -1,12 +1,15 @@
 ---
+traces_to:
+- design
 spec_stage: tasks
-status: draft
-version: 1
+status: approved
+version: 2
 generated_by: fleet-agent
-generated_at: 2026-08-31T19:23:35
-source_prompt_version: ""
-validation: ""
-approved_by: ""
+generated_at: '2026-08-31T19:23:35'
+source_prompt_version: ''
+validation: warn
+approved_by: andrei-shtanakov
+approved_at: '2026-08-31T17:32:40Z'
 ---
 
 ## Milestone 1: Golden-фикстуры: PROVENANCE не проверяется ничем — тихая правка эталона необнаружима (kapelle#47)
@@ -19,7 +22,7 @@ approved_by: ""
 человеческого approve.
 
 ### TASK-001: Каркас проверки — discovery сценариев и fail-closed разбор PROVENANCE
-P1 | 🔄 IN_PROGRESS   Est: 1d
+P1 | ✅ DONE   Est: 1d
 
 Модуль проверки целостности golden-набора + позитивный прогон на committed
 фикстурах. Discovery каталогов первого уровня под golden root по файловой
@@ -31,11 +34,11 @@ Feature «Discovery и положительный результат» + «Manif
 fail-closed»)
 
 **Checklist:**
-- [ ] тест обходит каталоги под `test/support/fixtures/golden/`, находит все четыре committed-сценария и добавленный во временном каталоге новый (BEH-01, BEH-02)
-- [ ] пустой golden root — неуспех с указанием root, не вакуумный успех (BEH-03)
-- [ ] отсутствующий / нечитаемый / не-обычный / пустой `PROVENANCE` — отдельная причина отказа (BEH-04)
-- [ ] malformed-таблица BEH-05 (неизвестный алгоритм, нет пути, нет разделителя, короткий и не-hex digest) — все случаи красные с классом `malformed_checksum`
-- [ ] неизменённый committed набор проходит: `mix test` зелёный на новом тесте (BEH-01)
+- [x] тест обходит каталоги под `test/support/fixtures/golden/`, находит все четыре committed-сценария и добавленный во временном каталоге новый (BEH-01, BEH-02)
+- [x] пустой golden root — неуспех с указанием root, не вакуумный успех (BEH-03)
+- [x] отсутствующий / нечитаемый / не-обычный / пустой `PROVENANCE` — отдельная причина отказа (BEH-04)
+- [x] malformed-таблица BEH-05 (неизвестный алгоритм, нет пути, нет разделителя, короткий и не-hex digest) — все случаи красные с классом `malformed_checksum`
+- [x] неизменённый committed набор проходит: `mix test` зелёный на новом тесте (BEH-01)
 
 **Traces to:** [FR-01, FR-02, FR-04, FR-05, FR-06, FR-07, FR-08]
 
