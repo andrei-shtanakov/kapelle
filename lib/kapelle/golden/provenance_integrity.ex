@@ -229,6 +229,7 @@ defmodule Kapelle.Golden.ProvenanceIntegrity do
     |> Enum.map(fn
       {:regular, path} -> %{class: :unlisted_payload, scenario: scenario, path: path}
       {:non_regular, path} -> %{class: :non_regular_payload, scenario: scenario, path: path}
+      {:unreadable, path} -> %{class: :unreadable_entry, scenario: scenario, path: path}
     end)
   end
 
@@ -240,7 +241,10 @@ defmodule Kapelle.Golden.ProvenanceIntegrity do
         |> Enum.flat_map(&classify_entry(scenario_dir, &1))
 
       {:error, _reason} ->
-        []
+        # Ошибка обхода — нарушение, не пустой каталог: взаимно-однозначное
+        # покрытие недоказуемо, и «неизвестно» не имеет права читаться
+        # зелёным (review kapelle#56, major).
+        [{:unreadable, relative_canonical(scenario_dir, dir)}]
     end
   end
 
@@ -256,7 +260,7 @@ defmodule Kapelle.Golden.ProvenanceIntegrity do
         [{:non_regular, relative_canonical(scenario_dir, absolute_path)}]
 
       {:error, _reason} ->
-        []
+        [{:unreadable, relative_canonical(scenario_dir, absolute_path)}]
     end
   end
 

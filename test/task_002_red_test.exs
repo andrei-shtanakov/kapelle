@@ -53,6 +53,22 @@ defmodule Kapelle.Task002RedTest do
     File.write!(Path.join(scenario_dir, "PROVENANCE"), body <> "\n")
   end
 
+  @tag :unreadable_dir
+  test "unreadable nested directory is a violation, not an empty directory" do
+    root = tmp_dir!()
+    dir = scenario_dir!(root)
+    File.write!(Path.join(dir, "payload.txt"), @payload)
+    hidden = Path.join(dir, "hidden")
+    File.mkdir_p!(hidden)
+    File.write!(Path.join(hidden, "sneaky.txt"), @payload)
+    write_manifest!(dir, ["sha256 ./payload.txt: #{@payload_sha256}"])
+    File.chmod!(hidden, 0o000)
+    on_exit(fn -> File.chmod!(hidden, 0o700) end)
+
+    assert {:error, violations} = ProvenanceIntegrity.check(root)
+    assert_class(violations, :unreadable_entry, "unreadable nested dir")
+  end
+
   defp assert_class(violations, class, context) do
     assert Enum.any?(violations, &(&1.class == class)),
            "expected #{class} violation for #{context}, got: #{inspect(violations)}"
