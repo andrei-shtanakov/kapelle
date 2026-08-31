@@ -5,7 +5,7 @@ owner_role: product
 traces_to:
   - requirements
 upstream_hashes:
-  requirements: "6ea84837289c10afe2387b1a16a9921c54d03cc1"
+  requirements: "6dd700fad3a635c8cf973cbd9dbe0469cd505609"
 ---
 
 # Behaviour spec: Проверяемая целостность golden-фикстур
@@ -36,7 +36,7 @@ payload-файлов и каждый записанный SHA-256 совпада
 
 ## Feature: Discovery и положительный результат
 
-### BS-001 — Проверка неизменённого committed набора
+#### BEH-01: Проверка неизменённого committed набора
 
 **Given** под golden root находятся committed-сценарии `happy`, `needs_human`,
 `resume` и `invalid_artifact` с текущими payload и `PROVENANCE`  
@@ -44,9 +44,10 @@ payload-файлов и каждый записанный SHA-256 совпада
 **Then** все четыре сценария обнаруживаются с диска  
 **And** проверка завершается успешно без изменения файлов.
 
-**Трассировка:** REQ-001, REQ-004, REQ-005, REQ-007, REQ-008
+`traces: [FR-01, FR-04, FR-05, FR-07, FR-08]`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
 
-### BS-002 — Новый сценарий попадает под контракт автоматически
+#### BEH-02: Новый сценарий попадает под контракт автоматически
 
 **Given** под golden root добавлен каталог `future_case` с корректным manifest и
 payload  
@@ -54,20 +55,22 @@ payload
 **When** запускается проверка  
 **Then** `future_case` проверяется и участвует в общем результате.
 
-**Трассировка:** REQ-001
+`traces: [FR-01]`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
 
-### BS-003 — Пустой golden root не является успехом
+#### BEH-03: Пустой golden root не является успехом
 
 **Given** golden root существует, но не содержит каталогов сценариев  
 **When** запускается проверка  
 **Then** результат неуспешен  
 **And** диагностика содержит golden root и класс `no_scenarios`.
 
-**Трассировка:** REQ-001, REQ-006
+`traces: [FR-01, FR-06]`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
 
 ## Feature: Manifest разбирается fail-closed
 
-### BS-004 — Manifest обязателен и должен быть обычным читаемым файлом
+#### BEH-04: Manifest обязателен и должен быть обычным читаемым файлом
 
 **Scenario Outline:** недопустимый объект на месте manifest
 
@@ -85,9 +88,10 @@ payload
 | symlink | `manifest_not_regular` |
 | обычный файл без права чтения | `manifest_unreadable` |
 
-**Трассировка:** REQ-002, REQ-006
+`traces: [FR-02, FR-06]`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
 
-### BS-005 — Формат checksum-записи строгий
+#### BEH-05: Формат checksum-записи строгий
 
 **Scenario Outline:** malformed checksum не игнорируется
 
@@ -109,11 +113,12 @@ payload
 `generator`, `generator argv`, `generator sha256` и `normalizer` не считаются
 payload checksum и сами по себе не создают нарушение.
 
-**Трассировка:** REQ-002, REQ-006
+`traces: [FR-02, FR-06]`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
 
 ## Feature: Пути остаются внутри сценария
 
-### BS-006 — Небезопасный или зарезервированный путь отклоняется до чтения
+#### BEH-06: Небезопасный или зарезервированный путь отклоняется до чтения
 
 **Scenario Outline:** manifest не может расширить доверительную границу
 
@@ -130,9 +135,10 @@ payload checksum и сами по себе не создают нарушени�
 | `./PROVENANCE` |
 | пустой путь |
 
-**Трассировка:** REQ-003, REQ-006, NFR-002
+`traces: [FR-03, FR-06, NFR-01]`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
 
-### BS-007 — Неканонические алиасы не обходят уникальность
+#### BEH-07: Неканонические алиасы не обходят уникальность
 
 **Given** manifest обозначает payload лексически неканоническим путём, например
 `./workspace/./evidence.json`  
@@ -141,9 +147,10 @@ payload checksum и сами по себе не создают нарушени�
 **And** такой алиас не считается отдельным payload и не позволяет обойти
 проверку дубликатов канонического пути.
 
-**Трассировка:** REQ-003, REQ-004, REQ-006
+`traces: [FR-03, FR-04, FR-06]`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
 
-### BS-008 — Symlink не является payload
+#### BEH-08: Symlink не является payload
 
 **Scenario Outline:** symlink fail-closed
 
@@ -158,11 +165,12 @@ payload checksum и сами по себе не создают нарушени�
 | `./inside-link` | обычный файл внутри сценария |
 | `./outside-link` | файл вне сценария |
 
-**Трассировка:** REQ-003, REQ-006, NFR-002
+`traces: [FR-03, FR-06, NFR-01]`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
 
 ## Feature: Полнота и уникальность покрытия
 
-### BS-009 — Payload без checksum обнаруживается
+#### BEH-09: Payload без checksum обнаруживается
 
 **Given** в сценарий добавлен обычный файл `./workspace/unlisted.yaml`  
 **And** в manifest нет записи для него  
@@ -170,27 +178,30 @@ payload checksum и сами по себе не создают нарушени�
 **Then** результат неуспешен с классом `unlisted_payload` и путём
 `./workspace/unlisted.yaml`.
 
-**Трассировка:** REQ-004, REQ-006
+`traces: [FR-04, FR-06]`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
 
-### BS-010 — Checksum без payload обнаруживается
+#### BEH-10: Checksum без payload обнаруживается
 
 **Given** manifest объявляет `./workspace/missing.yaml`  
 **And** такого обычного файла нет  
 **When** запускается проверка  
 **Then** результат неуспешен с классом `missing_payload` и объявленным путём.
 
-**Трассировка:** REQ-004, REQ-006
+`traces: [FR-04, FR-06]`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
 
-### BS-011 — Повторная checksum-запись запрещена
+#### BEH-11: Повторная checksum-запись запрещена
 
 **Given** один канонический payload-путь записан в manifest дважды  
 **And** digest в записях одинаковы либо различаются  
 **When** запускается проверка  
 **Then** результат неуспешен с классом `duplicate_checksum` и этим путём.
 
-**Трассировка:** REQ-004, REQ-006
+`traces: [FR-04, FR-06]`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
 
-### BS-012 — Вложенные обычные файлы входят в покрытие
+#### BEH-12: Вложенные обычные файлы входят в покрытие
 
 **Given** payload находится глубже одного уровня, например
 `./workspace/nested/evidence.json`  
@@ -199,11 +210,12 @@ payload checksum и сами по себе не создают нарушени�
 **But When** запись удалена из manifest  
 **Then** тот же файл сообщается как `unlisted_payload`.
 
-**Трассировка:** REQ-004
+`traces: [FR-04]`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
 
 ## Feature: Проверяется точное байтовое содержимое
 
-### BS-013 — Тихая побайтовая правка обнаруживается
+#### BEH-13: Тихая побайтовая правка обнаруживается
 
 **Given** manifest соответствует исходному payload  
 **When** в payload добавлен, удалён или заменён хотя бы один байт без изменения
@@ -211,9 +223,10 @@ manifest
 **Then** результат неуспешен с классом `checksum_mismatch`  
 **And** диагностика называет сценарий и относительный путь изменённого файла.
 
-**Трассировка:** REQ-005, REQ-006
+`traces: [FR-05, FR-06]`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
 
-### BS-014 — Семантическая эквивалентность не заменяет равенство байтов
+#### BEH-14: Семантическая эквивалентность не заменяет равенство байтов
 
 **Given** JSON, YAML или JSONL payload семантически эквивалентен исходному  
 **When** изменены только пробелы, порядок допустимого форматирования, кодировка
@@ -222,11 +235,12 @@ manifest
 **Then** результат неуспешен как `checksum_mismatch`  
 **And** проверка не нормализует содержимое перед хешированием.
 
-**Трассировка:** REQ-005
+`traces: [FR-05]`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
 
 ## Feature: Интеграция, диагностика и отсутствие побочных эффектов
 
-### BS-015 — Несколько безопасно обнаруживаемых нарушений видны вместе
+#### BEH-15: Несколько безопасно обнаруживаемых нарушений видны вместе
 
 **Given** в разных сценариях есть checksum mismatch, необъявленный payload и
 checksum без файла  
@@ -236,9 +250,10 @@ checksum без файла
 **And** список имеет стабильный порядок независимо от порядка обхода файловой
 системы и locale.
 
-**Трассировка:** REQ-006, NFR-001
+`traces: [FR-06, NFR-01]`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
 
-### BS-016 — Проверка входит в штатный Mix workflow
+#### BEH-16: Проверка входит в штатный Mix workflow
 
 **Given** committed golden-набор неизменён  
 **When** выполняется `mix test`  
@@ -248,9 +263,10 @@ checksum без файла
 **Then** он находит проектный golden root и даёт тот же результат  
 **And** `mix precommit` включает этот тест через обычный тестовый контур.
 
-**Трассировка:** REQ-007, NFR-001
+`traces: [FR-07, NFR-01]`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
 
-### BS-017 — Проверка офлайн и только для чтения
+#### BEH-17: Проверка офлайн и только для чтения
 
 **Given** снимок байтов и метаданных временного golden tree сохранён до запуска  
 **When** положительная либо отрицательная проверка завершилась  
@@ -259,9 +275,10 @@ checksum без файла
 producer  
 **And** не выполнялись сетевые запросы и не требовались переменные окружения.
 
-**Трассировка:** REQ-005, REQ-007, REQ-008, NFR-001
+`traces: [FR-05, FR-07, FR-08, NFR-01]`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
 
-### BS-018 — Manifest штатного генератора принимается без адаптации
+#### BEH-18: Manifest штатного генератора принимается без адаптации
 
 **Given** сценарий создан существующим `scripts/gen_golden.sh`  
 **And** payload после генерации не менялся  
@@ -269,11 +286,12 @@ producer
 **Then** служебные строки и checksum-записи принимаются в исходном формате  
 **And** проверка проходит без переписывания manifest.
 
-**Трассировка:** REQ-002, REQ-008
+`traces: [FR-02, FR-08]`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
 
 ## Feature: Явная граница гарантии
 
-### BS-019 — Согласованная правка не объявляется обнаруживаемой
+#### BEH-19: Согласованная правка не объявляется обнаруживаемой
 
 **Given** payload изменён и его checksum в committed `PROVENANCE` согласованно
 заменён корректным новым digest  
@@ -282,7 +300,8 @@ producer
 **And** этот результат означает только внутреннюю согласованность набора  
 **And** доверие к самой правке остаётся ответственностью Git diff и review.
 
-**Трассировка:** NFR-002, границы charter
+`traces: [NFR-01]`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
 
 ## Матрица трассировки
 
