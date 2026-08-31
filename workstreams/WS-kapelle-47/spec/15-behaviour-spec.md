@@ -5,7 +5,7 @@ owner_role: product
 traces_to:
   - requirements
 upstream_hashes:
-  requirements: "6dd700fad3a635c8cf973cbd9dbe0469cd505609"
+  requirements: "ec4095c275e22753d46bcc2618e9e585581fc7f8"
 ---
 
 # Behaviour spec: Проверяемая целостность golden-фикстур
@@ -133,7 +133,6 @@ payload checksum и сами по себе не создают нарушени�
 | `../outside` |
 | `./dir/../../outside` |
 | `./PROVENANCE` |
-| пустой путь |
 
 `traces: [FR-03, FR-06, NFR-01]`
 - **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
@@ -307,16 +306,15 @@ producer
 
 | Требование | Поведенческие сценарии |
 |---|---|
-| REQ-001 | BS-001—BS-003 |
-| REQ-002 | BS-004, BS-005, BS-018 |
-| REQ-003 | BS-006—BS-008 |
-| REQ-004 | BS-001, BS-007, BS-009—BS-012 |
-| REQ-005 | BS-001, BS-013, BS-014, BS-017 |
-| REQ-006 | BS-003—BS-011, BS-013, BS-015 |
-| REQ-007 | BS-001, BS-016, BS-017 |
-| REQ-008 | BS-001, BS-017, BS-018 |
-| NFR-001 | BS-015—BS-017 |
-| NFR-002 | BS-006, BS-008, BS-019 |
+| FR-01 | BEH-01—BEH-03 |
+| FR-02 | BEH-04, BEH-05, BEH-18 |
+| FR-03 | BEH-06—BEH-08 |
+| FR-04 | BEH-01, BEH-07, BEH-09—BEH-12 |
+| FR-05 | BEH-01, BEH-13, BEH-14, BEH-17 |
+| FR-06 | BEH-03—BEH-11, BEH-13, BEH-15 |
+| FR-07 | BEH-01, BEH-16, BEH-17 |
+| FR-08 | BEH-01, BEH-17, BEH-18 |
+| NFR-01 | BEH-06, BEH-08, BEH-15—BEH-17, BEH-19 |
 
 ## Exit criteria behaviour-spec
 
