@@ -4,6 +4,8 @@ status: draft
 owner_role: product
 traces_to:
   - charter
+upstream_hashes:
+  charter: "0676ad093820c4b336de349500a3c6983dcf2292"
 ---
 
 # Requirements: Проверяемая целостность golden-фикстур

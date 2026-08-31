@@ -4,6 +4,8 @@ status: draft
 owner_role: product
 traces_to:
   - requirements
+upstream_hashes:
+  requirements: "6ea84837289c10afe2387b1a16a9921c54d03cc1"
 ---
 
 # Behaviour spec: Проверяемая целостность golden-фикстур
