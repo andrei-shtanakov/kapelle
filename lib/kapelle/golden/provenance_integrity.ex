@@ -187,17 +187,35 @@ defmodule Kapelle.Golden.ProvenanceIntegrity do
   defp check_checksum(scenario_dir, scenario, canonical_path, digest) do
     absolute_path = Path.join(scenario_dir, String.trim_leading(canonical_path, "./"))
 
-    case File.read(absolute_path) do
-      {:ok, content} ->
-        if actual_digest(content) == digest do
-          []
-        else
-          [%{class: :checksum_mismatch, scenario: scenario, path: canonical_path}]
-        end
+    # TOCTOU-гард (review kapelle#57, blocker): File.read следует symlink,
+    # и между lstat из payload_state и чтением объект по пути мог быть
+    # подменён. Атомарный no-follow open в Erlang не экспонирован, поэтому
+    # двойной stat: lstat ДО чтения и ПОСЛЕ, совпадение типа/inode/размера/
+    # mtime обязательно — подмена в любом направлении становится нарушением,
+    # а не тихим хешем чужого файла (BEH-08: symlink не читается никогда).
+    with {:ok, %File.Stat{type: :regular} = before_stat} <- File.lstat(absolute_path),
+         {:ok, content} <- File.read(absolute_path),
+         {:ok, %File.Stat{type: :regular} = after_stat} <- File.lstat(absolute_path),
+         true <- stat_fingerprint(before_stat) == stat_fingerprint(after_stat) do
+      if actual_digest(content) == digest do
+        []
+      else
+        [%{class: :checksum_mismatch, scenario: scenario, path: canonical_path}]
+      end
+    else
+      {:ok, %File.Stat{}} ->
+        [%{class: :non_regular_payload, scenario: scenario, path: canonical_path}]
+
+      false ->
+        [%{class: :payload_changed_during_check, scenario: scenario, path: canonical_path}]
 
       {:error, _reason} ->
         [%{class: :unreadable_payload, scenario: scenario, path: canonical_path}]
     end
+  end
+
+  defp stat_fingerprint(%File.Stat{} = stat) do
+    {stat.type, stat.inode, stat.major_device, stat.size, stat.mtime}
   end
 
   defp actual_digest(content) do

@@ -132,4 +132,16 @@ defmodule Kapelle.Task003RedTest do
     assert length(first_mismatches) == 2
     assert first_mismatches == second_mismatches
   end
+  test "symlink with matching external digest is a violation, never a hash match" do
+    root = tmp_dir!()
+    dir = scenario_dir!(root, "scenario")
+    outside = Path.join(root, "outside.txt")
+    File.write!(outside, "payload\n")
+    File.ln_s!(outside, Path.join(dir, "payload.txt"))
+    write_manifest!(dir, "scenario", ["sha256 ./payload.txt: #{@payload_sha256}"])
+
+    assert {:error, violations} = ProvenanceIntegrity.check(root)
+    assert Enum.any?(violations, &(&1.class in [:non_regular_payload, :payload_changed_during_check]))
+  end
+
 end
