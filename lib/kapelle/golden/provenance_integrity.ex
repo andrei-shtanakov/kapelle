@@ -10,9 +10,12 @@ defmodule Kapelle.Golden.ProvenanceIntegrity do
   to a canonical relative path inside the scenario directory before its
   target is ever touched, symlinks are never traced or hashed, and the set
   of on-disk payload files must correspond one-to-one with declared checksum
-  entries (BEH-06..BEH-12). Byte-for-byte checksum verification against
-  payload files is out of scope here and is covered by later checks in the
-  same integrity pipeline.
+  entries (BEH-06..BEH-12). Each uniquely-declared payload's actual bytes are
+  then hashed with SHA-256 and compared to the declared digest with no
+  normalization of line endings, encoding, whitespace, JSON, YAML or JSONL —
+  a byte-identical match is the only pass (BEH-13/BEH-14). Violations across
+  all scenarios are reported together in a stable order, independent of
+  filesystem traversal order or locale (BEH-15).
   """
 
   @manifest_name "PROVENANCE"
@@ -39,7 +42,10 @@ defmodule Kapelle.Golden.ProvenanceIntegrity do
         {:error, [%{class: :no_scenarios, root: root}]}
 
       scenarios ->
-        violations = Enum.flat_map(scenarios, &check_scenario(root, &1))
+        violations =
+          scenarios
+          |> Enum.flat_map(&check_scenario(root, &1))
+          |> Enum.sort_by(&violation_sort_key/1)
 
         if violations == [] do
           {:ok, scenarios}
@@ -49,9 +55,15 @@ defmodule Kapelle.Golden.ProvenanceIntegrity do
     end
   end
 
+  # Stable order independent of filesystem traversal order or locale
+  # (BEH-15): sort violations by scenario, then path, then class.
+  defp violation_sort_key(violation) do
+    {Map.get(violation, :scenario, ""), Map.get(violation, :path, ""), violation.class}
+  end
+
   defp scenario_names(root) do
     case File.ls(root) do
-      {:ok, entries} -> Enum.filter(entries, &scenario_dir?(Path.join(root, &1)))
+      {:ok, entries} -> entries |> Enum.filter(&scenario_dir?(Path.join(root, &1))) |> Enum.sort()
       {:error, _reason} -> []
     end
   end
@@ -142,17 +154,54 @@ defmodule Kapelle.Golden.ProvenanceIntegrity do
         %{class: :duplicate_checksum, scenario: scenario, path: path}
       end
 
+    duplicate_paths =
+      for {path, group} <- declared, length(group) > 1, into: MapSet.new(), do: path
+
+    existence_by_path =
+      Map.new(declared, fn {path, _group} -> {path, payload_state(scenario_dir, path)} end)
+
     existence_violations =
-      declared
-      |> Map.keys()
-      |> Enum.map(&payload_state(scenario_dir, &1))
+      existence_by_path
+      |> Map.values()
       |> Enum.reject(&(&1 == nil))
       |> Enum.map(fn {class, path} -> %{class: class, scenario: scenario, path: path} end)
+
+    checksum_violations =
+      declared
+      |> Enum.reject(fn {path, _group} -> MapSet.member?(duplicate_paths, path) end)
+      |> Enum.filter(fn {path, _group} -> existence_by_path[path] == nil end)
+      |> Enum.flat_map(fn {path, [{path, digest}]} ->
+        check_checksum(scenario_dir, scenario, path, digest)
+      end)
 
     discovery_violations = discover_violations(scenario_dir, declared_paths, scenario)
 
     unsafe_violations ++
-      duplicate_violations ++ existence_violations ++ discovery_violations
+      duplicate_violations ++
+      existence_violations ++ checksum_violations ++ discovery_violations
+  end
+
+  # Byte-exact SHA-256 verification (BEH-13/BEH-14): no normalization of
+  # line endings, encoding, whitespace, JSON, YAML or JSONL — only an
+  # identical byte stream matches the declared digest.
+  defp check_checksum(scenario_dir, scenario, canonical_path, digest) do
+    absolute_path = Path.join(scenario_dir, String.trim_leading(canonical_path, "./"))
+
+    case File.read(absolute_path) do
+      {:ok, content} ->
+        if actual_digest(content) == digest do
+          []
+        else
+          [%{class: :checksum_mismatch, scenario: scenario, path: canonical_path}]
+        end
+
+      {:error, _reason} ->
+        [%{class: :unreadable_payload, scenario: scenario, path: canonical_path}]
+    end
+  end
+
+  defp actual_digest(content) do
+    :sha256 |> :crypto.hash(content) |> Base.encode16(case: :lower)
   end
 
   defp classify_paths(scenario, entries) do
