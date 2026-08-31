@@ -51,9 +51,13 @@ defmodule Kapelle.Golden.ProvenanceIntegrity do
 
   defp scenario_names(root) do
     case File.ls(root) do
-      {:ok, entries} -> Enum.filter(entries, &File.dir?(Path.join(root, &1)))
+      {:ok, entries} -> Enum.filter(entries, &scenario_dir?(Path.join(root, &1)))
       {:error, _reason} -> []
     end
+  end
+
+  defp scenario_dir?(path) do
+    match?({:ok, %File.Stat{type: :directory}}, File.lstat(path))
   end
 
   defp check_scenario(root, scenario) do
