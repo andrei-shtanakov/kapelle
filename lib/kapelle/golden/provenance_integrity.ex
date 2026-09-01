@@ -21,6 +21,14 @@ defmodule Kapelle.Golden.ProvenanceIntegrity do
   @manifest_name "PROVENANCE"
   @reserved_manifest_path "./" <> @manifest_name
 
+  # `__DIR__` is baked in at compile time as this file's own source
+  # location, so it is independent of the OS process's current working
+  # directory at runtime (workstreams/WS-kapelle-47 BEH-16, FR-07) — unlike
+  # a `File.cwd!()`-relative literal, which only resolves correctly when the
+  # process happens to be started from the project root.
+  @project_root Path.expand("../../..", __DIR__)
+  @golden_root Path.join(@project_root, "test/support/fixtures/golden")
+
   @generator_line_prefixes [
     "scenario:",
     "producer:",
@@ -34,6 +42,15 @@ defmodule Kapelle.Golden.ProvenanceIntegrity do
   @checksum_line ~r/^sha256 (\S+): ([0-9a-f]{64})$/
 
   @type violation :: %{optional(atom()) => term()}
+
+  @doc """
+  Checks the project's own golden root
+  (`test/support/fixtures/golden`, resolved independently of the process
+  cwd — see `@golden_root` above), for use from a supported Mix workflow
+  such as `mix test` (BEH-16).
+  """
+  @spec check() :: {:ok, [String.t()]} | {:error, [violation()]}
+  def check, do: check(@golden_root)
 
   @spec check(String.t()) :: {:ok, [String.t()]} | {:error, [violation()]}
   def check(root) do
