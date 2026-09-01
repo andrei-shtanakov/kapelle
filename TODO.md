@@ -75,7 +75,10 @@
 - [ ] **human_waiver parity case** @id:human-waiver-parity — carry-forward S3: @epic:airun.kapelle-m3
   golden-сценарий «критический assumption снят waiver'ом → цикл проходит» +
   parity-тест; сейчас поле покрыто только юнитами `next_stage_test.exs`.
-- [x] **PROVENANCE self-integrity** @id:golden-provenance-self-integrity — @epic:airun.kapelle-m3 — kapelle#47 закрыт: бандл WS-kapelle-47 (PR #51), спека (PR #53), TASK-001–004 (PR #55—#59), master a56af35 — 502 tests, 0 failures
+- [x] **PROVENANCE self-integrity** @id:golden-provenance-self-integrity — @epic:airun.kapelle-m3 — kapelle#47 закрыт (PR #51—#59)
+      Evidence: behaviour-бандл WS-kapelle-47 (PR #51) → tasks-спека (PR #53) →
+      TASK-001–004 (PR #55—#59); master a56af35 — 502 tests, 0 failures.
+      Проверка живёт в mix test / mix precommit (Kapelle.Golden.ProvenanceIntegrity).
   carry-forward S3 (N4–N6): тест, сверяющий golden-фикстуры с sha256 из их
   PROVENANCE — тихая правка golden-набора сегодня необнаружима.
 - [ ] **Product loop в LiveView + two-axis verdict** @id:s4-plus-tail-decision @epic:airun.kapelle-m3
