@@ -9,10 +9,13 @@ own `pip install -e` step (main dependencies only) does not provision.
 Both scripts are the producer's own — `HAPPY_SCRIPT` and `STUCK_SCRIPT`. The
 needs-human oracle must express the producer's semantics, not this project's
 expectation of them, so it is copied from the source of truth rather than
-invented here.
+invented here. `HUMAN_WAIVER_SCRIPT` is the one exception and says so at its
+own definition: the producer exercises `human_waiver` in no test at the pin,
+so there is no fixture to copy — only the producer's closure rule to stand on.
 
 Usage: gen_golden_run.py <extracted-producer-root> <output-workspace-dir> [scenario]
-       scenario: happy (default) | needs_human
+       scenario: happy (default) | needs_human | resume | invalid_artifact
+                 | human_waiver
 """
 
 from __future__ import annotations
@@ -70,12 +73,29 @@ def _rp(num: int, iteration: int, *, gap_open: bool) -> dict[str, Any]:
     }
 
 
+# The producer closes a critical assumption two ways and only two
+# (`open_criticals` in src/impresario/loop.py at the pin): `answered_by` — a
+# later research pack that resolved it — or `human_waiver` — a human's
+# explicit waiver. "open" is the absence of both.
+CLOSURES = ("open", "answered_by", "human_waiver")
+
+
+def _assumption_closure(closure: str, rp_num: int) -> dict[str, Any]:
+    if closure == "open":
+        return {}
+    if closure == "answered_by":
+        return {"answered_by": f"research-pack://RP-{rp_num:03d}"}
+    if closure == "human_waiver":
+        return {"human_waiver": "owner waived the blocking assumption"}
+    raise ValueError(f"unknown closure {closure!r}; expected one of {CLOSURES}")
+
+
 def _cd(
     num: int,
     iteration: int,
     rp_num: int,
     *,
-    assumption_open: bool,
+    closure: str,
     requests: list[str] | None = None,
 ) -> dict[str, Any]:
     return {
@@ -99,11 +119,7 @@ def _cd(
             {
                 "text": "critical assumption",
                 "blocks_approval": True,
-                **(
-                    {}
-                    if assumption_open
-                    else {"answered_by": f"research-pack://RP-{rp_num:03d}"}
-                ),
+                **_assumption_closure(closure, rp_num),
             }
         ],
         "requests_to_researcher": requests or [],
@@ -117,7 +133,7 @@ def _cd(
 # iteration 0 leaves a critical gap AND a critical assumption AND an open
 # request open (advances rather than terminating); iteration 1 closes the
 # gap (gap_open=False -> "closed": true) and answers the assumption
-# (assumption_open=False -> "answered_by" set), with no further requests,
+# (closure="answered_by" -> "answered_by" set), with no further requests,
 # so the loop reaches READY by exercising both closing rules, not just the
 # simplest possible path.
 HAPPY_SCRIPT = {
@@ -126,8 +142,8 @@ HAPPY_SCRIPT = {
         1: _rp(2, 1, gap_open=False),
     },
     "creator": {
-        0: _cd(1, 0, 1, assumption_open=True, requests=["check the gap"]),
-        1: _cd(2, 1, 2, assumption_open=False),
+        0: _cd(1, 0, 1, closure="open", requests=["check the gap"]),
+        1: _cd(2, 1, 2, closure="answered_by"),
     },
 }
 
@@ -141,8 +157,8 @@ HAPPY_SCRIPT = {
 STUCK_SCRIPT = {
     "researcher": {0: _rp(1, 0, gap_open=True), 1: _rp(2, 1, gap_open=True)},
     "creator": {
-        0: _cd(1, 0, 1, assumption_open=True),
-        1: _cd(2, 1, 2, assumption_open=True),
+        0: _cd(1, 0, 1, closure="open"),
+        1: _cd(2, 1, 2, closure="open"),
     },
 }
 
@@ -152,7 +168,7 @@ STUCK_SCRIPT = {
 # closes the gap and answers the assumption -> `ready_for_business`.
 RESUME_UNSTUCK_SCRIPT = {
     "researcher": {**STUCK_SCRIPT["researcher"], 2: _rp(3, 2, gap_open=False)},
-    "creator": {**STUCK_SCRIPT["creator"], 2: _cd(3, 2, 3, assumption_open=False)},
+    "creator": {**STUCK_SCRIPT["creator"], 2: _cd(3, 2, 3, closure="answered_by")},
 }
 
 # Byte-for-byte the `broken` fixture of the producer's own
@@ -165,11 +181,30 @@ INVALID_ARTIFACT_SCRIPT = {
     "creator": {},
 }
 
+# Composed here, not copied — and the difference is deliberate. At the pinned
+# commit the producer exercises `human_waiver` in none of its own tests (`git
+# grep human_waiver 8082e53` finds it only in the concept-draft schema,
+# docs/semantics.md, checks.py and loop.py), so there is no producer fixture to
+# be byte-faithful to. What IS the producer's is the rule this scenario stands
+# on: `open_criticals` treats an assumption carrying `human_waiver` as closed,
+# exactly as it treats one carrying `answered_by`. The script is therefore
+# HAPPY_SCRIPT with a single field changed — iteration 1 closes the critical
+# assumption by a human's waiver instead of by research — so the generated
+# golden's diff against `happy` isolates the waiver and nothing else.
+HUMAN_WAIVER_SCRIPT = {
+    "researcher": {**HAPPY_SCRIPT["researcher"]},
+    "creator": {
+        0: _cd(1, 0, 1, closure="open", requests=["check the gap"]),
+        1: _cd(2, 1, 2, closure="human_waiver"),
+    },
+}
+
 SCENARIOS = {
     "happy": (HAPPY_SCRIPT, "ready_for_business"),
     "needs_human": (STUCK_SCRIPT, "needs_human"),
     "resume": (STUCK_SCRIPT, "needs_human"),
     "invalid_artifact": (INVALID_ARTIFACT_SCRIPT, "failed"),
+    "human_waiver": (HUMAN_WAIVER_SCRIPT, "ready_for_business"),
 }
 
 
@@ -180,7 +215,8 @@ def main(argv: list[str]) -> None:
     if len(argv) < 3:
         raise SystemExit(
             "usage: gen_golden_run.py <extracted-producer-root> "
-            "<output-workspace-dir> [happy|needs_human|resume|invalid_artifact]"
+            "<output-workspace-dir> "
+            "[happy|needs_human|resume|invalid_artifact|human_waiver]"
         )
     root = Path(argv[1]).resolve()
     workspace = Path(argv[2]).resolve()

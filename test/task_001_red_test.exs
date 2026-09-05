@@ -105,12 +105,13 @@ defmodule Kapelle.Task001RedTest do
   end
 
   test "committed golden set is discovered and passes; empty/invalid/malformed manifests fail closed with the right class" do
-    # BEH-01: the four committed scenarios are discovered from disk and the
+    # BEH-01: the five committed scenarios are discovered from disk and the
     # unchanged committed set passes with no files touched.
     assert {:ok, scenarios} = ProvenanceIntegrity.check(@committed_root)
 
     assert Enum.sort(scenarios) == [
              "happy",
+             "human_waiver",
              "invalid_artifact",
              "needs_human",
              "resume"
@@ -127,6 +128,7 @@ defmodule Kapelle.Task001RedTest do
     assert Enum.sort(scenarios_with_future) == [
              "future_case",
              "happy",
+             "human_waiver",
              "invalid_artifact",
              "needs_human",
              "resume"

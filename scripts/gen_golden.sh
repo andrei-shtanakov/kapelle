@@ -2,6 +2,7 @@
 # Generate a golden scenario's evidence from the PINNED reference runner.
 # Usage: scripts/gen_golden.sh <path-to-impresario-checkout> [scenario]
 #        scenario: happy (default) | needs_human | resume | invalid_artifact
+#                  | human_waiver
 # Explicit, reviewable golden update (owner's S2 preamble, item 6):
 # never run automatically, never on test failure.
 #
@@ -14,8 +15,8 @@ set -euo pipefail
 IMPRESARIO="${1:?path to impresario checkout}"
 SCENARIO="${2:-happy}"
 case "$SCENARIO" in
-  happy|needs_human|resume|invalid_artifact) ;;
-  *) echo "unknown scenario '$SCENARIO' (expected: happy | needs_human | resume | invalid_artifact)" >&2; exit 2 ;;
+  happy|needs_human|resume|invalid_artifact|human_waiver) ;;
+  *) echo "unknown scenario '$SCENARIO' (expected: happy | needs_human | resume | invalid_artifact | human_waiver)" >&2; exit 2 ;;
 esac
 # Single producer pin, same as priv/contracts/impresario (anti-mix across
 # vendor and goldens). The resume scenario REQUIRES this pin or later: the
@@ -53,11 +54,22 @@ mkdir -p "$OUT/workspace" && cp -R "$TMP/ws/." "$OUT/workspace/"
 # script itself prints on stdout.
 (cd "$ROOT" && mix compile >/dev/null)
 
+# --no-start: the normalizer is a pure module, so booting the OTP app buys
+# nothing and costs correctness — a started app logs to STDOUT (missing
+# kapelle_dev, absent inotify-tools), and command substitution would splice
+# that noise straight into the PROVENANCE line below. Evidence must not
+# depend on the operator's machine. The guard is the second half of the same
+# rule: an unexpected shape fails the generation instead of being written
+# down as if it were a version.
 NORMALIZER_VERSION="$(
-  cd "$ROOT" && mix run --no-compile -e 'IO.write(Kapelle.Product.Oracle.Normalizer.version())'
+  cd "$ROOT" && mix run --no-start --no-compile -e 'IO.write(Kapelle.Product.Oracle.Normalizer.version())'
 )"
+case "$NORMALIZER_VERSION" in
+  v[0-9]*) ;;
+  *) echo "normalizer version is not a version: '$NORMALIZER_VERSION'" >&2; exit 1 ;;
+esac
 
-(cd "$ROOT" && mix run --no-compile -e '
+(cd "$ROOT" && mix run --no-start --no-compile -e '
   raw =
     File.stream!("'"$OUT"'/raw-trace.jsonl")
     |> Enum.map(&Jason.decode!/1)
