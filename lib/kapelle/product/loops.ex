@@ -49,6 +49,19 @@ defmodule Kapelle.Product.Loops do
   def get!(loop_id), do: Repo.get!(LoopRow, loop_id)
 
   @doc """
+  Fetches a loop's configuration row without raising: `:error` for an
+  unknown `loop_id`. For read-only callers that must answer "unknown loop"
+  as data rather than as an exception — reporting, in particular.
+  """
+  @spec fetch(String.t()) :: {:ok, LoopRow.t()} | :error
+  def fetch(loop_id) do
+    case Repo.get(LoopRow, loop_id) do
+      nil -> :error
+      row -> {:ok, row}
+    end
+  end
+
+  @doc """
   Monotonic terminal status transition (the Terminal pattern from
   `Kapelle.Orchestrator.Workers.Terminal`, written locally — read for the
   pattern, never imported): a single conditional `UPDATE ... WHERE status
