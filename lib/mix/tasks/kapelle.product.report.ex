@@ -71,6 +71,8 @@ defmodule Mix.Tasks.Kapelle.Product.Report do
         {"retries", value(cost.retries)},
         {"discarded", value(cost.discarded_jobs)},
         {"cancelled", value(cost.cancelled_jobs)},
+        {"executing", value(cost.executing_jobs)},
+        {"orphaned", value(cost.orphaned_jobs)},
         {"artifact revisions", value(cost.artifact_revisions)},
         {"wall ms", value(cost.wall_ms)},
         {"tokens", tokens(cost)}

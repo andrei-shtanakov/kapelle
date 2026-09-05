@@ -9,6 +9,8 @@ defmodule Mix.Tasks.Kapelle.Product.ReportTest do
   use Kapelle.DataCase, async: false
   use Oban.Testing, repo: Kapelle.Repo
 
+  import Ecto.Query, only: [from: 2]
+
   alias Kapelle.Product.{FixtureAgent, Loop, RunVerdict, StrictParse}
   alias Mix.Tasks.Kapelle.Product.Report
 
@@ -39,6 +41,42 @@ defmodule Mix.Tasks.Kapelle.Product.ReportTest do
     # The human act that carried this loop is named, not just counted.
     assert output =~ "waivers:            1 (concept-draft://CD-002)"
     assert output =~ "iterations:         2 / 2"
+  end
+
+  test "a stuck run is legible in the block: the executing row and its orphan status are printed" do
+    loop_id = run_waiver_loop!()
+    strand_job!(loop_id)
+
+    assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
+    output = Report.format(verdict)
+
+    # Both facts the verdict computes about in-flight work reach the reader:
+    # without them a stalled run and a finished one print the same cost block.
+    assert output =~ "executing:          1"
+    assert output =~ "orphaned:           1"
+    assert output =~ "jobs_orphaned (fail)"
+  end
+
+  # One of the loop's jobs left in `executing` long enough to be orphaned —
+  # what a crashed node leaves behind with no Lifeline configured.
+  defp strand_job!(loop_id) do
+    job =
+      Repo.one!(
+        from(j in Oban.Job,
+          where: fragment("? ->> 'loop_id' = ?", j.args, ^loop_id),
+          order_by: [asc: j.id],
+          limit: 1
+        )
+      )
+
+    {1, _} =
+      Repo.update_all(from(j in Oban.Job, where: j.id == ^job.id),
+        set: [
+          state: "executing",
+          attempted_at: NaiveDateTime.add(NaiveDateTime.utc_now(), -2 * 60 * 60),
+          completed_at: nil
+        ]
+      )
   end
 
   defp run_waiver_loop! do
