@@ -33,6 +33,7 @@ defmodule Kapelle.Task004RedTest do
 
       assert Enum.sort(scenarios) == [
                "happy",
+               "human_waiver",
                "invalid_artifact",
                "needs_human",
                "resume"

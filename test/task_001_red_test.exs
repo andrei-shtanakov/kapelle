@@ -5,8 +5,8 @@ defmodule Kapelle.Task001RedTest do
   scenarios by walking the filesystem (no name allowlist) and parses each
   scenario's `PROVENANCE` manifest fail-closed. Exercises BEH-01..BEH-05 from
   `workstreams/WS-kapelle-47/spec/15-behaviour-spec.md`: the committed set
-  (`happy`, `needs_human`, `resume`, `invalid_artifact`) is discovered and
-  passes untouched; a scenario dropped into a temp root under an unlisted
+  (`happy`, `human_waiver`, `needs_human`, `resume`, `invalid_artifact`) is
+  discovered and passes untouched; a scenario dropped into a temp root under an unlisted
   name is discovered automatically; an empty golden root fails with
   `no_scenarios`; every disallowed `PROVENANCE` state (missing, empty,
   directory, symlink, unreadable) fails with its own class; and every
@@ -105,12 +105,13 @@ defmodule Kapelle.Task001RedTest do
   end
 
   test "committed golden set is discovered and passes; empty/invalid/malformed manifests fail closed with the right class" do
-    # BEH-01: the four committed scenarios are discovered from disk and the
+    # BEH-01: the five committed scenarios are discovered from disk and the
     # unchanged committed set passes with no files touched.
     assert {:ok, scenarios} = ProvenanceIntegrity.check(@committed_root)
 
     assert Enum.sort(scenarios) == [
              "happy",
+             "human_waiver",
              "invalid_artifact",
              "needs_human",
              "resume"
@@ -127,6 +128,7 @@ defmodule Kapelle.Task001RedTest do
     assert Enum.sort(scenarios_with_future) == [
              "future_case",
              "happy",
+             "human_waiver",
              "invalid_artifact",
              "needs_human",
              "resume"

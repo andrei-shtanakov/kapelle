@@ -72,9 +72,18 @@
   `yaml_elixir`), канонический канал — dev-зависимость проекта
   `{:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false}` +
   шаг `mix deps.audit` в CI (ритуал R-2 hardening sweep, ADR-ECO-009).
-- [ ] **human_waiver parity case** @id:human-waiver-parity — carry-forward S3: @epic:airun.kapelle-m3
-  golden-сценарий «критический assumption снят waiver'ом → цикл проходит» +
-  parity-тест; сейчас поле покрыто только юнитами `next_stage_test.exs`.
+- [x] **human_waiver parity case** @id:human-waiver-parity — @epic:airun.kapelle-m3 — PR #62
+      Evidence: golden `human_waiver` на пине 8082e53 — от `happy` отличается
+      ровно одним полем cd-002 (`human_waiver` вместо `answered_by`), поэтому
+      исход атрибутируем waiver'у; `parity_human_waiver_test.exs` — контур
+      через воркеры → ready с oracle-равными хешами плюс негативный контроль
+      (тот же скрипт без waiver держится на needs_human); 505 tests, 0 failures.
+      Попутно починен генератор: `mix run --no-start` + гейт формы версии —
+      stdout запущенного приложения затекал в строку `normalizer:` манифеста
+      PROVENANCE, то есть свидетельство зависело от машины оператора.
+  carry-forward S3: golden-сценарий «критический assumption снят waiver'ом →
+  цикл проходит» + parity-тест; поле было покрыто только юнитами
+  `next_stage_test.exs`.
 - [x] **PROVENANCE self-integrity** @id:golden-provenance-self-integrity — @epic:airun.kapelle-m3 — kapelle#47 закрыт (PR #51—#59)
       Evidence: behaviour-бандл WS-kapelle-47 (PR #51) → tasks-спека (PR #53) →
       TASK-001–004 (PR #55—#59); master a56af35 — 502 tests, 0 failures.
