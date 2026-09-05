@@ -221,6 +221,10 @@ defmodule Kapelle.Product.RunVerdictTest do
     assert Enum.any?(verdict.harness_findings, &(&1.class == :jobs_orphaned))
     assert verdict.cost.orphaned_jobs == 1
     assert verdict.cost.executing_jobs == 1
+
+    # The stuck row costs the harness its axis and nothing else: the
+    # artifacts already decided the domain verdict.
+    assert verdict.product == :pass
   end
 
   test "a job that started moments ago is in flight, and reads as such" do
@@ -237,6 +241,7 @@ defmodule Kapelle.Product.RunVerdictTest do
     assert Enum.map(verdict.harness_findings, & &1.class) == [:cost_not_instrumented]
     assert verdict.cost.executing_jobs == 1
     assert verdict.cost.orphaned_jobs == 0
+    assert verdict.product == :pass
   end
 
   test "a running loop with nothing left to run at all is stalled" do
@@ -249,6 +254,13 @@ defmodule Kapelle.Product.RunVerdictTest do
     # recorded it — the result exists in the evidence and no one wrote it down.
     assert verdict.harness == :fail
     assert Enum.any?(verdict.harness_findings, &(&1.class == :terminal_not_recorded))
+
+    # And the produced result is still reported as produced: one
+    # infrastructure fault must cost one axis, not both. Judging product by
+    # the lifecycle write would demote a finished proposal to "open" for a
+    # crash that happened after it was already durable.
+    assert verdict.product == :pass
+    assert verdict.product_reason =~ "not recorded in the lifecycle"
   end
 
   # --- helpers ---

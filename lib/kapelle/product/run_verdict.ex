@@ -162,10 +162,23 @@ defmodule Kapelle.Product.RunVerdict do
     {:blocked, loop.stop_reason || "needs_human"}
   end
 
+  # A loop whose lifecycle still says `running` is judged on its evidence,
+  # not on whether the write landed: the artifacts already decide the
+  # domain verdict, and `NextStage.compute/2` is the same walk the
+  # reference runner agrees with through the parity suite. A crash between
+  # the final artifact and the status write must cost the harness its axis
+  # (`:terminal_not_recorded`) without also demoting a produced result to
+  # "still open" — one infrastructure fault, one axis.
   defp product_axis(%LoopRow{status: "running"} = loop, {:ok, view}) do
     case NextStage.compute(view, loop.max_iterations) do
-      {:run, {stage, iteration}} -> {:open, "pending #{stage} at iteration #{iteration}"}
-      {:terminal, verdict, reason} -> {:open, "walk is terminal (#{verdict}): #{reason}"}
+      {:run, {stage, iteration}} ->
+        {:open, "pending #{stage} at iteration #{iteration}"}
+
+      {:terminal, :ready, reason} ->
+        {:pass, reason <> " (not recorded in the lifecycle)"}
+
+      {:terminal, :needs_human, reason} ->
+        {:blocked, reason <> " (not recorded in the lifecycle)"}
     end
   end
 
