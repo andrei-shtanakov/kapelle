@@ -36,6 +36,25 @@ defmodule Kapelle.Product.RunVerdict do
 
   Unknown is never reported as zero: when the view fails to build, the
   intervention counts come back `nil`, the same way `tokens` does.
+
+  ## A `failed` loop is not automatically a product failure
+
+  `Kapelle.Product.Loops`'s `status`/`stop_reason` are this codebase's own
+  lifecycle, not the producer's verdict — and `StageShell` writes `failed`
+  for two very different things: the agent or its output was bad (a domain
+  refusal, `{:domain, …}` / `{:invalid_artifact, …}`), or *this harness*
+  could not carry the loop — a crash between `Loops.create/1` and the
+  idea's own write that `Reconciler` later finds as `{:view_incomplete,
+  :idea_missing}`, a projection drift, a chain violation. Charging the
+  second kind to the product axis would blame the proposal for a durability
+  failure, which is the exact confusion this module exists to prevent.
+
+  The reason is matched as text because that is how the lifecycle stores it
+  (`inspect/1` of a tuple), and the match is deliberately conservative:
+  only the two shapes the stage shell writes for domain refusals count as a
+  product failure. An unrecognised — or absent — reason is charged to the
+  harness, so a new failure shape shows up as a harness finding to be
+  classified rather than as a silent, clean-looking product verdict.
   """
 
   import Ecto.Query, only: [from: 2]
@@ -132,7 +151,11 @@ defmodule Kapelle.Product.RunVerdict do
   end
 
   defp product_axis(%LoopRow{status: "failed"} = loop, _view) do
-    {:fail, loop.stop_reason || "failed"}
+    if domain_failure?(loop.stop_reason) do
+      {:fail, loop.stop_reason}
+    else
+      {:unknown, "lifecycle failed off the domain: #{loop.stop_reason || "(no reason recorded)"}"}
+    end
   end
 
   defp product_axis(%LoopRow{status: "needs_human"} = loop, _view) do
@@ -149,11 +172,34 @@ defmodule Kapelle.Product.RunVerdict do
   # --- harness axis: execution facts, and what cannot be measured ---
 
   defp harness_findings(loop, view_result, jobs) do
-    evidence_findings(view_result) ++
+    lifecycle_findings(loop) ++
+      evidence_findings(view_result) ++
       job_findings(jobs) ++
       orphan_findings(jobs) ++
       recording_findings(loop, view_result, jobs) ++
       instrumentation_findings(loop.loop_id)
+  end
+
+  # `failed` for anything but a domain refusal is this harness failing to
+  # carry the loop — recovery included, since `Reconciler` writing
+  # `{:view_incomplete, …}` IS the recovery path reporting it could not
+  # rebuild the run.
+  defp lifecycle_findings(%LoopRow{status: "failed"} = loop) do
+    if domain_failure?(loop.stop_reason) do
+      []
+    else
+      [%{class: :lifecycle_failed_off_domain, severity: :fail, detail: loop.stop_reason}]
+    end
+  end
+
+  defp lifecycle_findings(%LoopRow{}), do: []
+
+  # The two reason shapes `StageShell` writes when the DOMAIN refused: a
+  # stage's `{:domain, reason}` and its `{:invalid_artifact, reason}`.
+  defp domain_failure?(nil), do: false
+
+  defp domain_failure?(stop_reason) do
+    String.starts_with?(stop_reason, ["{:domain,", "{:invalid_artifact,"])
   end
 
   defp evidence_findings({:error, reason}) do

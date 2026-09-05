@@ -17,7 +17,7 @@ defmodule Kapelle.Product.RunVerdictTest do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Kapelle.Product.{FixtureAgent, Loop, RunVerdict, Store, StrictParse}
+  alias Kapelle.Product.{FixtureAgent, Loop, Loops, Reconciler, RunVerdict, Store, StrictParse}
   alias Kapelle.Product.Records.{ArtifactRow, LoopRow}
 
   @golden_root "test/support/fixtures/golden"
@@ -172,6 +172,37 @@ defmodule Kapelle.Product.RunVerdictTest do
     assert verdict.interventions.waivers == nil
     assert verdict.interventions.holds == nil
     assert verdict.cost.iterations_used == nil
+  end
+
+  test "a lifecycle failure that is not the domain's fault is charged to the harness" do
+    loop_id = "LOOP-STRANDED"
+
+    # Exactly the crash window StageShell documents: the config row exists,
+    # `Loop.start/2` died before the idea was ever written, and an ordinary
+    # Reconciler sweep is what finds the stranded loop.
+    {:ok, _row} =
+      Loops.create(%{
+        loop_id: loop_id,
+        idea_identity: "IDEA-001",
+        proposal_id: "PP-001",
+        exchange_log_id: "XL-001",
+        max_iterations: 2,
+        agent: "fixture:golden"
+      })
+
+    assert {:error, {:view_incomplete, :idea_missing}} = Reconciler.reconcile(loop_id)
+    assert Loops.get!(loop_id).status == "failed"
+
+    assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
+
+    # Nothing was ever produced or judged: reporting `product: :fail` here
+    # would blame the proposal for a durability failure — the one confusion
+    # the two axes exist to prevent. Compare with the invalid-artifact case
+    # above, whose `failed` IS the domain's own refusal.
+    assert verdict.product == :unknown
+    assert verdict.product_reason =~ "lifecycle failed off the domain"
+    assert verdict.harness == :fail
+    assert Enum.any?(verdict.harness_findings, &(&1.class == :lifecycle_failed_off_domain))
   end
 
   test "an orphaned executing job is a harness failure, not a loop still working" do
