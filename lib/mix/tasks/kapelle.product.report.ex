@@ -13,16 +13,30 @@ defmodule Mix.Tasks.Kapelle.Product.Report do
   un-instrumented cost reads `not instrumented`, and counts that could not
   be established (damaged evidence) read `unknown`. See
   `Kapelle.Product.RunVerdict` for why that distinction is load-bearing.
+
+  ## Looking at a loop must not run it
+
+  `RunVerdict` promises to start no work — a promise a CLI wrapper can
+  break without touching it. A plain `app.start` boots the whole
+  supervision tree, Oban included, and outside `:test` the `product` queue
+  is live (`config/config.exs`): the queue would pick up this very loop's
+  available jobs, run stages, write artifacts — and then the Mix VM exits,
+  cutting an in-flight job off mid-`perform/1` and leaving the row
+  `executing` forever, which the next report would faithfully denounce as
+  `:jobs_orphaned`. So this task configures Oban with no queues and no
+  plugins *before* the app starts: the observation stays an observation.
   """
 
   use Mix.Task
 
   alias Kapelle.Product.RunVerdict
 
-  @requirements ["app.start"]
-
+  # No `@requirements`: the app has to be started by hand here, after Oban
+  # has been muted — see the moduledoc.
   @impl Mix.Task
   def run([loop_id]) do
+    start_without_executors!()
+
     case RunVerdict.for_loop(loop_id) do
       {:ok, verdict} -> Mix.shell().info(format(verdict))
       {:error, :not_found} -> Mix.raise("unknown loop_id: #{loop_id}")
@@ -30,6 +44,27 @@ defmodule Mix.Tasks.Kapelle.Product.Report do
   end
 
   def run(_argv), do: Mix.raise("usage: mix kapelle.product.report <loop_id>")
+
+  defp start_without_executors! do
+    Mix.Task.run("app.config")
+
+    :kapelle
+    |> Application.fetch_env!(Oban)
+    |> read_only_oban()
+    |> then(&Application.put_env(:kapelle, Oban, &1))
+
+    Mix.Task.run("app.start")
+  end
+
+  @doc """
+  Strips execution out of an Oban configuration: no queues to pick work up,
+  no plugins to move it. Public so the read-only guarantee can be tested
+  without booting an application.
+  """
+  @spec read_only_oban(keyword()) :: keyword()
+  def read_only_oban(oban_config) do
+    Keyword.merge(oban_config, queues: false, plugins: false)
+  end
 
   @doc """
   Renders a verdict as the block the task prints. Public so the rendering

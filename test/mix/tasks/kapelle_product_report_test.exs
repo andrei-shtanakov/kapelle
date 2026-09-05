@@ -57,6 +57,17 @@ defmodule Mix.Tasks.Kapelle.Product.ReportTest do
     assert output =~ "jobs_orphaned (fail)"
   end
 
+  test "the task mutes Oban before booting: looking at a loop cannot run it" do
+    config = Application.fetch_env!(:kapelle, Oban)
+    read_only = Report.read_only_oban(config)
+
+    # No queue can pick this loop's jobs up, no plugin can move them — the
+    # read-only promise `RunVerdict` makes survives its own CLI wrapper.
+    assert read_only[:queues] == false
+    assert read_only[:plugins] == false
+    assert read_only[:repo] == config[:repo]
+  end
+
   # One of the loop's jobs left in `executing` long enough to be orphaned —
   # what a crashed node leaves behind with no Lifeline configured.
   defp strand_job!(loop_id) do

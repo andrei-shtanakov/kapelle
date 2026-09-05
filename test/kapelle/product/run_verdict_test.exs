@@ -212,8 +212,8 @@ defmodule Kapelle.Product.RunVerdictTest do
     # forever: this app configures no Lifeline, and StageShell's own
     # contract says so. Model exactly that — an old `executing` row under a
     # loop whose lifecycle never got its terminal write.
-    strand_job!(loop_id, NaiveDateTime.add(NaiveDateTime.utc_now(), -2 * 60 * 60))
-    reopen_loop!(loop_id)
+    strand_job!(loop_id, minutes_ago(120))
+    reopen_loop!(loop_id, NaiveDateTime.utc_now())
 
     assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
 
@@ -231,7 +231,7 @@ defmodule Kapelle.Product.RunVerdictTest do
     loop_id = run_golden!("happy")
 
     strand_job!(loop_id, NaiveDateTime.utc_now())
-    reopen_loop!(loop_id)
+    reopen_loop!(loop_id, NaiveDateTime.utc_now())
 
     assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
 
@@ -244,9 +244,9 @@ defmodule Kapelle.Product.RunVerdictTest do
     assert verdict.product == :pass
   end
 
-  test "a running loop with nothing left to run at all is stalled" do
+  test "a running loop with nothing left to run at all is stalled — once it has sat there" do
     loop_id = run_golden!("happy")
-    reopen_loop!(loop_id)
+    reopen_loop!(loop_id, minutes_ago(10))
 
     assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
 
@@ -263,7 +263,45 @@ defmodule Kapelle.Product.RunVerdictTest do
     assert verdict.product_reason =~ "not recorded in the lifecycle"
   end
 
+  test "a loop that has only just been touched is a live window, not a stall" do
+    loop_id = run_golden!("happy")
+    reopen_loop!(loop_id, NaiveDateTime.utc_now())
+
+    assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
+
+    # Same shape as the stall above — running, nothing runnable — but
+    # seconds old. `Loop.start/2` is not transactional and this module's
+    # own reads are not one snapshot, so this shape occurs in the ordinary
+    # course of progress; calling it a durability failure would make the
+    # loudest finding here the one it cries most often.
+    assert verdict.harness == :observability_gap
+    assert Enum.map(verdict.harness_findings, & &1.class) == [:cost_not_instrumented]
+  end
+
+  test "a loop still being started, with no jobs yet, is not accused of stalling" do
+    loop_id = "LOOP-STARTING"
+
+    # The window `Loop.start/2` genuinely has: the config row is written
+    # before the idea and before the first job is ever enqueued.
+    {:ok, _row} =
+      Loops.create(%{
+        loop_id: loop_id,
+        idea_identity: "IDEA-001",
+        proposal_id: "PP-001",
+        exchange_log_id: "XL-001",
+        max_iterations: 2,
+        agent: "fixture:golden"
+      })
+
+    assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
+
+    assert verdict.harness == :observability_gap
+    assert verdict.product == :open
+  end
+
   # --- helpers ---
+
+  defp minutes_ago(minutes), do: NaiveDateTime.add(NaiveDateTime.utc_now(), -minutes * 60)
 
   # Puts one of the loop's completed jobs back into `executing` as of
   # `attempted_at`, the state a crashed node leaves behind.
@@ -283,10 +321,13 @@ defmodule Kapelle.Product.RunVerdictTest do
       )
   end
 
-  defp reopen_loop!(loop_id) do
+  # Puts the loop back to `running` as of `updated_at` — the lifecycle
+  # state a crash leaves, with its own age, since age is what separates a
+  # stalled loop from one that is simply mid-progress.
+  defp reopen_loop!(loop_id, updated_at) do
     {1, _} =
       Repo.update_all(from(l in LoopRow, where: l.loop_id == ^loop_id),
-        set: [status: "running", stop_reason: nil]
+        set: [status: "running", stop_reason: nil, updated_at: updated_at]
       )
   end
 

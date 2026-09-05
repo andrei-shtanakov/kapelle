@@ -107,6 +107,17 @@ defmodule Kapelle.Product.RunVerdict do
   # `config :kapelle, orphaned_job_after_ms: …`.
   @default_orphaned_after_ms 60 * 60 * 1000
 
+  # The same question the orphan threshold answers — live window or dead
+  # loop? — applies to a `running` loop with nothing runnable, and it was
+  # missing here. Two ordinary windows produce exactly that shape:
+  # `Loop.start/2` is not transactional (the config row exists before the
+  # first job is enqueued), and a job can finish between this module's own
+  # reads. Neither is a durability failure, and calling them one would make
+  # the loudest finding this module has the one it cries most often.
+  # Measured from the loop row's own `updated_at`, which every lifecycle and
+  # projection write touches.
+  @default_stalled_after_ms 60 * 1000
+
   @doc """
   Builds the two-axis verdict for `loop_id`, or `{:error, :not_found}`.
 
@@ -121,10 +132,17 @@ defmodule Kapelle.Product.RunVerdict do
     end
   end
 
-  defp build(%LoopRow{loop_id: loop_id} = loop) do
+  defp build(%LoopRow{loop_id: loop_id} = initial_loop) do
     view_result = View.build(loop_id)
     jobs = job_facts(loop_id)
     rows = Store.all(loop_id)
+
+    # Re-read the lifecycle AFTER the facts, never before: these are four
+    # separate queries with no shared snapshot, and the loop can finish
+    # between them. Judging by the row read first would report the stale
+    # `running` — the loudest possible verdict — for a loop that simply
+    # completed while being looked at.
+    loop = refresh(initial_loop)
 
     {product, product_reason} = product_axis(loop, view_result)
     findings = harness_findings(loop, view_result, jobs)
@@ -138,6 +156,13 @@ defmodule Kapelle.Product.RunVerdict do
       cost: cost(loop, jobs, rows, view_result),
       interventions: interventions(loop, rows, view_result)
     }
+  end
+
+  defp refresh(%LoopRow{loop_id: loop_id} = loop) do
+    case Loops.fetch(loop_id) do
+      {:ok, fresh} -> fresh
+      :error -> loop
+    end
   end
 
   # --- product axis: the loop's own lifecycle, nothing else ---
@@ -263,6 +288,12 @@ defmodule Kapelle.Product.RunVerdict do
          {:ok, view},
          %{runnable: 0, executing: 0}
        ) do
+    if settled_long_enough?(loop), do: stall_finding(loop, view), else: []
+  end
+
+  defp recording_findings(_loop, _view_result, _jobs), do: []
+
+  defp stall_finding(loop, view) do
     case NextStage.compute(view, loop.max_iterations) do
       {:terminal, verdict, _reason} ->
         [%{class: :terminal_not_recorded, severity: :fail, detail: verdict}]
@@ -272,7 +303,17 @@ defmodule Kapelle.Product.RunVerdict do
     end
   end
 
-  defp recording_findings(_loop, _view_result, _jobs), do: []
+  # A row with no `updated_at` cannot be aged; like an `executing` row
+  # without `attempted_at`, that makes it less accountable, not more.
+  defp settled_long_enough?(%LoopRow{updated_at: nil}), do: true
+
+  defp settled_long_enough?(%LoopRow{updated_at: updated_at}) do
+    NaiveDateTime.diff(NaiveDateTime.utc_now(), updated_at, :millisecond) > stalled_after_ms()
+  end
+
+  defp stalled_after_ms do
+    Application.get_env(:kapelle, :stalled_loop_after_ms, @default_stalled_after_ms)
+  end
 
   defp instrumentation_findings(loop_id) do
     case token_usage(loop_id) do
