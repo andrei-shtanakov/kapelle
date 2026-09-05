@@ -5,8 +5,8 @@ defmodule Kapelle.Task001RedTest do
   scenarios by walking the filesystem (no name allowlist) and parses each
   scenario's `PROVENANCE` manifest fail-closed. Exercises BEH-01..BEH-05 from
   `workstreams/WS-kapelle-47/spec/15-behaviour-spec.md`: the committed set
-  (`happy`, `needs_human`, `resume`, `invalid_artifact`) is discovered and
-  passes untouched; a scenario dropped into a temp root under an unlisted
+  (`happy`, `human_waiver`, `needs_human`, `resume`, `invalid_artifact`) is
+  discovered and passes untouched; a scenario dropped into a temp root under an unlisted
   name is discovered automatically; an empty golden root fails with
   `no_scenarios`; every disallowed `PROVENANCE` state (missing, empty,
   directory, symlink, unreadable) fails with its own class; and every
