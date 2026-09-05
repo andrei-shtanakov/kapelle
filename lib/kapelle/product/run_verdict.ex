@@ -70,10 +70,23 @@ defmodule Kapelle.Product.RunVerdict do
     harness_findings: []
   ]
 
-  # Oban states a job can still leave on its own. A loop whose walk is
-  # already terminal while one of these is queued is mid-flight, not
-  # stalled — the distinction `:terminal_not_recorded` rests on.
-  @runnable_states ~w(available scheduled executing retryable)
+  # States from which Oban moves a job on its own. `executing` is
+  # deliberately NOT here: this app configures no `Oban.Plugins.Lifeline`
+  # (config/config.exs), and `StageShell`'s own contract records the
+  # consequence — a raw BEAM crash mid-`perform/1` leaves the row in
+  # `executing` forever. Counting such a row as "will still run" would let
+  # a permanently stalled loop report nothing worse than the standing cost
+  # gap, which is precisely the harness failure this module exists to name.
+  @runnable_states ~w(available scheduled retryable)
+
+  # Past this age an `executing` row stops being a credible reading of live
+  # work. The number is not a rescue window — nothing rescues these rows
+  # here — it is the point where "still running" becomes the less likely
+  # explanation than "the node died holding it". 60 minutes matches Oban's
+  # own Lifeline `rescue_after` default, so an app that later adds the
+  # plugin inherits a consistent boundary. Override with
+  # `config :kapelle, orphaned_job_after_ms: …`.
+  @default_orphaned_after_ms 60 * 60 * 1000
 
   @doc """
   Builds the two-axis verdict for `loop_id`, or `{:error, :not_found}`.
@@ -138,6 +151,7 @@ defmodule Kapelle.Product.RunVerdict do
   defp harness_findings(loop, view_result, jobs) do
     evidence_findings(view_result) ++
       job_findings(jobs) ++
+      orphan_findings(jobs) ++
       recording_findings(loop, view_result, jobs) ++
       instrumentation_findings(loop.loop_id)
   end
@@ -168,13 +182,28 @@ defmodule Kapelle.Product.RunVerdict do
     [%{class: :jobs_discarded, severity: :fail, detail: discarded}]
   end
 
+  # An `executing` row older than the orphan threshold is work no one will
+  # ever finish: without Lifeline nothing moves it, and no retry is
+  # scheduled. Reported whatever the loop's own status says — a stuck row
+  # under a loop that reached its verdict some other way is still a
+  # durability failure, just one that stopped being visible in the domain.
+  defp orphan_findings(%{orphaned: 0}), do: []
+
+  defp orphan_findings(%{orphaned: orphaned}) do
+    [%{class: :jobs_orphaned, severity: :fail, detail: orphaned}]
+  end
+
   # A `running` loop with nothing left that could move it is stalled, and
   # which kind of stall it is matters: either the walk already reached a
   # terminal verdict that never made it into the lifecycle (the result
   # exists in the evidence and no one recorded it), or a stage is still
   # owed and no job will ever run it. Both are durability failures of this
   # harness; a running loop with runnable jobs is simply mid-flight.
-  defp recording_findings(%LoopRow{status: "running"} = loop, {:ok, view}, %{runnable: 0}) do
+  defp recording_findings(
+         %LoopRow{status: "running"} = loop,
+         {:ok, view},
+         %{runnable: 0, executing: 0}
+       ) do
     case NextStage.compute(view, loop.max_iterations) do
       {:terminal, verdict, _reason} ->
         [%{class: :terminal_not_recorded, severity: :fail, detail: verdict}]
@@ -217,6 +246,8 @@ defmodule Kapelle.Product.RunVerdict do
       retries: jobs.retries,
       discarded_jobs: jobs.discarded,
       cancelled_jobs: jobs.cancelled,
+      executing_jobs: jobs.executing,
+      orphaned_jobs: jobs.orphaned,
       artifact_revisions: length(rows),
       wall_ms: jobs.wall_ms,
       tokens: token_usage(loop.loop_id),
@@ -290,6 +321,7 @@ defmodule Kapelle.Product.RunVerdict do
             state: j.state,
             attempt: j.attempt,
             inserted_at: j.inserted_at,
+            attempted_at: j.attempted_at,
             completed_at: j.completed_at
           }
         )
@@ -302,8 +334,27 @@ defmodule Kapelle.Product.RunVerdict do
       discarded: Enum.count(jobs, &(&1.state == "discarded")),
       cancelled: Enum.count(jobs, &(&1.state == "cancelled")),
       runnable: Enum.count(jobs, &(&1.state in @runnable_states)),
+      executing: Enum.count(jobs, &(&1.state == "executing")),
+      orphaned: Enum.count(jobs, &orphaned?/1),
       wall_ms: wall_ms(jobs)
     }
+  end
+
+  # An `executing` row with no `attempted_at` cannot be aged at all, which
+  # makes it less accountable than a merely stale one — not more.
+  defp orphaned?(%{state: "executing", attempted_at: nil}), do: true
+
+  # `Oban.Job` timestamps are `:utc_datetime_usec`, so these arrive as
+  # `DateTime` structs; the `NaiveDateTime` calendar functions accept them
+  # (both sides are UTC) and matching the struct name would silently miss.
+  defp orphaned?(%{state: "executing", attempted_at: attempted_at}) do
+    NaiveDateTime.diff(NaiveDateTime.utc_now(), attempted_at, :millisecond) > orphaned_after_ms()
+  end
+
+  defp orphaned?(_job), do: false
+
+  defp orphaned_after_ms do
+    Application.get_env(:kapelle, :orphaned_job_after_ms, @default_orphaned_after_ms)
   end
 
   defp wall_ms(jobs) do

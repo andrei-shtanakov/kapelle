@@ -18,7 +18,7 @@ defmodule Kapelle.Product.RunVerdictTest do
   import Ecto.Query, only: [from: 2]
 
   alias Kapelle.Product.{FixtureAgent, Loop, RunVerdict, Store, StrictParse}
-  alias Kapelle.Product.Records.ArtifactRow
+  alias Kapelle.Product.Records.{ArtifactRow, LoopRow}
 
   @golden_root "test/support/fixtures/golden"
   @now_iso "2026-08-12T18:00:00Z"
@@ -174,7 +174,78 @@ defmodule Kapelle.Product.RunVerdictTest do
     assert verdict.cost.iterations_used == nil
   end
 
+  test "an orphaned executing job is a harness failure, not a loop still working" do
+    loop_id = run_golden!("happy")
+
+    # A raw BEAM crash mid-`perform/1` leaves the row in `executing`
+    # forever: this app configures no Lifeline, and StageShell's own
+    # contract says so. Model exactly that — an old `executing` row under a
+    # loop whose lifecycle never got its terminal write.
+    strand_job!(loop_id, NaiveDateTime.add(NaiveDateTime.utc_now(), -2 * 60 * 60))
+    reopen_loop!(loop_id)
+
+    assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
+
+    assert verdict.harness == :fail
+    assert Enum.any?(verdict.harness_findings, &(&1.class == :jobs_orphaned))
+    assert verdict.cost.orphaned_jobs == 1
+    assert verdict.cost.executing_jobs == 1
+  end
+
+  test "a job that started moments ago is in flight, and reads as such" do
+    loop_id = run_golden!("happy")
+
+    strand_job!(loop_id, NaiveDateTime.utc_now())
+    reopen_loop!(loop_id)
+
+    assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
+
+    # Nothing is wrong yet: the row is young, so no orphan finding — and no
+    # stall finding either, because something IS executing.
+    assert verdict.harness == :observability_gap
+    assert Enum.map(verdict.harness_findings, & &1.class) == [:cost_not_instrumented]
+    assert verdict.cost.executing_jobs == 1
+    assert verdict.cost.orphaned_jobs == 0
+  end
+
+  test "a running loop with nothing left to run at all is stalled" do
+    loop_id = run_golden!("happy")
+    reopen_loop!(loop_id)
+
+    assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
+
+    # Every job is completed, the walk is terminal, and the lifecycle never
+    # recorded it — the result exists in the evidence and no one wrote it down.
+    assert verdict.harness == :fail
+    assert Enum.any?(verdict.harness_findings, &(&1.class == :terminal_not_recorded))
+  end
+
   # --- helpers ---
+
+  # Puts one of the loop's completed jobs back into `executing` as of
+  # `attempted_at`, the state a crashed node leaves behind.
+  defp strand_job!(loop_id, attempted_at) do
+    job =
+      Repo.one!(
+        from(j in Oban.Job,
+          where: fragment("? ->> 'loop_id' = ?", j.args, ^loop_id),
+          order_by: [asc: j.id],
+          limit: 1
+        )
+      )
+
+    {1, _} =
+      Repo.update_all(from(j in Oban.Job, where: j.id == ^job.id),
+        set: [state: "executing", attempted_at: attempted_at, completed_at: nil]
+      )
+  end
+
+  defp reopen_loop!(loop_id) do
+    {1, _} =
+      Repo.update_all(from(l in LoopRow, where: l.loop_id == ^loop_id),
+        set: [status: "running", stop_reason: nil]
+      )
+  end
 
   defp run_golden!(scenario) do
     loop_id = "LOOP-001"
