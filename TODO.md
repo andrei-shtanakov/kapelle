@@ -90,10 +90,28 @@
       Проверка живёт в mix test / mix precommit (Kapelle.Golden.ProvenanceIntegrity).
   carry-forward S3 (N4–N6): тест, сверяющий golden-фикстуры с sha256 из их
   PROVENANCE — тихая правка golden-набора сегодня необнаружима.
-- [ ] **Product loop в LiveView + two-axis verdict** @id:s4-plus-tail-decision @epic:airun.kapelle-m3
-  — §8 «S4+», §1 (включая cost-visibility per run): решить судьбу при
-  закрытии M3 — доделывать или явно вынести за срез (сейчас честный
-  `harness=observability_gap`).
+- [x] **Two-axis verdict + cost/interventions на прогон** @id:two-axis-verdict @epic:airun.kapelle-m3 — PR #64
+      Evidence: `Kapelle.Product.RunVerdict` — ось product читает
+      терминальный lifecycle цикла, а walk канонического view
+      (`NextStage.compute/2`, тот же, с которым сверяется reference runner)
+      применяется, когда терминал не записан (`status: "running"`);
+      доменный провал опознаётся по двум формам `stop_reason`, остальное
+      `failed` уходит в харнесс. Ось harness — по фактам исполнения
+      (целостность свидетельства, discarded, осиротевшие executing,
+      незаписанный терминал, отсутствие инструментовки). Неизмеренное не
+      печатается нулём: `tokens` = nil с причиной, счётчики nil при
+      нечитаемом свидетельстве, а `observability_gap` выводится из отсутствия инструментовки
+      (`token_usage/1` — шов под реальный адаптер), а не захардкожен. Видимая
+      половина §9.3 — `mix kapelle.product.report <loop_id>`. master 0cbc699 —
+      521 tests, 0 failures. Ревью-контур снял три major (осиротевший
+      executing читался как «джоб ещё отработает»; `failed` шёл в продуктовый
+      провал даже когда его писал сам харнесс; готовый результат без записи
+      статуса демотировался в :open) и два minor.
+- [ ] **Product loop в LiveView** @id:s4-plus-liveview @epic:airun.kapelle-m3
+  — §8 «S4+»: product-контекст в вебе не отражён вовсе (`run_live`/`runs_live`
+  — поверхности оркестратора из M1). Судьба решается при закрытии M3:
+  доделывать или явно вынести за срез. LiveView-инвариант чартера не нарушен —
+  читать нечего, значит на исполнение не влияет.
 - [ ] **Сверка статусов `spec/tasks.md`** @id:tasks-md-reconciliation — @epic:airun.kapelle-m3
   сверить канонические статусы с фактически влитыми PR; по правилу
   project.yaml статусы reconcile'ятся вручную после финального PR волны.
