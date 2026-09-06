@@ -16,7 +16,7 @@
 > (грамматика `[a-z0-9][a-z0-9._-]{0,63}`, URI `todo://kapelle/<id>`).
 > Отсутствие тега значит «неизвестно» — значения не выдумываем.
 
-## Текущее состояние (2026-08-17, master `2e147f0`)
+## Текущее состояние (2026-09-06, master `91cda67`)
 
 - ✅ **M1 vertical slice закрыт** (7/7, PR #6); m2 TDD-evidence фаза закрыта
   4/4 (PR #7–#13).
@@ -28,6 +28,12 @@
   (PR #20, impresario#14 закрыт), human-resume как чистый consumer
   (TASK-106), fault-injection matrix (TASK-107, PR #24/#25).
 - ✅ Переезд под зонтик `all_ai_orchestrators` + ввод во флот — этот PR.
+- ✅ **M3 ЗАКРЫТ 2026-09-06** — приёмка
+  `docs/superpowers/acceptance/2026-09-06-m3-acceptance.md`: все восемь
+  критериев §1/§9.3 закрыты, четыре переноса S4 разобраны, закрывающий вердикт
+  `product: pass, harness: pass` предъявлен живым прогоном двух golden-сценариев
+  через штатный контур. Вне среза — `real-provider-adapters` (#50) и
+  `product-loop-liveview`.
 
 ## Правила ведения
 
@@ -156,6 +162,13 @@
   несут по сложившейся в файле конвенции — вопрос, заводить ли для
   post-M3 работы отдельный эпик, решается в плоскости эпиков
   (ADR-ECO-010) сразу для обоих, а не здесь.
+- [x] **Приёмка M3 — закрывающий двухосевой вердикт** @id:m3-acceptance @epic:airun.kapelle-m3 — PR #71
+  `docs/superpowers/acceptance/2026-09-06-m3-acceptance.md` на `master@91cda67`,
+  526 тестов / 0 падений. Вердикт предъявлен, а не заявлен: два golden-сценария
+  (`happy`, `human_waiver`) проведены через штатный worker-контур на изолированной
+  БД, отчёт напечатан настоящей `mix kapelle.product.report` — обе оси `pass`,
+  `waivers: 1 (concept-draft://CD-002)` показывает названную интервенцию.
+  До PR #68 такой вердикт был недостижим по построению.
 - [ ] **Реальные LLM/provider-адаптеры** @id:real-provider-adapters — вместо @epic:airun.kapelle-m3
   fixture-backed deterministic агентов (Research/Creator/Evaluator через
   behaviour/port); отдельная веха после M3 (решение 3 дизайна, PR #14).
