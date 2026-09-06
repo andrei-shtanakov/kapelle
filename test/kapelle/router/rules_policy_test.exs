@@ -1,6 +1,7 @@
 defmodule Kapelle.Router.RulesPolicyTest do
   use ExUnit.Case, async: true
 
+  alias Kapelle.Providers.Catalog
   alias Kapelle.Router.Decision
   alias Kapelle.Router.RulesPolicy
 
@@ -37,6 +38,26 @@ defmodule Kapelle.Router.RulesPolicyTest do
     assert first.decision_id != second.decision_id
     assert {:ok, _} = Ecto.UUID.cast(first.decision_id)
     assert {:ok, _} = Ecto.UUID.cast(second.decision_id)
+  end
+
+  # The catalog is the SSOT for provider addresses, and routing does not
+  # consult it: a target absent from `priv/catalog/models.toml` still yields
+  # a valid `Decision`, gets persisted, and only fails downstream in
+  # `ExecuteWorker` with `{:unknown_model_id, id}` — the run then sits at
+  # `pending` while the job retries. Nothing else in the suite crosses that
+  # seam (every pipeline test routes through an override adapter), so this
+  # assertion is the only thing standing between a renamed model and a
+  # class of runs that can never complete. `@table` is kept honest against
+  # the policy itself by the first test in this file.
+  test "every routed target exists in the provider catalog" do
+    for {_task, %{provider: provider, model: model}} <- @table do
+      id = "#{provider}@#{model}"
+
+      # `assert {:ok, _} = ...` would report this as a bare MatchError and
+      # bury the one fact the reader needs — which id is missing.
+      assert match?({:ok, _entry}, Catalog.get(id)),
+             "RulesPolicy routes to #{id}, which priv/catalog/models.toml does not declare"
+    end
   end
 
   test "route/2 returns {:error, _} for an unknown task shape" do
