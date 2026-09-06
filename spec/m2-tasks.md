@@ -12,7 +12,8 @@
 > **Status reconciliation 2026-09-06** (`todo://kapelle/tasks-md-reconciliation`):
 > every status below was verified against this repository's merge history. All
 > seven tasks are delivered on `master`; no status changed. The `**Delivered:**`
-> line under each status names the PR and merge commit that carried it.
+> line under each status names the PR and merge commit that carried it. The same
+> pass covered `spec/tasks.md` and `spec/WS-kapelle-47-tasks.md`.
 
 **Legend:** 🔴 P0 · 🟠 P1 | ⬜ TODO · 🔄 IN PROGRESS · ✅ DONE · ⏸️ BLOCKED
 

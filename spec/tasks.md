@@ -9,7 +9,8 @@
 > every status below was verified against this repository's merge history. All
 > eight tasks are delivered on `master`; no status changed. The `**Delivered:**`
 > line under each status names the PR and merge commit that carried it — before
-> this pass only TASK-001 carried such a reference.
+> this pass only TASK-001 carried such a reference. The same pass covered
+> `spec/m2-tasks.md` and `spec/WS-kapelle-47-tasks.md`.
 
 **Legend:** 🔴 P0 · 🟠 P1 | ⬜ TODO · 🔄 IN PROGRESS · ✅ DONE · ⏸️ BLOCKED
 
