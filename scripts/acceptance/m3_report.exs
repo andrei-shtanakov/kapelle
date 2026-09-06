@@ -22,7 +22,7 @@
 # Единственное, что меняется от прогона к прогону в выводе, — `wall ms`.
 
 alias Ecto.Adapters.SQL.Sandbox
-alias Kapelle.Product.{FixtureAgent, Loop, RunVerdict, StrictParse}
+alias Kapelle.Product.{FixtureAgent, Loop, Loops, RunVerdict, StrictParse}
 
 Sandbox.mode(Kapelle.Repo, :auto)
 
@@ -94,6 +94,17 @@ expect_clean_drain = fn %{loop_id: loop_id, discard: discard, failure: failure} 
 end
 
 expect_pass = fn loop_id ->
+  # Статус читаем отдельно от осей: продуктовая ось намеренно судит по walk'у
+  # артефактов и отдаёт :pass даже когда терминал не записан в lifecycle, а
+  # finding :terminal_not_recorded включается только после stalled_after_ms
+  # (60 с) — сразу после drain оно истечь не может. Застрявший `running` прошёл
+  # бы приёмку зелёным.
+  status = Loops.get!(loop_id).status
+
+  if status != "ready" do
+    raise "acceptance: #{loop_id} — статус цикла #{inspect(status)}, ожидался \"ready\""
+  end
+
   {:ok, verdict} = RunVerdict.for_loop(loop_id)
 
   if verdict.product != :pass or verdict.harness != :pass do
