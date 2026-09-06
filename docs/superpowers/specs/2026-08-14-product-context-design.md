@@ -295,8 +295,9 @@ impresario now, not discovered mid-implementation.
   reaching `needs_human` with inspectable state ships in S4; **the resume
   transition stays blocked on the producer-owned resume contract (§7)** and
   activates only once impresario ships it; the six fault boundaries; the
-  full parity matrix (happy / needs-human / invalid-artifact / crash); the
-  product loop in LiveView; two-axis verdict reporting.
+  full parity matrix (happy / needs-human / invalid-artifact / crash);
+  two-axis verdict reporting. The product loop in LiveView left this list
+  by the ruling below and now sits in §9.
   *Exit: `needs_human` does not advance without valid active human
   evidence — until the producer resume contract exists, it does not advance
   at all (fail-closed is the exit criterion, not a workaround); resume,
@@ -306,9 +307,31 @@ impresario now, not discovered mid-implementation.
 - **LiveView invariant across all slices**: it only reads the derived
   projection; its absence or staleness never affects execution.
 
+### Ruling 2026-09-06 (owner: Andrei) — the product loop in LiveView leaves M3
+
+The screen is not built in this slice. It appears in neither exit list —
+not §1's criteria, not S4+'s own gate — and the invariant above makes its
+absence harmless by construction: there is nothing to read, so nothing
+depends on it. The one reader today is the owner (and the acceptance
+review), for whom `mix kapelle.product.report <loop_id>` is the richer
+read surface: both axes, findings, the whole cost block, interventions
+with artifact references.
+
+The reason is the order of design, not saved effort. Built now, the screen
+would fix its information architecture around a fixture-only world; real
+adapters bring real spend, provider failures, background runs and operator
+actions, and those are what a product-loop screen is for. It is therefore
+deliberately sequenced after `todo://kapelle/real-provider-adapters` and
+kept a separate item and a separate PR — bundling the two would let the
+screen's design start before the data it must show exists.
+
+Successor item: `todo://kapelle/product-loop-liveview`.
+
 ## 9. Out of scope (M3)
 
-Real LLM/provider agent adapters; backlog ranking (`ranked-backlog`,
+Real LLM/provider agent adapters; the product loop in LiveView (ruling
+2026-09-06 above; successor item `todo://kapelle/product-loop-liveview`,
+sequenced after the adapters); backlog ranking (`ranked-backlog`,
 `axis-assessment`); QG-5 gate execution (impresario/steward own it — M4 of
 the airun arc, already shipped there); `run-record` consumption; any write
 path from Kapelle back into impresario.
