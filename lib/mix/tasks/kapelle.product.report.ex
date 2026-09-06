@@ -9,9 +9,12 @@ defmodule Mix.Tasks.Kapelle.Product.Report do
       mix kapelle.product.report LOOP-001
 
   The output never rounds the two axes into one line and never prints a
-  measured-looking zero for something that was not measured: an
-  un-instrumented cost reads `not instrumented`, and counts that could not
-  be established (damaged evidence) read `unknown`. See
+  measured-looking zero for something that was not measured. Cost keeps
+  three token states apart in print, the same three the verdict computes:
+  a provider that was never called reads `not applicable (fixture-backed
+  agents)`, one that was called and reported nothing reads `not
+  instrumented`, and a measured zero prints `0`. Counts that could not be
+  established (damaged evidence) read `unknown`. See
   `Kapelle.Product.RunVerdict` for why that distinction is load-bearing.
 
   ## Looking at a loop must not run it
@@ -117,6 +120,13 @@ defmodule Mix.Tasks.Kapelle.Product.Report do
     )
   end
 
+  defp tokens(%{tokens: nil, tokens_unavailable: :not_applicable}) do
+    "not applicable (fixture-backed agents)"
+  end
+
+  # Kept for the state a real provider adapter produces (#50): usage was
+  # owed and never arrived. Dropping it now would leave nothing to tell
+  # that apart from "no provider was called".
   defp tokens(%{tokens: nil, tokens_unavailable: :not_instrumented}), do: "not instrumented"
   defp tokens(%{tokens: nil, tokens_unavailable: reason}), do: "unknown (#{reason})"
   defp tokens(%{tokens: tokens}), do: to_string(tokens)

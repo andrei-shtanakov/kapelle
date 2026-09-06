@@ -31,16 +31,33 @@ defmodule Mix.Tasks.Kapelle.Product.ReportTest do
 
     # Two axes, two lines — never one rolled-up verdict.
     assert output =~ "product: pass"
-    assert output =~ "harness: observability_gap"
-    assert output =~ "cost_not_instrumented (gap)"
+    assert output =~ "harness: pass"
 
-    # The un-instrumented cost says so instead of printing 0.
-    assert output =~ "tokens:             not instrumented"
+    # The note is printed even though it costs the axis nothing: an
+    # operator must be able to see that no provider was ever called.
+    assert output =~ "cost_not_applicable (info)"
+
+    # An inapplicable cost says so instead of printing 0.
+    assert output =~ "tokens:             not applicable (fixture-backed agents)"
     refute output =~ "tokens:             0"
 
     # The human act that carried this loop is named, not just counted.
     assert output =~ "waivers:            1 (concept-draft://CD-002)"
     assert output =~ "iterations:         2 / 2"
+  end
+
+  test "the three token states read differently: not applicable, a measured zero, a lost figure" do
+    # Hand-built on purpose: two of the three states cannot occur until a
+    # real provider adapter exists (#50), and the distinction between them
+    # is exactly what must not rot in the meantime. `n/a` is not `0`, and
+    # neither is a figure the provider owed us and never sent.
+    assert Report.format(verdict_with_tokens(nil, :not_applicable)) =~
+             "tokens:             not applicable (fixture-backed agents)"
+
+    assert Report.format(verdict_with_tokens(0, nil)) =~ "tokens:             0"
+
+    assert Report.format(verdict_with_tokens(nil, :not_instrumented)) =~
+             "tokens:             not instrumented"
   end
 
   test "a stuck run is legible in the block: the executing row and its orphan status are printed" do
@@ -121,5 +138,31 @@ defmodule Mix.Tasks.Kapelle.Product.ReportTest do
       {:ok, doc} = path |> File.read!() |> StrictParse.parse()
       {{role, doc["iteration"]}, doc}
     end)
+  end
+
+  defp verdict_with_tokens(tokens, unavailable) do
+    %RunVerdict{
+      loop_id: "LOOP-FMT",
+      product: :pass,
+      product_reason: "rendering fixture",
+      harness: :pass,
+      harness_findings: [],
+      cost: %{
+        iterations_used: 1,
+        max_iterations: 2,
+        stage_jobs: 3,
+        attempts: 3,
+        retries: 0,
+        discarded_jobs: 0,
+        cancelled_jobs: 0,
+        executing_jobs: 0,
+        orphaned_jobs: 0,
+        artifact_revisions: 4,
+        wall_ms: 10,
+        tokens: tokens,
+        tokens_unavailable: unavailable
+      },
+      interventions: %{holds: 0, resumes: 0, resume_refs: [], waivers: 0, waiver_refs: []}
+    }
   end
 end

@@ -3,26 +3,51 @@ defmodule Kapelle.Product.RunVerdict do
   The two-axis verdict for one product loop (design doc §1; M3 exit
   criteria §9.3): **product** — what the loop produced — and **harness** —
   how this codebase's durable execution behaved while carrying it. The two
-  never collapse into one value. `product: :pass, harness:
-  :observability_gap` is a useful answer, and this module is shaped so it
-  can be said out loud instead of being rounded up to "green".
+  never collapse into one value: `product: :pass, harness: :fail` on a
+  loop whose result is right but whose executing row was orphaned is a
+  useful answer, and this module is shaped so it can be said out loud
+  instead of being rounded up to "green". `harness: :observability_gap`
+  is the same kind of answer: no fixture-backed run in M3 reaches it, and
+  an agent address this slice does not know does — see the cost table
+  below.
 
   Neither axis judges proposal quality: the product axis reads the loop's
   own terminal lifecycle — the domain result the reference runner agrees
   on through the parity suite — and the harness axis reads execution facts:
-  evidence integrity, discarded jobs, a terminal outcome that was reached
-  but never recorded, and what this codebase cannot measure at all yet.
+  evidence integrity, discarded jobs, and a terminal outcome that was
+  reached but never recorded.
 
-  ## Cost is allowed to say "unknown"
+  ## Cost keeps three token states apart
 
   `cost.tokens` is `nil` with a stated reason, never `0`. With
   fixture-backed agents (design §4) no model call happens, so a zero would
-  be a lie shaped like a measurement — and the reason it is nil is exactly
-  the `:cost_not_instrumented` harness finding that keeps the harness axis
-  at `:observability_gap`. The gap is *derived* from the absent
-  instrumentation rather than hardcoded: `token_usage/1` is the single seam
-  a real provider adapter fills, and the day it returns figures the finding
-  stops firing on its own.
+  be a lie shaped like a measurement. Three states must stay
+  distinguishable, and collapsing any two of them loses a real fact
+  (owner ruling 2026-09-06):
+
+  | state | `tokens` | reason | finding |
+  |---|---|---|---|
+  | no usage, and the loop's agent is a recognised fixture address | `nil` | `:not_applicable` | `:cost_not_applicable`, severity `:info` |
+  | usage reported, including nothing spent | the figure, `0` included | — | none |
+  | no usage, and the agent is anything else | `nil` | `:not_instrumented` | `:cost_not_instrumented`, severity `:gap` |
+
+  Only the third is an observability gap. "No provider was called" is not
+  a loss of visibility into a cost that exists — there is no such cost —
+  so it is recorded as evidence and costs the harness axis nothing.
+  Recording it still matters: without the note, a run with no provider
+  would be indistinguishable from one whose spend was measured.
+
+  The first state is decided by `Agent.fixture?/1` on the loop's own
+  address, never by the absence of a figure, and that direction is
+  load-bearing: a live scheme added by #50 without instrumentation lands
+  in the third state and turns the axis red, instead of claiming the
+  provider was never called. `token_usage/1` is the single seam a real
+  adapter fills; M3 only ever reaches the first state, because
+  `fixture:<key>` is the only address `Agent.resolve!/1` knows.
+
+  The state is computed once (`token_state/1`) and shared by the finding
+  and the cost block: reading the same fact twice is two chances to
+  disagree, and the note and the number must tell one story.
 
   ## Interventions are counted from the loop's own evidence
 
@@ -59,14 +84,14 @@ defmodule Kapelle.Product.RunVerdict do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Kapelle.Product.{Loops, NextStage, Store, View}
+  alias Kapelle.Product.{Agent, Loops, NextStage, Store, View}
   alias Kapelle.Product.Records.LoopRow
   alias Kapelle.Repo
 
   @type product_axis :: :pass | :fail | :blocked | :open | :unknown
   @type harness_axis :: :pass | :observability_gap | :fail
 
-  @type finding :: %{class: atom(), severity: :fail | :gap, detail: term()}
+  @type finding :: %{class: atom(), severity: :fail | :gap | :info, detail: term()}
 
   @type t :: %__MODULE__{
           loop_id: String.t(),
@@ -94,8 +119,8 @@ defmodule Kapelle.Product.RunVerdict do
   # (config/config.exs), and `StageShell`'s own contract records the
   # consequence — a raw BEAM crash mid-`perform/1` leaves the row in
   # `executing` forever. Counting such a row as "will still run" would let
-  # a permanently stalled loop report nothing worse than the standing cost
-  # gap, which is precisely the harness failure this module exists to name.
+  # a permanently stalled loop report a clean `harness: :pass` — precisely
+  # the harness failure this module exists to name, silenced.
   @runnable_states ~w(available scheduled retryable)
 
   # Past this age an `executing` row stops being a credible reading of live
@@ -145,7 +170,8 @@ defmodule Kapelle.Product.RunVerdict do
     loop = refresh(initial_loop)
 
     {product, product_reason} = product_axis(loop, view_result)
-    findings = harness_findings(loop, view_result, jobs)
+    token_state = token_state(loop)
+    findings = harness_findings(loop, view_result, jobs, token_state)
 
     %__MODULE__{
       loop_id: loop_id,
@@ -153,7 +179,7 @@ defmodule Kapelle.Product.RunVerdict do
       product_reason: product_reason,
       harness: harness_axis(findings),
       harness_findings: findings,
-      cost: cost(loop, jobs, rows, view_result),
+      cost: cost(loop, jobs, rows, view_result, token_state),
       interventions: interventions(loop, rows, view_result)
     }
   end
@@ -209,13 +235,13 @@ defmodule Kapelle.Product.RunVerdict do
 
   # --- harness axis: execution facts, and what cannot be measured ---
 
-  defp harness_findings(loop, view_result, jobs) do
+  defp harness_findings(loop, view_result, jobs, token_state) do
     lifecycle_findings(loop) ++
       evidence_findings(view_result) ++
       job_findings(jobs) ++
       orphan_findings(jobs) ++
       recording_findings(loop, view_result, jobs) ++
-      instrumentation_findings(loop.loop_id)
+      token_usage_findings(token_state)
   end
 
   # `failed` for anything but a domain refusal is this harness failing to
@@ -315,14 +341,28 @@ defmodule Kapelle.Product.RunVerdict do
     Application.get_env(:kapelle, :stalled_loop_after_ms, @default_stalled_after_ms)
   end
 
-  defp instrumentation_findings(loop_id) do
-    case token_usage(loop_id) do
-      nil -> [%{class: :cost_not_instrumented, severity: :gap, detail: :tokens}]
-      _usage -> []
-    end
+  defp token_usage_findings({:unavailable, :not_applicable}) do
+    [%{class: :cost_not_applicable, severity: :info, detail: :no_provider_call}]
   end
 
-  defp harness_axis(findings) do
+  defp token_usage_findings({:unavailable, :not_instrumented}) do
+    [%{class: :cost_not_instrumented, severity: :gap, detail: :tokens}]
+  end
+
+  defp token_usage_findings({:measured, _usage}), do: []
+
+  @doc """
+  Maps harness findings to the public axis without rounding gaps up to pass.
+  Public so the two-axis contract stays testable directly: the ordering of
+  `:fail` over `:gap` is a contract no single run demonstrates.
+
+  `:info` findings are evidence, not defects: they are reported and
+  deliberately do not lower the axis. A future edit that "fixes" this by
+  degrading the axis on every note would erase the very distinction the
+  cost table above exists to hold.
+  """
+  @spec harness_axis([finding()]) :: harness_axis()
+  def harness_axis(findings) do
     cond do
       Enum.any?(findings, &(&1.severity == :fail)) -> :fail
       Enum.any?(findings, &(&1.severity == :gap)) -> :observability_gap
@@ -337,7 +377,7 @@ defmodule Kapelle.Product.RunVerdict do
 
   # --- cost per run ---
 
-  defp cost(loop, jobs, rows, view_result) do
+  defp cost(loop, jobs, rows, view_result, token_state) do
     %{
       iterations_used: iterations_used(view_result),
       max_iterations: loop.max_iterations,
@@ -350,14 +390,33 @@ defmodule Kapelle.Product.RunVerdict do
       orphaned_jobs: jobs.orphaned,
       artifact_revisions: length(rows),
       wall_ms: jobs.wall_ms,
-      tokens: token_usage(loop.loop_id),
-      tokens_unavailable: tokens_unavailable(loop.loop_id)
+      tokens: token_figure(token_state),
+      tokens_unavailable: token_reason(token_state)
     }
   end
 
-  defp tokens_unavailable(loop_id) do
-    if token_usage(loop_id) == nil, do: :not_instrumented
+  # The one reading of the token fact, shared by the finding and the cost
+  # block. Fail closed on the address: only a recognised fixture agent
+  # proves that no provider was reached. Anything else — a live scheme,
+  # a typo, an address this slice never knew — means the usage was owed
+  # and never arrived, which is a real observability gap.
+  defp token_state(%LoopRow{} = loop) do
+    case token_usage(loop.loop_id) do
+      nil ->
+        if Agent.fixture?(loop.agent),
+          do: {:unavailable, :not_applicable},
+          else: {:unavailable, :not_instrumented}
+
+      usage ->
+        {:measured, usage}
+    end
   end
+
+  defp token_figure({:measured, usage}), do: usage
+  defp token_figure({:unavailable, _reason}), do: nil
+
+  defp token_reason({:measured, _usage}), do: nil
+  defp token_reason({:unavailable, reason}), do: reason
 
   defp iterations_used({:error, _reason}), do: nil
 

@@ -28,4 +28,19 @@ defmodule Kapelle.Product.Agent do
   def resolve!("fixture:" <> key) when byte_size(key) > 0 do
     {Kapelle.Product.FixtureAgent, key}
   end
+
+  @doc """
+  True only for a well-formed fixture address — the one scheme this slice
+  can call, and therefore the only address that proves no provider was
+  reached.
+
+  Everything else is `false` on purpose: an unknown scheme, a malformed
+  address, a live adapter added by a later slice. A caller asking "was a
+  provider really not called?" must be able to fail closed on the answer,
+  so this predicate never widens on its own as schemes are added — adding
+  one means deciding, at the call site, what its absent usage means.
+  """
+  @spec fixture?(term()) :: boolean()
+  def fixture?("fixture:" <> key), do: byte_size(key) > 0
+  def fixture?(_address), do: false
 end
