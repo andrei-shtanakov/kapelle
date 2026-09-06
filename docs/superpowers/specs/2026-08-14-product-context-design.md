@@ -295,8 +295,9 @@ impresario now, not discovered mid-implementation.
   reaching `needs_human` with inspectable state ships in S4; **the resume
   transition stays blocked on the producer-owned resume contract (§7)** and
   activates only once impresario ships it; the six fault boundaries; the
-  full parity matrix (happy / needs-human / invalid-artifact / crash); the
-  product loop in LiveView; two-axis verdict reporting.
+  full parity matrix (happy / needs-human / invalid-artifact / crash);
+  two-axis verdict reporting. The product loop in LiveView left this list
+  by the ruling below and now sits in §9.
   *Exit: `needs_human` does not advance without valid active human
   evidence — until the producer resume contract exists, it does not advance
   at all (fail-closed is the exit criterion, not a workaround); resume,
@@ -328,7 +329,9 @@ Successor item: `todo://kapelle/product-loop-liveview`.
 
 ## 9. Out of scope (M3)
 
-Real LLM/provider agent adapters; backlog ranking (`ranked-backlog`,
+Real LLM/provider agent adapters; the product loop in LiveView (ruling
+2026-09-06 above; successor item `todo://kapelle/product-loop-liveview`,
+sequenced after the adapters); backlog ranking (`ranked-backlog`,
 `axis-assessment`); QG-5 gate execution (impresario/steward own it — M4 of
 the airun arc, already shipped there); `run-record` consumption; any write
 path from Kapelle back into impresario.
