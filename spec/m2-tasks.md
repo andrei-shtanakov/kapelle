@@ -9,12 +9,20 @@
 > from PR #7's review. They are executed **one at a time**, each with its own
 > evidence record; they are not a DAG to be run unattended.
 
+> **Status reconciliation 2026-09-06** (`todo://kapelle/tasks-md-reconciliation`):
+> every status below was verified against this repository's merge history. All
+> seven tasks are delivered on `master`; no status changed. The `**Delivered:**`
+> line under each status names the PR and merge commit that carried it. The same
+> pass covered `spec/tasks.md` and `spec/WS-kapelle-47-tasks.md`.
+
 **Legend:** 🔴 P0 · 🟠 P1 | ⬜ TODO · 🔄 IN PROGRESS · ✅ DONE · ⏸️ BLOCKED
 
 ## Milestone 2: Routing and feedback
 
 ### TASK-101: Deterministic provider fallback
 🟠 P1 | ✅ DONE | Est: 0.5d
+
+**Delivered:** PR #7 (`8941bdf`).
 
 **Description:**
 Give each catalog entry an optional, data-declared fallback chain, and make the
@@ -58,6 +66,9 @@ debugged from a log.
 ### TASK-102: Outcome feedback is transactional
 🟠 P1 | ✅ DONE | Est: 1d
 
+**Delivered:** PR #8 (`40e2dcb`); atomicity assertions completed in PR #10
+(`3ded7e4`).
+
 **Description:**
 Close `decision_id → verdict → router outcome` exactly once: a typed outcome
 persisted after a terminal verdict, idempotent redelivery, verdict and outcome
@@ -78,6 +89,8 @@ no false completion after a crash between steps.
 ### TASK-103: LiveView run detail
 🟠 P1 | ✅ DONE | Est: 1d
 
+**Delivered:** PR #9 (`c966c02`).
+
 **Description:**
 The first useful M3 page: a runs list and a detail view showing task, decision,
 result/verdict and current status, updating over PubSub. Read-only in this
@@ -95,6 +108,9 @@ slice — cancel and retry are a separate task.
 
 ### TASK-104: Wire the fallback chain into routed execution
 🟠 P1 | ✅ DONE | Est: 1d
+
+**Delivered:** PR #13 (`b4a6f5a`); spec in PR #11 (`2e31f2e`), interim status
+bookkeeping in PR #12 (`830a9a2`).
 
 **Description:**
 Close the gap review found on PR #7: `Kapelle.Executor.FallbackResolver`
@@ -136,6 +152,9 @@ iteration order, and the reported cycle must be the minimal cycle segment
 ### TASK-105: Needs-human hold path with inspectable state
 🟠 P1 | ✅ DONE | Est: 1d
 
+**Delivered:** PR #19 (`8484e85`); the needs-human golden oracle was generated
+first in PR #18 (`8d8e326`).
+
 The happy path lands on `ready_for_business`; the other terminal branch has
 never been walked through the contour. `NextStage` already computes
 `{:terminal, :needs_human, reason}` — what does not exist is the behaviour
@@ -172,6 +191,10 @@ matrix, not a resume.
 
 ### TASK-106: Human resume as a pure consumer of loop-resume-decision/v1
 🟠 P1 | ✅ DONE | Est: 1d
+
+**Delivered:** PR #21 (`fbe2a44`); contract pin and spec in PR #20
+(`4c33418`), resume golden and drain-after-resume parity in PR #22
+(`56dbd38`).
 
 **Description:**
 The producer shipped the contract TASK-105 was waiting for:
@@ -248,6 +271,8 @@ fault-matrix work item.
 
 ### TASK-107: Fault-injection matrix through the contour
 🟠 P1 | ✅ DONE | Est: 1d
+
+**Delivered:** PR #25 (`2e147f0`); spec in PR #24 (`860a4cb`).
 
 **Description:**
 The design doc names six mandatory fault-injection points (§5) and makes

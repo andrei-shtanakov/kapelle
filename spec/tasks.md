@@ -5,12 +5,22 @@
 > bootstrap) is recorded for traceability only — it was executed by hand and is
 > excluded from spec-runner statistics.
 
+> **Status reconciliation 2026-09-06** (`todo://kapelle/tasks-md-reconciliation`):
+> every status below was verified against this repository's merge history. All
+> eight tasks are delivered on `master`; no status changed. The `**Delivered:**`
+> line under each status names the PR and merge commit that carried it — before
+> this pass only TASK-001 carried such a reference. The same pass covered
+> `spec/m2-tasks.md` and `spec/WS-kapelle-47-tasks.md`.
+
 **Legend:** 🔴 P0 · 🟠 P1 | ⬜ TODO · 🔄 IN PROGRESS · ✅ DONE · ⏸️ BLOCKED
 
 ## Milestone 1: Vertical Slice
 
 ### TASK-001: Phoenix skeleton and test baseline
 🔴 P0 | ✅ DONE | Est: 1d
+
+**Delivered:** by hand, commits `ae91857` + `24fbb0d` — the manual S0
+bootstrap has no PR (see the description).
 
 **Description:**
 Manual bootstrap (S0): Phoenix 1.8.9 + Oban + langchain + CI, green precommit
@@ -27,6 +37,8 @@ gate. Done 2026-08-04, commits `ae91857` + `24fbb0d`.
 
 ### TASK-002: Contract structs Decision, Result, Verdict
 🔴 P0 | ✅ DONE | Est: 0.5d
+
+**Delivered:** PR #1 (`1bc13dc`).
 
 **Description:**
 Create the three contract structs with validating constructors and typespecs,
@@ -47,6 +59,8 @@ context builds on.
 ### TASK-003: RulesPolicy with deterministic routing
 🔴 P0 | ✅ DONE | Est: 0.5d
 
+**Delivered:** PR #2 (`f23de40`).
+
 **Description:**
 `Router.Policy` behaviour + `RulesPolicy` v1 returning a `Decision` from
 explicit rules, per DESIGN-002.
@@ -63,6 +77,8 @@ explicit rules, per DESIGN-002.
 
 ### TASK-004: Fake executor + fake judge, synchronous e2e
 🔴 P0 | ✅ DONE | Est: 0.5d
+
+**Delivered:** PR #3 (`c450289`).
 
 **Description:**
 `Executor.Adapter` and `Evaluator.Judge` behaviours with fake implementations;
@@ -83,6 +99,9 @@ per DESIGN-003/004.
 ### TASK-005: Persist run/task/decision/verdict in Postgres
 🔴 P0 | ✅ DONE | Est: 1d
 
+**Delivered:** PR #5 (`4fdb7fd`) — the S2 maestro DAG carried TASK-005/006/008
+together.
+
 **Description:**
 Ecto schemas + migration for runs, run_tasks, decisions, verdicts; pipeline
 persists each step, per DESIGN-005. Verdict→decision FK NOT NULL (NFR-003).
@@ -100,6 +119,9 @@ persists each step, per DESIGN-005. Verdict→decision FK NOT NULL (NFR-003).
 
 ### TASK-006: Move pipeline into Oban
 🔴 P0 | ✅ DONE | Est: 1d
+
+**Delivered:** PR #5 (`4fdb7fd`) — the S2 maestro DAG carried TASK-005/006/008
+together.
 
 **Description:**
 RouteWorker → ExecuteWorker → EvaluateWorker across the configured queues; args
@@ -119,6 +141,8 @@ carry ids only, state reloaded from DB, per DESIGN-006.
 ### TASK-007: First real provider adapter
 🟠 P1 | ✅ DONE | Est: 1d
 
+**Delivered:** PR #6 (`4824a92`).
+
 **Description:**
 `Providers.ModelFactory` + `ChainAdapter` (langchain ChatAnthropic) behind the
 same `Executor.Adapter` behaviour; opt-in smoke test, per DESIGN-007. Default
@@ -137,6 +161,9 @@ test suite stays network-free (NFR-002).
 
 ### TASK-008: Providers catalog from models.toml
 🟠 P1 | ✅ DONE | Est: 0.5d
+
+**Delivered:** PR #5 (`4fdb7fd`); spec and `project.yaml` prep in PR #4
+(`182f669`).
 
 **Description:**
 `Kapelle.Providers.Catalog` loading `priv/catalog/models.toml`
