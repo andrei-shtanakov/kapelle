@@ -42,13 +42,24 @@ defmodule Kapelle.Router.RulesPolicyTest do
 
   # The catalog is the SSOT for provider addresses, and routing does not
   # consult it: a target absent from `priv/catalog/models.toml` still yields
-  # a valid `Decision`, gets persisted, and only fails downstream in
-  # `ExecuteWorker` with `{:unknown_model_id, id}` — the run then sits at
-  # `pending` while the job retries. Nothing else in the suite crosses that
-  # seam (every pipeline test routes through an override adapter), so this
-  # assertion is the only thing standing between a renamed model and a
-  # class of runs that can never complete. `@table` is kept honest against
-  # the policy itself by the first test in this file.
+  # a valid `Decision` and persists it. Execution fails later, in
+  # `Execution.run/3`'s own catalog lookup — which happens before the
+  # adapter is ever called, so an override adapter does not step around it
+  # and `Pipeline.run_sync/2` fails exactly as `ExecuteWorker` does. On the
+  # async path the job then retries to `max_attempts` before
+  # `Terminal.fail/3` lands the run in `"failed"`: a slow terminal failure,
+  # not a permanently pending one.
+  #
+  # Nothing else in the suite crosses that seam, and not for the reason one
+  # might assume: both `:summarize` pipeline tests pass `policy: StubPolicy`,
+  # which routes every task to `anthropic@claude-sonnet-5` regardless of
+  # type, so `RulesPolicy`'s own haiku target is executed nowhere in the
+  # suite.
+  #
+  # The guarantee is bounded by `@table`. The first test in this file checks
+  # that every row matches what the policy returns; nothing checks the
+  # converse, so a new `route/2` clause added without a matching row slips
+  # past this guard. Add the row when you add the clause.
   test "every routed target exists in the provider catalog" do
     for {_task, %{provider: provider, model: model}} <- @table do
       id = "#{provider}@#{model}"
