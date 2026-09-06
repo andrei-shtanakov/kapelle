@@ -15,9 +15,10 @@ defmodule Kapelle.Product.RunVerdictTest do
   agents no provider is ever called, so an absent token figure is
   *evidence* — `:cost_not_applicable`, severity `:info` — and not a
   defect: it is recorded in the findings and does not lower the harness
-  axis (owner ruling 2026-09-06). A provider that is called but whose
-  usage never arrives is the other thing entirely, and stays reserved for
-  `:cost_not_instrumented`/`:gap` when real adapters land (#50).
+  axis (owner ruling 2026-09-06). That claim is earned by the loop's agent
+  address, not by the missing figure — an address this slice does not
+  recognise owes a token count, and its absence is
+  `:cost_not_instrumented`/`:gap`, a real observability gap.
   """
 
   use Kapelle.DataCase, async: false
@@ -42,10 +43,10 @@ defmodule Kapelle.Product.RunVerdictTest do
   end
 
   test "the axis mapping never rounds a gap up to a pass, and never over a failure" do
-    # No producer emits `:gap` until real adapters land (#50), so the
-    # contract is guarded here rather than through a run: without this, a
-    # `cond` "simplified" to :fail/:pass — or with its branches swapped —
-    # would keep every suite green while the two-axis type lies.
+    # The ordering of `:fail` over `:gap` is a contract no single run
+    # demonstrates — a run produces one shape at a time. Without this, a
+    # `cond` with its branches swapped would keep every suite green while
+    # a durability failure printed as a mere observability gap.
     gap = %{class: :cost_not_instrumented, severity: :gap, detail: :tokens}
     failure = %{class: :jobs_orphaned, severity: :fail, detail: 1}
     note = %{class: :cost_not_applicable, severity: :info, detail: :no_provider_call}
@@ -327,6 +328,37 @@ defmodule Kapelle.Product.RunVerdictTest do
 
     assert verdict.harness == :pass
     assert verdict.product == :open
+  end
+
+  test "an agent address this slice does not know owes a token figure: no usage is a real gap" do
+    loop_id = "LOOP-LIVE-AGENT"
+
+    # The shape #50 introduces: a live scheme in `Agent.resolve!/1` whose
+    # adapter reports no usage. The verdict must not claim "no provider
+    # was called" — that claim is earned only by a recognised fixture
+    # address — so an uninstrumented adapter turns the axis red by itself
+    # instead of passing green with a false note.
+    {:ok, _row} =
+      Loops.create(%{
+        loop_id: loop_id,
+        idea_identity: "IDEA-001",
+        proposal_id: "PP-001",
+        exchange_log_id: "XL-001",
+        max_iterations: 2,
+        agent: "provider:gpt-5"
+      })
+
+    assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
+
+    assert verdict.harness == :observability_gap
+
+    assert [%{class: :cost_not_instrumented, severity: :gap, detail: :tokens}] =
+             verdict.harness_findings
+
+    # The note and the number tell one story: both come from the same
+    # reading of the token fact.
+    assert verdict.cost.tokens == nil
+    assert verdict.cost.tokens_unavailable == :not_instrumented
   end
 
   # --- helpers ---

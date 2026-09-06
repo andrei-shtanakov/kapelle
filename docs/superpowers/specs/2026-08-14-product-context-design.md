@@ -44,9 +44,15 @@ Token instrumentation moves to the real-adapter milestone
 a provider that is called but whose usage never arrives is
 `:cost_not_instrumented`, severity `:gap` — a real observability gap — and
 a provider that is called and spends nothing reports a measured `0` with
-no finding at all. Until then `:observability_gap` is an unreachable
-branch, and that is the honest state of the slice rather than a defect to
-engineer around.
+no finding at all.
+
+Which of the two the verdict reports is decided by the loop's own agent
+address, never by the absence of a figure: only a recognised
+`fixture:<key>` earns "not applicable". So the day a live scheme is added
+without instrumentation, its runs report `:cost_not_instrumented` and the
+harness axis goes red on its own — the mistake fails closed instead of
+claiming a provider was never called. No fixture-backed run in M3 can
+reach that state, which is why the slice closes green.
 
 ## 2. Execution mode (hybrid)
 

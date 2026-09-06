@@ -17,6 +17,26 @@ defmodule Kapelle.Product.FixtureAgentTest do
     end
   end
 
+  describe "Agent.fixture?/1" do
+    test "only a well-formed fixture address is a fixture agent" do
+      assert Agent.fixture?("fixture:abc")
+      assert Agent.fixture?("fixture:golden/happy")
+    end
+
+    test "everything else is false, so callers can fail closed on it" do
+      # The predicate answers "was a provider certainly NOT reached?" —
+      # `RunVerdict` charges a `false` to the harness as a lost token
+      # figure. So a scheme this slice does not know must never drift into
+      # `true`: an empty key, a live adapter address a later slice adds, a
+      # typo, or something that is not an address at all.
+      refute Agent.fixture?("fixture:")
+      refute Agent.fixture?("provider:gpt-5")
+      refute Agent.fixture?("fixture")
+      refute Agent.fixture?("")
+      refute Agent.fixture?(nil)
+    end
+  end
+
   describe "FixtureAgent.produce/3" do
     test "returns the scripted document for {role, iteration}" do
       key = unique_key()
