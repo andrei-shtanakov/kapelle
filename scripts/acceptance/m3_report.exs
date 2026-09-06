@@ -65,9 +65,13 @@ run = fn loop_id, workspace ->
 
   IO.puts("drain #{loop_id}: discard=#{discard} failure=#{failure}")
 
-  # `drain_queue/1` по контракту не выбрасывает наружу: падение стадии
-  # превращается в счётчик. Без этой проверки красный прогон дошёл бы до
-  # печати отчёта и вышел нулём.
+  # Счётчики возвращаются, а не проверяются здесь: `drain_queue/1` по контракту
+  # не выбрасывает наружу, и именно на красном прогоне вердикт нужнее всего —
+  # discarded-джобы дают finding `:jobs_discarded`. Роняем после печати.
+  %{loop_id: loop_id, discard: discard, failure: failure}
+end
+
+expect_clean_drain = fn %{loop_id: loop_id, discard: discard, failure: failure} ->
   if discard != 0 or failure != 0 do
     raise "acceptance: drain #{loop_id} не чист — discard=#{discard} failure=#{failure}"
   end
@@ -80,10 +84,24 @@ expect_pass = fn loop_id ->
     raise "acceptance: #{loop_id} — product=#{verdict.product} harness=#{verdict.harness}, " <>
             "ожидались обе оси :pass"
   end
+
+  verdict
 end
 
-run.("LOOP-HAPPY", "test/support/fixtures/golden/happy/workspace")
-run.("LOOP-WAIVER", "test/support/fixtures/golden/human_waiver/workspace")
+# Оси — не весь предмет §9.3: потеря видимости cost/interventions прошла бы
+# зелёной, а ради неё LOOP-WAIVER и выбран. Проверяем то, что предъявляем.
+expect_visible = fn %{cost: cost, interventions: interventions}, loop_id, waivers ->
+  if cost.iterations_used != 2 or cost.stage_jobs != 6 or is_nil(cost.wall_ms) do
+    raise "acceptance: #{loop_id} — cost-блок не предъявлен: #{inspect(cost)}"
+  end
+
+  if interventions.waivers != waivers or (waivers > 0 and interventions.waiver_refs == []) do
+    raise "acceptance: #{loop_id} — interventions не предъявлены: #{inspect(interventions)}"
+  end
+end
+
+happy_drain = run.("LOOP-HAPPY", "test/support/fixtures/golden/happy/workspace")
+waiver_drain = run.("LOOP-WAIVER", "test/support/fixtures/golden/human_waiver/workspace")
 
 # Отчёт печатает сама Mix-задача, а не её внутренности: приёмка предъявляет ту
 # поверхность, которой пользуется оператор. `rerun/2` — потому что одну и ту же
@@ -94,8 +112,12 @@ Mix.Task.run("kapelle.product.report", ["LOOP-HAPPY"])
 IO.puts("\n$ mix kapelle.product.report LOOP-WAIVER")
 Mix.Task.rerun("kapelle.product.report", ["LOOP-WAIVER"])
 
-# Проверка — после печати: оператор должен увидеть вердикт целиком, даже когда
+# Проверки — после печати: оператор должен увидеть вердикт целиком, даже когда
 # прогон падает, иначе разбирать будет нечего.
-expect_pass.("LOOP-HAPPY")
-expect_pass.("LOOP-WAIVER")
-IO.puts("\nacceptance: обе оси pass на обоих циклах")
+expect_clean_drain.(happy_drain)
+expect_clean_drain.(waiver_drain)
+
+expect_visible.(expect_pass.("LOOP-HAPPY"), "LOOP-HAPPY", 0)
+expect_visible.(expect_pass.("LOOP-WAIVER"), "LOOP-WAIVER", 1)
+
+IO.puts("\nacceptance: обе оси pass, cost и interventions предъявлены на обоих циклах")
