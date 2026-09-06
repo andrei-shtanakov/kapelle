@@ -3,15 +3,19 @@ defmodule Kapelle.Product.RunVerdict do
   The two-axis verdict for one product loop (design doc §1; M3 exit
   criteria §9.3): **product** — what the loop produced — and **harness** —
   how this codebase's durable execution behaved while carrying it. The two
-  never collapse into one value. `product: :pass, harness:
-  :observability_gap` is a useful answer, and this module is shaped so it
-  can be said out loud instead of being rounded up to "green".
+  never collapse into one value: `product: :pass, harness: :fail` on a
+  loop whose result is right but whose executing row was orphaned is a
+  useful answer, and this module is shaped so it can be said out loud
+  instead of being rounded up to "green". `harness: :observability_gap`
+  is the same kind of answer, and it is currently an *unreachable* branch
+  — nothing in M3 produces a `:gap` finding (see the cost table below); it
+  becomes reachable with real provider adapters (#50).
 
   Neither axis judges proposal quality: the product axis reads the loop's
   own terminal lifecycle — the domain result the reference runner agrees
   on through the parity suite — and the harness axis reads execution facts:
-  evidence integrity, discarded jobs, a terminal outcome that was reached
-  but never recorded, and what this codebase cannot measure at all yet.
+  evidence integrity, discarded jobs, and a terminal outcome that was
+  reached but never recorded.
 
   ## Cost keeps three token states apart
 
@@ -343,11 +347,18 @@ defmodule Kapelle.Product.RunVerdict do
     end
   end
 
-  # `:info` findings are evidence, not defects: they are reported and
-  # deliberately do not appear here. A future edit that "fixes" this by
-  # degrading the axis on every note would erase the very distinction the
-  # cost table in the moduledoc exists to hold.
-  defp harness_axis(findings) do
+  @doc """
+  Maps harness findings to the public axis without rounding gaps up to pass.
+  Public so the two-axis contract remains testable when no current producer
+  emits a gap.
+
+  `:info` findings are evidence, not defects: they are reported and
+  deliberately do not lower the axis. A future edit that "fixes" this by
+  degrading the axis on every note would erase the very distinction the
+  cost table above exists to hold.
+  """
+  @spec harness_axis([finding()]) :: harness_axis()
+  def harness_axis(findings) do
     cond do
       Enum.any?(findings, &(&1.severity == :fail)) -> :fail
       Enum.any?(findings, &(&1.severity == :gap)) -> :observability_gap

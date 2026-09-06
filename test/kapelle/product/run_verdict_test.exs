@@ -41,6 +41,27 @@ defmodule Kapelle.Product.RunVerdictTest do
     assert {:error, :not_found} = RunVerdict.for_loop("LOOP-NOPE")
   end
 
+  test "the axis mapping never rounds a gap up to a pass, and never over a failure" do
+    # No producer emits `:gap` until real adapters land (#50), so the
+    # contract is guarded here rather than through a run: without this, a
+    # `cond` "simplified" to :fail/:pass — or with its branches swapped —
+    # would keep every suite green while the two-axis type lies.
+    gap = %{class: :cost_not_instrumented, severity: :gap, detail: :tokens}
+    failure = %{class: :jobs_orphaned, severity: :fail, detail: 1}
+    note = %{class: :cost_not_applicable, severity: :info, detail: :no_provider_call}
+
+    assert RunVerdict.harness_axis([gap]) == :observability_gap
+
+    # Order matters: a lone gap catches a deleted branch, not a branch
+    # moved ahead of :fail. A failure outranks a gap in either arrangement.
+    assert RunVerdict.harness_axis([gap, failure]) == :fail
+    assert RunVerdict.harness_axis([failure, gap]) == :fail
+
+    # And the note that M3 actually produces stays weightless.
+    assert RunVerdict.harness_axis([note]) == :pass
+    assert RunVerdict.harness_axis([]) == :pass
+  end
+
   test "happy run: both axes pass, the absent token figure is evidence, cost and interventions are real" do
     loop_id = run_golden!("happy")
 
