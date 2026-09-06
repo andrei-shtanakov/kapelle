@@ -306,6 +306,26 @@ impresario now, not discovered mid-implementation.
 - **LiveView invariant across all slices**: it only reads the derived
   projection; its absence or staleness never affects execution.
 
+### Ruling 2026-09-06 (owner: Andrei) — the product loop in LiveView leaves M3
+
+The screen is not built in this slice. It appears in neither exit list —
+not §1's criteria, not S4+'s own gate — and the invariant above makes its
+absence harmless by construction: there is nothing to read, so nothing
+depends on it. The one reader today is the owner (and the acceptance
+review), for whom `mix kapelle.product.report <loop_id>` is the richer
+read surface: both axes, findings, the whole cost block, interventions
+with artifact references.
+
+The reason is the order of design, not saved effort. Built now, the screen
+would fix its information architecture around a fixture-only world; real
+adapters bring real spend, provider failures, background runs and operator
+actions, and those are what a product-loop screen is for. It is therefore
+deliberately sequenced after `todo://kapelle/real-provider-adapters` and
+kept a separate item and a separate PR — bundling the two would let the
+screen's design start before the data it must show exists.
+
+Successor item: `todo://kapelle/product-loop-liveview`.
+
 ## 9. Out of scope (M3)
 
 Real LLM/provider agent adapters; backlog ranking (`ranked-backlog`,
