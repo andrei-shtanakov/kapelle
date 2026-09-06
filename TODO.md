@@ -90,7 +90,11 @@
       Проверка живёт в mix test / mix precommit (Kapelle.Golden.ProvenanceIntegrity).
   carry-forward S3 (N4–N6): тест, сверяющий golden-фикстуры с sha256 из их
   PROVENANCE — тихая правка golden-набора сегодня необнаружима.
-- [x] **Two-axis verdict + cost/interventions на прогон** @id:two-axis-verdict @epic:airun.kapelle-m3 — PR #64
+- [x] **S4+ tail decision расщеплён** @id:s4-plus-tail-decision @epic:airun.kapelle-m3
+  — compatibility-якорь для прежнего `todo://kapelle/s4-plus-tail-decision`;
+  преемники: `two-axis-verdict`, `s4-plus-cost-visibility`,
+  `s4-plus-liveview`.
+- [x] **Two-axis verdict и поверхность отчёта** @id:two-axis-verdict @epic:airun.kapelle-m3 — PR #64
       Evidence: `Kapelle.Product.RunVerdict` — ось product читает
       терминальный lifecycle цикла, а walk канонического view
       (`NextStage.compute/2`, тот же, с которым сверяется reference runner)
@@ -107,6 +111,11 @@
       executing читался как «джоб ещё отработает»; `failed` шёл в продуктовый
       провал даже когда его писал сам харнесс; готовый результат без записи
       статуса демотировался в :open) и два minor.
+- [ ] **Cost/interventions на прогон** @id:s4-plus-cost-visibility @epic:airun.kapelle-m3
+  — незакрытая половина §9.3: отчёт уже честно показывает `tokens = nil`
+  и причину, но `token_usage/1` остаётся швом без реальной
+  инструментовки. При закрытии M3 либо доставить измерение на реальном
+  адаптере, либо явным решением владельца вынести за M3.
 - [ ] **Product loop в LiveView** @id:s4-plus-liveview @epic:airun.kapelle-m3
   — §8 «S4+»: product-контекст в вебе не отражён вовсе (`run_live`/`runs_live`
   — поверхности оркестратора из M1). Судьба решается при закрытии M3:
