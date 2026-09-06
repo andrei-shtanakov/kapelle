@@ -86,17 +86,19 @@ visible per run».
 ### Как воспроизвести
 
 ```sh
-MIX_ENV=test MIX_TEST_PARTITION=acc mix ecto.create && \
+MIX_ENV=test MIX_TEST_PARTITION=acc mix ecto.create
 MIX_ENV=test MIX_TEST_PARTITION=acc mix ecto.migrate
-# скрипт: install_script! из golden-воркспейса → Loop.start/2 →
-#         Oban.drain_queue(queue: :product, with_recursion: true) →
-#         Mix.Task.run("kapelle.product.report", [loop_id])
+MIX_ENV=test MIX_TEST_PARTITION=acc mix run scripts/acceptance/m3_report.exs
 MIX_ENV=test MIX_TEST_PARTITION=acc mix ecto.drop
 ```
 
-Прогон одноразовый и в дерево ничего не пишет: отдельная БД по
-`MIX_TEST_PARTITION`, `Sandbox.mode(:auto)`, скрипт живёт вне репозитория.
-`wall ms` — единственное поле, которое от прогона к прогону меняется.
+Скрипт лежит в репозитории (`scripts/acceptance/m3_report.exs`) — рецепт
+приёмки обязан исполняться, а не описываться прозой, иначе «предъявленный
+вердикт» проверить нечем (находка ревью этого же PR). Прогон одноразовый и в
+дерево ничего не пишет: отдельная БД по `MIX_TEST_PARTITION`,
+`Sandbox.mode(:auto)`, `MIX_ENV=test` обязателен — fixture-агенты живут в
+`test/support`. `wall ms` — единственное поле, которое от прогона к прогону
+меняется.
 
 ## Критерии выхода §1/§9.3
 
@@ -106,7 +108,7 @@ MIX_ENV=test MIX_TEST_PARTITION=acc mix ecto.drop
 | крах после каждой durable-границы резюмируется без дублей | ✅ | TASK-107, `fault_injection_matrix_test.exs` (точки 1–6 §5), `parity_crash_test.exs` — приёмка S4 п.4 |
 | поздние/дублирующие результаты не перетирают терминальный вердикт | ✅ | fault-точки 2–3 и per-write идемпотентность — приёмка S4 п.4 |
 | одна итерация не применяется дважды | ✅ | single-flight `(loop_id, iteration, stage, input_hash)` + idempotent-skip шага — приёмка S4 п.6 |
-| невалидные артефакты останавливают прогресс fail-closed | ✅ | `parity_invalid_artifact_test.exs`, corruption-точки 5–6 без ремонта — приёмка S4 п.4–5 |
+| невалидные артефакты останавливают прогресс fail-closed | ✅ | `parity_invalid_artifact_test.exs` и fault-точка 6 (повреждённый артефакт) — отказ без попытки ремонта, ни одной новой ревизии. Точку 5 сюда не относим: устаревшая **производная** проекция при целых артефактах штатно чинится — `Reconciler.reconcile/1` возвращает `{:ok, :repaired}` и перестраивает проекцию (`fault_injection_matrix_test.exs`), новых ревизий артефактов при этом не появляется |
 | needs-human держит инспектируемое состояние и путь резюме | ✅ | TASK-105/106, refusal-матрица 13 кейсов, идемпотентное резюме — приёмка S4 п.1–3 |
 | **cost и interventions видны на прогон** | ✅ | `Kapelle.Product.RunVerdict` (PR #64) + семантика трёх состояний стоимости (PR #68) + живые блоки выше; ruling §1 |
 | эталон и Kapelle сходятся на фикстурах | ✅ | пять golden-сценариев (`happy`, `needs_human`, `invalid_artifact`, `resume`, `human_waiver`) и пять parity-тестов на пине `8082e53` |
