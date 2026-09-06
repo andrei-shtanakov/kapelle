@@ -160,7 +160,7 @@
   (вынесен §9 чартера) и `product-loop-liveview` (вынесен решением
   владельца 2026-09-06, ждёт первого). Вопрос об отдельном эпике для
   post-M3 работы **решён** 2026-09-06: заведён `airun.kapelle-live-runtime`
-  (ai-orchestrators-workspace#32), оба пункта переведены на него этим PR.
+  (ai-orchestrators-workspace#32), оба пункта переведены на него в PR #72.
   На момент PR #70 они ещё несли `@epic:airun.kapelle-m3`.
 - [x] **Приёмка M3 — закрывающий двухосевой вердикт** @id:m3-acceptance @epic:airun.kapelle-m3 — PR #71
   `docs/superpowers/acceptance/2026-09-06-m3-acceptance.md` на `master@91cda67`,
