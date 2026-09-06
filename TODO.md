@@ -158,10 +158,10 @@
   M3 — доставлять по нему больше нечего. Два пункта эпика остаются
   открытыми намеренно, как post-M3 преемники: `real-provider-adapters`
   (вынесен §9 чартера) и `product-loop-liveview` (вынесен решением
-  владельца 2026-09-06, ждёт первого). Тег `@epic:airun.kapelle-m3` они
-  несут по сложившейся в файле конвенции — вопрос, заводить ли для
-  post-M3 работы отдельный эпик, решается в плоскости эпиков
-  (ADR-ECO-010) сразу для обоих, а не здесь.
+  владельца 2026-09-06, ждёт первого). Вопрос об отдельном эпике для
+  post-M3 работы **решён** 2026-09-06: заведён `airun.kapelle-live-runtime`
+  (ai-orchestrators-workspace#32), оба пункта переведены на него в PR #72.
+  На момент PR #70 они ещё несли `@epic:airun.kapelle-m3`.
 - [x] **Приёмка M3 — закрывающий двухосевой вердикт** @id:m3-acceptance @epic:airun.kapelle-m3 — PR #71
   `docs/superpowers/acceptance/2026-09-06-m3-acceptance.md` на `master@91cda67`,
   526 тестов / 0 падений. Вердикт предъявлен, а не заявлен: два golden-сценария
@@ -169,9 +169,9 @@
   БД, отчёт напечатан настоящей `mix kapelle.product.report` — обе оси `pass`,
   `waivers: 1 (concept-draft://CD-002)` показывает названную интервенцию.
   До PR #68 такой вердикт был недостижим по построению.
-- [ ] **Реальные LLM/provider-адаптеры** @id:real-provider-adapters — вместо @epic:airun.kapelle-m3
-  fixture-backed deterministic агентов (Research/Creator/Evaluator через
-  behaviour/port); отдельная веха после M3 (решение 3 дизайна, PR #14).
+- [ ] **Реальные LLM/provider-адаптеры** @id:real-provider-adapters @epic:airun.kapelle-live-runtime
+  Вместо fixture-backed deterministic агентов (Research/Creator/Evaluator
+  через behaviour/port); отдельная веха после M3 (решение 3 дизайна, PR #14).
   Несёт токенную половину §9.3 — три состояния обязаны остаться
   различимыми (решение владельца 2026-09-06): провайдер не вызывался →
   `tokens` nil / `:not_applicable`, finding `:cost_not_applicable`
@@ -179,7 +179,7 @@
   вызывался, а usage потерян → nil / `:not_instrumented`, finding
   `:cost_not_instrumented` severity `:gap`. Именно третье возвращает
   `:observability_gap` в достижимые ветки.
-- [ ] **Экран продуктового цикла (LiveView)** @id:product-loop-liveview @epic:airun.kapelle-m3 @blocked_by:todo://kapelle/real-provider-adapters
+- [ ] **Экран продуктового цикла (LiveView)** @id:product-loop-liveview @epic:airun.kapelle-live-runtime @blocked_by:todo://kapelle/real-provider-adapters
   Преемник вынесенного за M3 `s4-plus-liveview` (решение владельца
   2026-09-06). Читающая половина уже есть — `View.build/1`,
   `RunVerdict.for_loop/1`, `Loops`, — так что работа здесь про
