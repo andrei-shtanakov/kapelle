@@ -141,9 +141,15 @@
   адаптеров появляются настоящая стоимость, отказы провайдера, фоновые
   прогоны и операторские действия — они и определяют информационную
   архитектуру. Преемник — `product-loop-liveview`.
-- [ ] **Сверка статусов `spec/tasks.md`** @id:tasks-md-reconciliation — @epic:airun.kapelle-m3
-  сверить канонические статусы с фактически влитыми PR; по правилу
-  project.yaml статусы reconcile'ятся вручную после финального PR волны.
+- [x] **Сверка статусов `spec/tasks.md`** @id:tasks-md-reconciliation — @epic:airun.kapelle-m3 — PR #70
+  Сверка 2026-09-06 против merge-истории репо: расхождений статусов **нет** —
+  все 15 задач (`spec/tasks.md` 8 + `spec/m2-tasks.md` 7) действительно
+  доставлены на `master`, ни один статус не менялся. Что чинилось —
+  отсутствующие ссылки на подтверждение: до прохода PR/коммит нёс один
+  TASK-001, теперь под каждым статусом стоит `**Delivered:**` с PR и
+  merge-коммитом. Это был последний открытый пункт M3 — плоскость среза
+  закрыта; за границей остаются `real-provider-adapters` и
+  `product-loop-liveview`.
 - [ ] **Реальные LLM/provider-адаптеры** @id:real-provider-adapters — вместо @epic:airun.kapelle-m3
   fixture-backed deterministic агентов (Research/Creator/Evaluator через
   behaviour/port); отдельная веха после M3 (решение 3 дизайна, PR #14).
