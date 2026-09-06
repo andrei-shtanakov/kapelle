@@ -6,10 +6,18 @@ defmodule Kapelle.Product.RunVerdictTest do
   judged against runs the parity suite already proves agree with the
   reference runner.
 
-  The load-bearing claim is that the axes do not collapse: a loop that
-  produced the right thing still reports `harness: :observability_gap`
-  while cost is un-instrumented, and a loop whose evidence is damaged
-  reports the damage even though its product result was recorded.
+  The load-bearing claim is that the axes do not collapse: a loop whose
+  evidence is damaged reports the damage even though its product result
+  was recorded, and a fail-closed refusal is a product failure with a
+  clean harness.
+
+  Cost carries the other half of that discipline. With fixture-backed
+  agents no provider is ever called, so an absent token figure is
+  *evidence* — `:cost_not_applicable`, severity `:info` — and not a
+  defect: it is recorded in the findings and does not lower the harness
+  axis (owner ruling 2026-09-06). A provider that is called but whose
+  usage never arrives is the other thing entirely, and stays reserved for
+  `:cost_not_instrumented`/`:gap` when real adapters land (#50).
   """
 
   use Kapelle.DataCase, async: false
@@ -33,18 +41,19 @@ defmodule Kapelle.Product.RunVerdictTest do
     assert {:error, :not_found} = RunVerdict.for_loop("LOOP-NOPE")
   end
 
-  test "happy run: product passes, harness reports the cost gap, cost and interventions are real" do
+  test "happy run: both axes pass, the absent token figure is evidence, cost and interventions are real" do
     loop_id = run_golden!("happy")
 
     assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
 
     assert verdict.product == :pass
 
-    # The claim this whole module exists for: a product pass does NOT buy
-    # a harness pass while cost is un-instrumented.
-    assert verdict.harness == :observability_gap
+    # A finding of severity :info is evidence, not a defect: it is
+    # reported AND the axis still passes. That pairing is the whole point
+    # — dropping the finding would hide that no provider was ever called.
+    assert verdict.harness == :pass
 
-    assert [%{class: :cost_not_instrumented, severity: :gap, detail: :tokens}] =
+    assert [%{class: :cost_not_applicable, severity: :info, detail: :no_provider_call}] =
              verdict.harness_findings
 
     cost = verdict.cost
@@ -58,10 +67,10 @@ defmodule Kapelle.Product.RunVerdictTest do
     assert cost.artifact_revisions > 0
     assert is_integer(cost.wall_ms) and cost.wall_ms >= 0
 
-    # Un-instrumented is nil with a reason — never a zero that reads as a
-    # measurement.
+    # Not applicable is nil with a reason — never a zero that reads as a
+    # measurement of a call that never happened.
     assert cost.tokens == nil
-    assert cost.tokens_unavailable == :not_instrumented
+    assert cost.tokens_unavailable == :not_applicable
 
     assert verdict.interventions == %{
              holds: 0,
@@ -131,10 +140,10 @@ defmodule Kapelle.Product.RunVerdictTest do
 
     assert verdict.product == :fail
     # Nothing was persisted and nothing was lost by the harness: the only
-    # finding is the standing cost gap, NOT a durability failure. A
+    # finding is the not-applicable cost note, NOT a durability failure. A
     # fail-closed refusal is the harness working, not breaking.
-    assert verdict.harness == :observability_gap
-    assert Enum.map(verdict.harness_findings, & &1.class) == [:cost_not_instrumented]
+    assert verdict.harness == :pass
+    assert Enum.map(verdict.harness_findings, & &1.class) == [:cost_not_applicable]
     # What cost counts here is the loop's own init evidence (idea + the
     # initial proposal snapshot, both written before any stage ran) — the
     # refused research pack is precisely what is NOT among them.
@@ -237,8 +246,8 @@ defmodule Kapelle.Product.RunVerdictTest do
 
     # Nothing is wrong yet: the row is young, so no orphan finding — and no
     # stall finding either, because something IS executing.
-    assert verdict.harness == :observability_gap
-    assert Enum.map(verdict.harness_findings, & &1.class) == [:cost_not_instrumented]
+    assert verdict.harness == :pass
+    assert Enum.map(verdict.harness_findings, & &1.class) == [:cost_not_applicable]
     assert verdict.cost.executing_jobs == 1
     assert verdict.cost.orphaned_jobs == 0
     assert verdict.product == :pass
@@ -274,8 +283,8 @@ defmodule Kapelle.Product.RunVerdictTest do
     # own reads are not one snapshot, so this shape occurs in the ordinary
     # course of progress; calling it a durability failure would make the
     # loudest finding here the one it cries most often.
-    assert verdict.harness == :observability_gap
-    assert Enum.map(verdict.harness_findings, & &1.class) == [:cost_not_instrumented]
+    assert verdict.harness == :pass
+    assert Enum.map(verdict.harness_findings, & &1.class) == [:cost_not_applicable]
   end
 
   test "a loop still being started, with no jobs yet, is not accused of stalling" do
@@ -295,7 +304,7 @@ defmodule Kapelle.Product.RunVerdictTest do
 
     assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
 
-    assert verdict.harness == :observability_gap
+    assert verdict.harness == :pass
     assert verdict.product == :open
   end
 

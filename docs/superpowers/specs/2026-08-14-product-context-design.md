@@ -23,6 +23,31 @@ twice; invalid artifacts stop progress fail-closed; needs-human keeps
 inspectable state and a resume path; cost and interventions are visible per
 run; reference and Kapelle agree on fixtures.
 
+### Ruling 2026-09-06 (owner: Andrei) — what "cost visible per run" means in M3
+
+The §9.3 criterion is satisfied by the observability of the costs a run
+actually incurs: iterations, stage jobs, attempts, retries, recovery and
+discard states, artifact revisions, wall time. Those are measured and
+printed per run.
+
+Token cost is **not applicable** in this slice, not lost: real provider
+adapters are out of scope by §9, so no model call happens and there is no
+spend to see. `tokens = nil` therefore records "the provider was never
+called" (`:cost_not_applicable`, severity `:info`) — evidence, not a
+defect, and it does not lower the harness axis. Treating it as a standing
+`observability_gap` would conflate the absence of a provider with the loss
+of visibility into a cost that exists, and would make M3 unclosable by
+construction.
+
+Token instrumentation moves to the real-adapter milestone
+(`todo://kapelle/real-provider-adapters`, #50), which owns the transition:
+a provider that is called but whose usage never arrives is
+`:cost_not_instrumented`, severity `:gap` — a real observability gap — and
+a provider that is called and spends nothing reports a measured `0` with
+no finding at all. Until then `:observability_gap` is an unreachable
+branch, and that is the honest state of the slice rather than a defect to
+engineer around.
+
 ## 2. Execution mode (hybrid)
 
 - Specification, skeleton, contract vendoring, and the first vertical slices
