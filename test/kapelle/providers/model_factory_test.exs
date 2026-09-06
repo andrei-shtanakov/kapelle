@@ -10,7 +10,7 @@ defmodule Kapelle.Providers.ModelFactoryTest do
 
       assert model.model == "claude-sonnet-5"
       assert model.temperature == 0.7
-      assert model.max_tokens == 4096
+      assert model.max_tokens == 16_000
     end
 
     test "returns {:error, {:unsupported_provider, provider}} for a catalog entry with no adapter" do
