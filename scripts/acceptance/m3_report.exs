@@ -50,7 +50,7 @@ run = fn loop_id, workspace ->
 
   :ok = FixtureAgent.install_script!(loop_id, script)
 
-  {:ok, _row} =
+  start =
     Loop.start(File.read!(Path.join(workspace, "idea.yaml")),
       loop_id: loop_id,
       proposal_id: "PP-001",
@@ -59,6 +59,22 @@ run = fn loop_id, workspace ->
       agent: "fixture:" <> loop_id,
       now_iso: now_iso
     )
+
+  # Типизированные отказы старта разбираем сами: голый `{:ok, _} =` превратил бы
+  # самую вероятную ошибку оператора — повтор рецепта по неудалённой БД — в
+  # MatchError без единой строки отчёта.
+  case start do
+    {:ok, _row} ->
+      :ok
+
+    {:error, :already_initialized} ->
+      raise "acceptance: цикл #{loop_id} уже есть в БД — остаток прошлого прогона. " <>
+              "Выполните `MIX_ENV=test MIX_TEST_PARTITION=acc mix ecto.drop` " <>
+              "и повторите рецепт с начала."
+
+    {:error, reason} ->
+      raise "acceptance: Loop.start(#{loop_id}) отказал: #{inspect(reason)}"
+  end
 
   %{discard: discard, failure: failure} =
     Oban.drain_queue(queue: :product, with_recursion: true)
