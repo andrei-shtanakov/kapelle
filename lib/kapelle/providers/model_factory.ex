@@ -8,7 +8,13 @@ defmodule Kapelle.Providers.ModelFactory do
   alias LangChain.ChatModels.ChatAnthropic
 
   @doc """
-  Builds the langchain chat model for the catalog entry addressed by `id`.
+  Builds the langchain chat model for `id` — either a catalog id string
+  (looked up via `Catalog.get/1`) or an already-resolved
+  `Kapelle.Providers.Catalog.Entry` struct, used as-is with no catalog
+  lookup at all. The struct form lets a caller that already loaded the
+  catalog itself (e.g. from a non-default path) build the model from
+  that exact entry, rather than this function re-reading the catalog
+  from its own default location.
 
   Returns `{:ok, model}`, or `{:error, reason}` if `id` is unknown or
   malformed (see `Catalog.get/1`), the entry's provider has no langchain
@@ -16,7 +22,9 @@ defmodule Kapelle.Providers.ModelFactory do
   entry's params fail the model's own validation
   (`{:error, %Ecto.Changeset{}}`).
   """
-  @spec build(term()) :: {:ok, struct()} | {:error, term()}
+  @spec build(term() | Catalog.Entry.t()) :: {:ok, struct()} | {:error, term()}
+  def build(%Catalog.Entry{} = entry), do: build_model(entry)
+
   def build(id) do
     with {:ok, entry} <- Catalog.get(id) do
       build_model(entry)
