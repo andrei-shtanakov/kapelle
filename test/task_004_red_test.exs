@@ -1,4 +1,4 @@
-defmodule Kapelle.Task004RedTest do
+defmodule Kapelle.Golden.ProvenanceIntegrityCwdRedTest do
   @moduledoc """
   RED test for TASK-004 (spec/WS-kapelle-47-tasks.md): the not-yet-existing
   `Kapelle.Golden.ProvenanceIntegrity.check/0` — the zero-arg entry point a

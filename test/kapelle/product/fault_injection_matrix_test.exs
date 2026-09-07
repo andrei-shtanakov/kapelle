@@ -103,6 +103,7 @@ defmodule Kapelle.Product.FaultInjectionMatrixTest do
   use Oban.Testing, repo: Kapelle.Repo
 
   import Ecto.Query, only: [from: 2]
+  import Plug.Conn, only: [put_status: 2]
 
   alias Kapelle.Product.{
     CanonicalHash,
@@ -113,6 +114,7 @@ defmodule Kapelle.Product.FaultInjectionMatrixTest do
     Loops,
     NextStage,
     Reconciler,
+    RunVerdict,
     Store,
     View
   }
@@ -692,5 +694,276 @@ defmodule Kapelle.Product.FaultInjectionMatrixTest do
     assert Store.all(loop_id) == stored_before
     assert all_enqueued() |> length() == jobs_before
     refute_receive %Event{}, 200
+  end
+
+  # --- DT-04: live fault classes route through the ordinary worker contour ---
+  #
+  # BEH-04 (an address the port cannot resolve is terminal, never
+  # retried), BEH-10 (the stop_reason a terminal live failure leaves is
+  # readable and secret-free), and BEH-11 (the port-class ->
+  # job-outcome/loop-status/retry matrix) all go through a real
+  # `ResearchWorker` job on a live `model:` address with only the HTTP
+  # transport stubbed (`Req.Test`) — the same double-the-real-SDK
+  # technique `live_agent_test.exs` uses at the adapter level (BEH-08),
+  # driven one layer up through `Oban.drain_queue/1` so the assertions
+  # are about the ordinary worker contour's own routing (`StageShell.run/2`
+  # -> `perform_stage/3`), not `LiveAgent.produce/3`'s return value alone.
+  #
+  # BEH-12 (the adapter-level call timeout) is NOT duplicated here: it is
+  # already proven, through this identical ordinary-worker-contour
+  # technique, by the frozen
+  # `test/task_004_45c64cba9edccc4f_890cd12b_red_test.exs` (referenced,
+  # not duplicated — this file's own coverage-map convention, moduledoc
+  # above). BEH-29's exhaustive secret-avoidance coverage (a live key
+  # value that must never surface, across every result shape) is
+  # likewise referenced from `live_agent_test.exs` rather than repeated
+  # here; BEH-10's own secret assertion below is the narrower "the
+  # persisted `stop_reason` column itself never carries a key-shaped
+  # string", not a second full sweep of BEH-29's own cases.
+
+  defp dt04_write_catalog! do
+    path =
+      Path.join(
+        System.tmp_dir!(),
+        "fault_injection_matrix_catalog_#{System.unique_integer([:positive])}.toml"
+      )
+
+    File.write!(path, """
+    [[models]]
+    provider = "anthropic"
+    model = "test-model"
+
+    [models.params]
+    temperature = 0.7
+    max_tokens = 1000
+    """)
+
+    on_exit(fn -> File.rm(path) end)
+    path
+  end
+
+  defp dt04_install_catalog! do
+    Application.put_env(:kapelle, :product_catalog_path, dt04_write_catalog!())
+    on_exit(fn -> Application.delete_env(:kapelle, :product_catalog_path) end)
+    "anthropic@test-model"
+  end
+
+  defp dt04_stub!(fun) do
+    name = {__MODULE__, System.unique_integer([:positive])}
+    Req.Test.stub(name, fun)
+    Application.put_env(:kapelle, :product_provider_req_opts, plug: {Req.Test, name})
+    on_exit(fn -> Application.delete_env(:kapelle, :product_provider_req_opts) end)
+  end
+
+  defp dt04_start_loop!(loop_id, agent_address) do
+    {:ok, _row} =
+      Loop.start(idea_yaml(),
+        loop_id: loop_id,
+        proposal_id: "PP-001",
+        exchange_log_id: "XL-001",
+        max_iterations: 1,
+        agent: agent_address,
+        now_iso: @now_iso
+      )
+
+    loop_id
+  end
+
+  defp dt04_research_job(loop_id) do
+    Repo.one!(
+      from(j in Oban.Job,
+        where:
+          j.worker == ^Oban.Worker.to_string(ResearchWorker) and
+            fragment("?->>'loop_id' = ?", j.args, ^loop_id)
+      )
+    )
+  end
+
+  test "BEH-04) an address the port cannot resolve is terminal: the loop fails closed, the job is cancelled (not retried), and a redelivery makes no new attempt" do
+    loop_id = "LOOP-FIM-BEH-04"
+
+    # No catalog, no stub installed at all — `nope:whatever` fails at
+    # `Kapelle.Product.Agent.resolve/1` itself (`{:unknown_scheme, ...}`),
+    # before any adapter or provider is ever reached (AC-03/BEH-04's own
+    # "и не приводит к ретраю платного вызова" for the address family).
+    dt04_start_loop!(loop_id, "nope:whatever")
+
+    assert %{discard: 0, cancelled: 1, failure: 0, success: 0} = drain_product!()
+
+    loop = Loops.get!(loop_id)
+    assert loop.status == "failed"
+    assert loop.stop_reason =~ "unknown_scheme"
+
+    job = dt04_research_job(loop_id)
+    assert job.state == "cancelled"
+    attempt_after_first_drain = job.attempt
+
+    # A second drain finds nothing runnable: a `cancelled` job is terminal
+    # in Oban's own state model, so real redelivery never reaches
+    # `perform/1` again — the attempt count cannot grow because nothing
+    # ever re-attempts it.
+    assert %{discard: 0, cancelled: 0, failure: 0, success: 0} = drain_product!()
+    assert dt04_research_job(loop_id).attempt == attempt_after_first_drain
+    assert dt04_research_job(loop_id).state == "cancelled"
+
+    # Simulates the other redelivery shape this suite's own point 3/4
+    # already use elsewhere in this file (Oban re-invoking `perform/1` on
+    # the very same row out of band): `StageShell.run/2`'s own step 1
+    # (`terminal?/1`) discards it as a plain `:ok` without ever calling
+    # `Agent.resolve/1` again — no new call attempt, no new failure, the
+    # loop's own terminal state is untouched.
+    assert :ok = perform_job(ResearchWorker, job_args(loop_id, "research", 0))
+    assert Loops.get!(loop_id).status == "failed"
+    assert Loops.get!(loop_id).stop_reason == loop.stop_reason
+  end
+
+  test "BEH-10) a terminal live failure's stop_reason names the port class and the provider's own distinguishable reason, readably and with no secret in it" do
+    loop_id = "LOOP-FIM-BEH-10"
+    catalog_id = dt04_install_catalog!()
+
+    # The langchain SDK only threads a wire error's own `message` through
+    # to `LangChainError.message` for a body it can parse as a recognized
+    # error shape (`error.type` present); an unrecognized shape collapses
+    # to its own generic "Unexpected response" instead (proven by BEH-08's
+    # own bare `%{"error" => %{"message" => ...}}` case in
+    # `live_agent_test.exs`, which only asserts the type/port-class, never
+    # the message content). Use the recognized shape (mirrors BEH-08's own
+    # "content-based provider refusal (invalid_request_error type...)"
+    # case) so the provider's own distinguishable text genuinely survives
+    # to `stop_reason`.
+    dt04_stub!(fn conn ->
+      Req.Test.json(conn, %{
+        "type" => "error",
+        "error" => %{
+          "type" => "invalid_request_error",
+          "message" => "distinguishable refusal reason"
+        }
+      })
+    end)
+
+    dt04_start_loop!(loop_id, "model:" <> catalog_id)
+
+    assert %{discard: 0, cancelled: 1, failure: 0, success: 0} = drain_product!()
+
+    loop = Loops.get!(loop_id)
+    assert loop.status == "failed"
+    assert is_binary(loop.stop_reason)
+
+    # The port class (`:domain`) and the provider's own message both show
+    # up verbatim — read straight off the persisted `stop_reason` column,
+    # never a process log.
+    assert loop.stop_reason =~ "domain"
+    assert loop.stop_reason =~ "distinguishable refusal reason"
+
+    refute loop.stop_reason =~ "sk-ant"
+    refute loop.stop_reason =~ ~r/api[_-]?key/i
+  end
+
+  test "BEH-11) :infrastructure — the job errors (retryable), the loop stays running and unchanged, and a redelivery genuinely re-attempts the call rather than being discarded" do
+    loop_id = "LOOP-FIM-BEH-11-INFRA"
+    catalog_id = dt04_install_catalog!()
+    dt04_stub!(fn conn -> Req.Test.transport_error(conn, :econnrefused) end)
+    dt04_start_loop!(loop_id, "model:" <> catalog_id)
+
+    assert Loops.get!(loop_id).status == "running"
+
+    assert %{discard: 0, cancelled: 0, failure: 1, success: 0} = drain_product!()
+
+    loop = Loops.get!(loop_id)
+    assert loop.status == "running"
+    assert loop.stop_reason == nil
+
+    job = dt04_research_job(loop_id)
+    refute job.state in ["cancelled", "discarded"]
+
+    assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
+    assert verdict.product == :open
+
+    # Unlike BEH-04's terminal address failure above, the loop is still
+    # `"running"` — `StageShell.run/2`'s own terminal-loop short-circuit
+    # never fires, so a redelivery genuinely re-invokes `Agent.resolve/1`
+    # + `produce/3` rather than being silently discarded. The stub is
+    # still broken, so this attempt fails the same way — proving the
+    # retry path is structurally live, not merely that the job row exists.
+    assert {:error, {:provider_error, _type, _msg}} =
+             perform_job(ResearchWorker, job_args(loop_id, "research", 0))
+  end
+
+  test "BEH-11) :domain — the job is cancelled, the loop fails closed on the product axis, and retry is forbidden" do
+    loop_id = "LOOP-FIM-BEH-11-DOMAIN"
+    catalog_id = dt04_install_catalog!()
+
+    dt04_stub!(fn conn ->
+      conn
+      |> put_status(400)
+      |> Req.Test.json(%{"type" => "error", "error" => %{"message" => "bad request"}})
+    end)
+
+    dt04_start_loop!(loop_id, "model:" <> catalog_id)
+
+    assert %{discard: 0, cancelled: 1, failure: 0, success: 0} = drain_product!()
+
+    loop = Loops.get!(loop_id)
+    assert loop.status == "failed"
+    assert dt04_research_job(loop_id).state == "cancelled"
+
+    assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
+    assert verdict.product == :fail
+  end
+
+  test "BEH-11) :invalid_artifact — the job is cancelled, the loop fails closed on the product axis, and retry is forbidden" do
+    loop_id = "LOOP-FIM-BEH-11-INVALID-ARTIFACT"
+    catalog_id = dt04_install_catalog!()
+
+    dt04_stub!(fn conn ->
+      Req.Test.json(conn, %{
+        "role" => "assistant",
+        "type" => "message",
+        "stop_reason" => "end_turn",
+        "usage" => %{"input_tokens" => 1, "output_tokens" => 1},
+        "content" => [%{"type" => "text", "text" => "this is not json or yaml { at all"}]
+      })
+    end)
+
+    dt04_start_loop!(loop_id, "model:" <> catalog_id)
+
+    assert %{discard: 0, cancelled: 1, failure: 0, success: 0} = drain_product!()
+
+    loop = Loops.get!(loop_id)
+    assert loop.status == "failed"
+    assert loop.stop_reason =~ "invalid_artifact"
+    assert dt04_research_job(loop_id).state == "cancelled"
+
+    assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
+    assert verdict.product == :fail
+  end
+
+  test "BEH-11) configuration failure of the run (auth) — the job is cancelled, the loop fails closed OFF the product axis, and retry is forbidden" do
+    loop_id = "LOOP-FIM-BEH-11-CONFIG"
+    catalog_id = dt04_install_catalog!()
+
+    dt04_stub!(fn conn ->
+      conn
+      |> put_status(401)
+      |> Req.Test.json(%{
+        "type" => "error",
+        "error" => %{"type" => "authentication_error", "message" => "missing x-api-key"}
+      })
+    end)
+
+    dt04_start_loop!(loop_id, "model:" <> catalog_id)
+
+    assert %{discard: 0, cancelled: 1, failure: 0, success: 0} = drain_product!()
+
+    loop = Loops.get!(loop_id)
+    assert loop.status == "failed"
+    assert dt04_research_job(loop_id).state == "cancelled"
+
+    # BEH-24's own routing: a configuration-of-the-run failure stays off
+    # the product axis (not `:fail`) even though the worker's own route is
+    # the identical terminal `{:cancel, reason}` every other row above
+    # takes.
+    assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
+    refute verdict.product == :fail
   end
 end
