@@ -12,6 +12,7 @@ defmodule Mix.Tasks.Kapelle.Product.ReportTest do
   import Ecto.Query, only: [from: 2]
 
   alias Kapelle.Product.{FixtureAgent, Loop, RunVerdict, StrictParse}
+  alias Kapelle.Product.Records.{AgentCallRow, ArtifactRow, LoopRow}
   alias Mix.Tasks.Kapelle.Product.Report
 
   @workspace "test/support/fixtures/golden/human_waiver/workspace"
@@ -72,6 +73,53 @@ defmodule Mix.Tasks.Kapelle.Product.ReportTest do
     assert output =~ "executing:          1"
     assert output =~ "orphaned:           1"
     assert output =~ "jobs_orphaned (fail)"
+  end
+
+  test "the agent line distinguishes a fixture run from a live one, consistently with the printed cost state (BEH-22)" do
+    fixture_output =
+      Report.format(verdict_with_tokens(nil, :not_applicable, "fixture:LOOP-A"))
+
+    live_output = Report.format(verdict_with_tokens(42, nil, "model:anthropic@claude-x"))
+
+    assert fixture_output =~ "agent:   fixture:LOOP-A"
+    assert fixture_output =~ "tokens:             not applicable (fixture-backed agents)"
+
+    assert live_output =~ "agent:   model:anthropic@claude-x"
+    assert live_output =~ "tokens:             42"
+
+    refute fixture_output == live_output
+  end
+
+  test "a printed report never contains a provider key value, whole or fragmented (BEH-23)" do
+    marker = "sk-ant-SECRET-MARKER-#{System.unique_integer([:positive])}"
+    previous_key = Application.get_env(:langchain, :anthropic_key)
+    Application.put_env(:langchain, :anthropic_key, marker)
+
+    on_exit(fn ->
+      if previous_key do
+        Application.put_env(:langchain, :anthropic_key, previous_key)
+      else
+        Application.delete_env(:langchain, :anthropic_key)
+      end
+    end)
+
+    loop_id = run_waiver_loop!()
+
+    assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
+    output = Report.format(verdict)
+
+    refute output =~ marker
+  end
+
+  test "reading a loop's report leaves every table it touches unchanged (BEH-23)" do
+    loop_id = run_waiver_loop!()
+
+    before_snapshot = snapshot_tables(loop_id)
+    assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
+    Report.format(verdict)
+    after_snapshot = snapshot_tables(loop_id)
+
+    assert before_snapshot == after_snapshot
   end
 
   test "the task mutes Oban before booting: looking at a loop cannot run it" do
@@ -140,9 +188,28 @@ defmodule Mix.Tasks.Kapelle.Product.ReportTest do
     end)
   end
 
-  defp verdict_with_tokens(tokens, unavailable) do
+  defp snapshot_tables(loop_id) do
+    %{
+      loop:
+        Repo.one(
+          from(l in LoopRow, where: l.loop_id == ^loop_id, select: {l.status, l.stop_reason})
+        ),
+      artifacts: Repo.aggregate(from(a in ArtifactRow, where: a.loop_id == ^loop_id), :count),
+      agent_calls: Repo.aggregate(from(c in AgentCallRow, where: c.loop_id == ^loop_id), :count),
+      jobs:
+        Repo.all(
+          from(j in Oban.Job,
+            where: fragment("? ->> 'loop_id' = ?", j.args, ^loop_id),
+            select: {j.state, j.attempt}
+          )
+        )
+    }
+  end
+
+  defp verdict_with_tokens(tokens, unavailable, agent \\ "fixture:LOOP-FMT") do
     %RunVerdict{
       loop_id: "LOOP-FMT",
+      agent: agent,
       product: :pass,
       product_reason: "rendering fixture",
       harness: :pass,
