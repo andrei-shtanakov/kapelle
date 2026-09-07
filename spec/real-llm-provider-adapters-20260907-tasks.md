@@ -190,7 +190,7 @@ Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md
 **Traces to:** [FR-08], [FR-09], [FR-12], [FR-02], [FR-03], [FR-05]
 
 ### TASK-003: Адаптер `LiveAgent` — preflight, вызов, отображение отказов, провенанс
-P2 | ✅ DONE   Est: 0.5d
+P2 | 🔍 REVIEW   Est: 0.5d
 
 Реализовать сценарии BEH-05, BEH-06, BEH-08, BEH-09, BEH-13, BEH-21, BEH-29 (DT-03, группа live).
 Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md#DT-03

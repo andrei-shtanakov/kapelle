@@ -152,6 +152,26 @@ defmodule Kapelle.Product.LiveAgentTest do
     LiveAgent.produce(:researcher, 0, %{key: catalog_id, view: view})
   end
 
+  defp produce_creator(catalog_id, view \\ minimal_view()) do
+    LiveAgent.produce(:creator, 0, %{key: catalog_id, view: view})
+  end
+
+  defp valid_concept_draft(iteration \\ 0) do
+    %{
+      "id" => "CD-001",
+      "idea_ref" => "idea://IDEA-001",
+      "iteration" => iteration,
+      "based_on_research" => %{"ref" => "research-pack://RP-001", "iteration" => iteration},
+      "value_prop" => "Ship it.",
+      "alternatives" => [%{"direction" => "A", "summary" => "do A"}],
+      "chosen_direction" => %{"direction" => "A", "why" => "cheapest"},
+      "business_models" => [],
+      "assumptions" => [],
+      "requests_to_researcher" => [],
+      "proposal_delta" => "none yet"
+    }
+  end
+
   describe "BEH-05: offline preflight distinguishes four causes, none of them touching the network" do
     setup do
       flunking_stub!()
@@ -202,6 +222,32 @@ defmodule Kapelle.Product.LiveAgentTest do
       )
 
       assert {:error, {:catalog_unreadable, _detail}} = produce_researcher("anthropic@whatever")
+    end
+
+    test "malformed TOML syntax is catalog_unreadable via the invalid_toml branch, not catalog_invalid" do
+      path = write_catalog!("[[models]\nprovider = \"anthropic\"")
+      put_catalog_path!(path)
+
+      assert {:error, {:catalog_unreadable, _detail}} = produce_researcher("anthropic@whatever")
+    end
+
+    test "a catalog entry whose params fail the model's own validation is invalid_model_params" do
+      path =
+        write_catalog!("""
+        [[models]]
+        provider = "anthropic"
+        model = "test-model"
+
+        [models.params]
+        temperature = 5.0
+        """)
+
+      put_catalog_path!(path)
+
+      assert {:error, {:invalid_model_params, errors}} =
+               produce_researcher("anthropic@test-model")
+
+      assert Keyword.has_key?(errors, :temperature)
     end
 
     test "the four reasons are pairwise distinct, not collapsed into one generic failure" do
@@ -364,6 +410,27 @@ defmodule Kapelle.Product.LiveAgentTest do
       assert {:error, {:provider_auth_failed, _type, _msg}} = produce_researcher(catalog_id)
     end
 
+    test "rate limiting (429) is :infrastructure, via langchain's own rate_limit_exceeded type (its original carries no HTTP status)",
+         %{catalog_id: catalog_id} do
+      put_provider_stub!(fn conn -> conn |> put_status(429) |> Req.Test.json(%{}) end)
+
+      assert {:error, {:infrastructure, {:provider_error, "rate_limit_exceeded", _msg}}} =
+               produce_researcher(catalog_id)
+    end
+
+    test "a body-level authentication_error at HTTP 200 is still a configuration failure, via the type-based fallback (no HTTP status to key off)",
+         %{catalog_id: catalog_id} do
+      put_provider_stub!(fn conn ->
+        Req.Test.json(conn, %{
+          "type" => "error",
+          "error" => %{"type" => "authentication_error", "message" => "key rejected"}
+        })
+      end)
+
+      assert {:error, {:provider_auth_failed, "authentication_error", _msg}} =
+               produce_researcher(catalog_id)
+    end
+
     test "content-based provider refusal (HTTP 400) is :domain", %{catalog_id: catalog_id} do
       put_provider_stub!(fn conn ->
         conn
@@ -451,6 +518,21 @@ defmodule Kapelle.Product.LiveAgentTest do
       assert {:error, {:invalid_artifact, {:parse_failed, _}}} = produce_researcher(catalog_id)
     end
 
+    test "an assistant message with no text content part at all (not merely empty text) is invalid_artifact, tagged parse_failed",
+         %{catalog_id: catalog_id} do
+      put_provider_stub!(fn conn ->
+        Req.Test.json(conn, %{
+          "role" => "assistant",
+          "type" => "message",
+          "stop_reason" => "end_turn",
+          "usage" => %{"input_tokens" => 1, "output_tokens" => 1},
+          "content" => []
+        })
+      end)
+
+      assert {:error, {:invalid_artifact, {:parse_failed, _}}} = produce_researcher(catalog_id)
+    end
+
     test "a structurally valid but semantically wrong document is invalid_artifact, tagged schema_invalid",
          %{catalog_id: catalog_id} do
       bad = Map.put(valid_research_pack(), "iteration", "not-a-number")
@@ -469,6 +551,35 @@ defmodule Kapelle.Product.LiveAgentTest do
     test "an invalid live response leaves the loop's stored artifacts and state projection untouched" do
       catalog_id = install_default_catalog!()
       success_stub!(Jason.encode!(%{"id" => "RP-001"}))
+
+      loop_id = "LOOP-#{System.unique_integer([:positive])}"
+
+      {:ok, _row} =
+        Loop.start(idea_yaml(),
+          loop_id: loop_id,
+          proposal_id: "PP-001",
+          exchange_log_id: "XL-001",
+          max_iterations: 1,
+          agent: "model:" <> catalog_id,
+          now_iso: @now_iso
+        )
+
+      artifacts_before = Store.all(loop_id)
+      state_before = Loops.get!(loop_id).latest_state
+
+      assert %{discard: 0} = Oban.drain_queue(queue: :product, with_recursion: true)
+
+      loop = Loops.get!(loop_id)
+      assert loop.status == "failed"
+      assert loop.stop_reason =~ "invalid_artifact"
+
+      assert Store.all(loop_id) == artifacts_before
+      assert loop.latest_state == state_before
+    end
+
+    test "an unparseable live response (not just a schema failure) also leaves stored artifacts and state projection untouched" do
+      catalog_id = install_default_catalog!()
+      success_stub!("this is not json or yaml { at all")
 
       loop_id = "LOOP-#{System.unique_integer([:positive])}"
 
@@ -543,6 +654,68 @@ defmodule Kapelle.Product.LiveAgentTest do
       assert doc["produced_by"]["id"] == "researcher"
       assert doc["produced_by"]["prompt_version"] == "researcher/v1"
     end
+
+    test "call_meta.tokens reports the provider's own input/output/total token usage, so cost is observable" do
+      catalog_id = install_default_catalog!()
+
+      success_stub!(Jason.encode!(valid_research_pack()), %{
+        "input_tokens" => 37,
+        "output_tokens" => 21
+      })
+
+      assert {:ok, _doc, call_meta} = produce_researcher(catalog_id)
+
+      assert call_meta.tokens == %{input: 37, output: 21, total: 58}
+    end
+  end
+
+  describe "the creator role uses its own prompt, schema, and research_pack_id context, same offline/call/classify/stamp path" do
+    test "a successful creator call is stamped with the creator prompt version and validated against the concept-draft schema" do
+      catalog_id = install_default_catalog!()
+      success_stub!(Jason.encode!(valid_concept_draft()))
+
+      assert {:ok, doc, call_meta} = produce_creator(catalog_id)
+
+      assert call_meta.model_id == catalog_id
+      assert doc["produced_by"]["id"] == "creator"
+      assert doc["produced_by"]["prompt_version"] == "creator/v1"
+    end
+
+    test "the request context carries research_pack_id for the creator, unlike the researcher" do
+      test_pid = self()
+      catalog_id = install_default_catalog!()
+
+      view = %{minimal_view() | research_packs: %{0 => %{"id" => "RP-777"}}}
+
+      put_provider_stub!(fn conn ->
+        {:ok, raw_body, conn} = read_body(conn)
+        send(test_pid, {:captured_request, Jason.decode!(raw_body)})
+
+        Req.Test.json(conn, %{
+          "role" => "assistant",
+          "type" => "message",
+          "stop_reason" => "end_turn",
+          "usage" => %{"input_tokens" => 1, "output_tokens" => 1},
+          "content" => [%{"type" => "text", "text" => Jason.encode!(valid_concept_draft())}]
+        })
+      end)
+
+      assert {:ok, _doc, _meta} = produce_creator(catalog_id, view)
+
+      assert_receive {:captured_request, body}
+      [%{"content" => [%{"text" => request_text}]}] = body["messages"]
+
+      assert request_text =~ ~s("research_pack_id":"RP-777")
+    end
+
+    test "a research-pack-less concept draft (no reference to this iteration's research pack) is rejected as invalid_artifact" do
+      catalog_id = install_default_catalog!()
+
+      bad = Map.delete(valid_concept_draft(), "based_on_research")
+      success_stub!(Jason.encode!(bad))
+
+      assert {:error, {:invalid_artifact, {:schema_invalid, _}}} = produce_creator(catalog_id)
+    end
   end
 
   describe "BEH-29: secrets never leave configuration" do
@@ -583,6 +756,16 @@ defmodule Kapelle.Product.LiveAgentTest do
       result = produce_researcher(catalog_id)
 
       assert {:ok, _doc, _meta} = result
+      refute inspect(result) =~ marker
+    end
+
+    test "an exception raised mid-call (the rescue clause) never echoes the key either, since only the exception's module name is reported",
+         %{marker: marker, catalog_id: catalog_id} do
+      put_provider_stub!(fn _conn -> raise "boom carrying the key #{marker} in its message" end)
+
+      result = produce_researcher(catalog_id)
+
+      assert {:error, {:unclassified_provider_failure, "RuntimeError"}} = result
       refute inspect(result) =~ marker
     end
 
