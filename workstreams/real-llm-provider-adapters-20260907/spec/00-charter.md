@@ -9,8 +9,10 @@ owner_role: product
 ## Контекст
 
 Продуктовый цикл `kapelle` (bounded context `Kapelle.Product`) исполняется тремя
-воркерами — Research, Creator, Evaluator, — и все трое ходят к агенту только
-через порт `Kapelle.Product.Agent` (`produce/3`). В M3 у порта ровно одна схема
+воркерами — Research, Creator, Evaluator, — но к агенту ходят только двое:
+Research и Creator, и оба — исключительно через порт `Kapelle.Product.Agent`
+(`produce/3`); роли порта — `:researcher` и `:creator`. Стадия evaluate/apply
+безагентная: `EvaluateWorker` `produce/3` не вызывает. В M3 у порта ровно одна схема
 адреса: `fixture:<key>`, детерминированный fixture-backed агент; других клауз у
 `resolve!/1` нет. Поэтому весь продуктовый контур — включая golden-parity с
 reference runner'ом impresario и fault-матрицу — доказан сегодня на канонических
