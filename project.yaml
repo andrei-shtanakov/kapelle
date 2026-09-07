@@ -35,7 +35,11 @@ spec_runner:
   run_tests_on_done: true
   test_command: "mix test"
   run_lint_on_done: true
-  lint_command: "mix format --check-formatted && mix credo"
+  # Некомпозитный lint (2026-09-07, sync с spec-runner.config.yaml):
+  # repair-путь red-фазы требует single-command lint — композит отключал
+  # machine-fix (mix format) и валил задачу на неформатном red-артефакте.
+  lint_command: "mix format --check-formatted"
+  lint_fix_command: "mix format"
 
 workstreams:
   - id: task-005-persistence
