@@ -518,6 +518,21 @@ defmodule Kapelle.Product.LiveAgentTest do
       assert {:error, {:invalid_artifact, {:parse_failed, _}}} = produce_researcher(catalog_id)
     end
 
+    test "a response cut off at max_tokens is invalid_artifact, tagged parse_failed (not an unclassified provider failure)",
+         %{catalog_id: catalog_id} do
+      put_provider_stub!(fn conn ->
+        Req.Test.json(conn, %{
+          "role" => "assistant",
+          "type" => "message",
+          "stop_reason" => "max_tokens",
+          "usage" => %{"input_tokens" => 12, "output_tokens" => 8},
+          "content" => [%{"type" => "text", "text" => ~s({"id": "RP-001", "iteration": 0)}]
+        })
+      end)
+
+      assert {:error, {:invalid_artifact, {:parse_failed, _}}} = produce_researcher(catalog_id)
+    end
+
     test "an assistant message with no text content part at all (not merely empty text) is invalid_artifact, tagged parse_failed",
          %{catalog_id: catalog_id} do
       put_provider_stub!(fn conn ->

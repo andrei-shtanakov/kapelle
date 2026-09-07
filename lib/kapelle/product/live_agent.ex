@@ -150,8 +150,14 @@ defmodule Kapelle.Product.LiveAgent do
 
   defp handle_chain_result({:ok, chain}, role, entry) do
     case ChainResult.to_string(chain) do
-      {:ok, text} -> build_success(text, role, entry, chain)
-      {:error, _chain, %LangChainError{} = error} -> classify_error(error)
+      {:ok, text} ->
+        build_success(text, role, entry, chain)
+
+      {:error, _chain, %LangChainError{type: "to_string"} = error} ->
+        incomplete_message_artifact(error)
+
+      {:error, _chain, %LangChainError{} = error} ->
+        classify_error(error)
     end
   end
 
@@ -170,6 +176,16 @@ defmodule Kapelle.Product.LiveAgent do
         {:error, reason} -> {:error, {:invalid_artifact, {:schema_invalid, reason}}}
       end
     end
+  end
+
+  # "не разобрано" (BEH-13): a response cut off at max_tokens (or any
+  # other incomplete-message stop) never yields text to hand to
+  # StrictParse in the first place — `ChainResult.to_string/1` reports
+  # it as its own `LangChainError` (type "to_string") instead of a
+  # `{:ok, text}`. Treated the same as any other unparseable artifact,
+  # not as a provider failure.
+  defp incomplete_message_artifact(%LangChainError{message: message}) do
+    {:error, {:invalid_artifact, {:parse_failed, message || "incomplete message"}}}
   end
 
   # "не разобрано" (BEH-13): StrictParse itself never got a document.
@@ -224,14 +240,31 @@ defmodule Kapelle.Product.LiveAgent do
   )
 
   defp classify_error(%LangChainError{} = error) do
+    if transport_error?(error) do
+      {:error, {:infrastructure, provider_error(error)}}
+    else
+      classify_by_status(error) || classify_by_type(error)
+    end
+  end
+
+  # Status-based branch of the table (design doc Q-05): decides for
+  # recoverable/auth/domain HTTP statuses, `nil` when the status alone
+  # doesn't decide so the caller falls through to `classify_by_type/1`.
+  defp classify_by_status(%LangChainError{} = error) do
     status = recoverable_status(error)
 
     cond do
-      transport_error?(error) -> {:error, {:infrastructure, provider_error(error)}}
       status in [401, 403] -> {:error, provider_auth_failed(error)}
       is_integer(status) and status >= 500 -> {:error, {:infrastructure, provider_error(error)}}
       status == 429 -> {:error, {:infrastructure, provider_error(error)}}
       status == 400 -> {:error, {:domain, provider_error(error)}}
+      true -> nil
+    end
+  end
+
+  # Type-based branch: reached only when the status didn't decide.
+  defp classify_by_type(%LangChainError{} = error) do
+    cond do
       error.type in @infrastructure_types -> {:error, {:infrastructure, provider_error(error)}}
       error.type == "authentication_error" -> {:error, provider_auth_failed(error)}
       error.type == "invalid_request_error" -> {:error, {:domain, provider_error(error)}}
