@@ -305,7 +305,7 @@ Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md
 
 **Checklist:**
 - [x] реализовать BEH-28: Первый живой прогон воспроизводим по написанному в репозитории
-- [x] проверка группы: docs/live-provider-run.md (kind: manual) зелёные на BEH-28
+- [ ] проверка группы: docs/live-provider-run.md (kind: manual) зелёные на BEH-28 — manual: evidence = запись живого прогона владельцем по инструкции; авто-чекер запрещён дизайном (MUST NOT) и удалён фикс-волной ревью #92
 
 **Traces to:** [NFR-05], [FR-13]
 

@@ -43,9 +43,14 @@ ANTHROPIC_API_KEY=sk-ant-... mix test --include live_product_run test/kapelle/pr
 Прохождение теста из шага 2 уже само по себе — evidence для BEH-27/AC-22:
 тест сам вызывает `RunVerdict.for_loop/1` и `Report.format/1` и утверждает
 (`assert`), что `cost.tokens` измерено и положительно, а отчёт называет
-живого агента. `loop_id` при этом нигде не печатается и не логируется —
-ни при успехе, ни при падении — так что искать его в выводе `mix test` не
-нужно и бесполезно.
+живого агента. `loop_id` при успешном прогоне нигде отдельно не печатается
+и не логируется — искать его в успешном выводе `mix test` не нужно и
+бесполезно; если же один из этих `assert` упадёт, ExUnit напечатает
+провалившееся значение `report` целиком, а первая строка `Report.format/1`
+всегда — `loop:    <loop_id>` (см. `lib/mix/tasks/kapelle.product.report.ex`),
+так что при падении `loop_id` в выводе всё-таки виден — хотя строки цикла и
+вызовов агента к этому моменту уже откачены sandbox'ом (см. ниже) и
+дальнейшего смотрения через `mix kapelle.product.report` не переживают.
 
 Чтобы увидеть тот же отчёт глазами, а не только пройденный тест,
 `mix kapelle.product.report <loop_id>` нужно направить не на прогон
@@ -56,15 +61,33 @@ sandbox откатывает транзакцию сразу по выходу �
 переживают процесс `mix test` — команда `mix kapelle.product.report`,
 запущенная после него отдельным процессом, ничего не найдёт (усугубляется
 тем, что она по умолчанию поднимается в `MIX_ENV=dev`, а не `test`, — две
-разные базы). Рабочий путь:
+разные базы). Рабочий путь — ключ нужен и здесь, `iex -S mix` без него
+даст `:anthropic_key = nil` (`config/runtime.exs`) и вызов провалится
+отказом авторизации:
 
 ```
-iex -S mix
+ANTHROPIC_API_KEY=sk-ant-... iex -S mix
 ```
 
 и внутри той же сессии вызвать `Kapelle.Product.Loop.start/2` с тем же
-идея-фикстуром, что использует тест (`test/support/fixtures/golden/happy/workspace/idea.yaml`),
-и своим `loop_id`. Очередь `:product` в dev реально запущена
+идея-фикстуром, что использует тест
+(`test/support/fixtures/golden/happy/workspace/idea.yaml`), и всеми пятью
+опциями, которые требует `Loop.start/2` (`lib/kapelle/product/loop.ex`) —
+`loop_id`, `proposal_id`, `exchange_log_id`, `max_iterations` и `agent`
+обязательны, без умолчаний:
+
+```elixir
+Kapelle.Product.Loop.start(
+  File.read!("test/support/fixtures/golden/happy/workspace/idea.yaml"),
+  loop_id: "LOOP-1",
+  proposal_id: "PP-1",
+  exchange_log_id: "XL-1",
+  max_iterations: 1,
+  agent: "model:anthropic@claude-haiku-4-5"
+)
+```
+
+Очередь `:product` в dev реально запущена
 (`config/config.exs`), поэтому Oban доработает джобы сам — дождитесь, пока
 `Kapelle.Product.Loops.get!(loop_id).status` станет терминальным, и уже из
 любого терминала (в том же `MIX_ENV`) вызовите:
@@ -73,6 +96,9 @@ iex -S mix
 mix kapelle.product.report <loop_id>
 ```
 
-Отчёт называет адрес живого агента (`agent:   model:anthropic@claude-haiku-4-5`)
-и печатает то же число токенов, которое вычислил вердикт — это и есть факт,
-который нужно предъявить как evidence AC-22.
+Отчёт называет адрес живого агента (`agent:   model:anthropic@claude-haiku-4-5`);
+токены он печатает только если вызов реально измерил usage — если провайдер
+ничего не сообщил (например, ретрай), строка `tokens:` читается
+`not instrumented`, а не число. Измеренное число токенов — это и есть факт,
+который нужно предъявить как evidence AC-22; `not instrumented` фактом не
+является, и в этом случае прогон стоит повторить.
