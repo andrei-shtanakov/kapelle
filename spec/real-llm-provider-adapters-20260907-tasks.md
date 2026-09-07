@@ -283,7 +283,7 @@ Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md
 **Traces to:** [FR-13], [NFR-01]
 
 ### TASK-009: Opt-in живого прогона — отказ без ключа и end-to-end с ключом
-P2 | 🔄 IN_PROGRESS   Est: 0.5d
+P2 | 🔍 REVIEW   Est: 0.5d
 
 Реализовать сценарии BEH-26, BEH-27 (DT-09, группа optin).
 Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md#DT-09

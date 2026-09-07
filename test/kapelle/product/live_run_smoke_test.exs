@@ -96,11 +96,11 @@ defmodule Kapelle.Product.LiveRunSmokeTest do
     assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
     assert verdict.agent == agent
 
-    assert is_integer(verdict.cost.tokens),
-           "cost.tokens was not a measured number: #{inspect(verdict.cost.tokens)} " <>
+    assert is_integer(verdict.cost.tokens) and verdict.cost.tokens > 0,
+           "cost.tokens was not a measured positive number: #{inspect(verdict.cost.tokens)} " <>
              "(reason: #{inspect(verdict.cost.tokens_unavailable)}) — a retried attempt can " <>
-             "leave usage :not_instrumented; per AC-22 this does not count as evidence and the " <>
-             "run should be repeated"
+             "leave usage :not_instrumented, and a live call cannot legitimately measure zero " <>
+             "tokens; per AC-22 neither counts as evidence and the run should be repeated"
 
     report = Report.format(verdict)
 
