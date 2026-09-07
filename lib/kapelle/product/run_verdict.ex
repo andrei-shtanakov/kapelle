@@ -100,6 +100,7 @@ defmodule Kapelle.Product.RunVerdict do
 
   @type t :: %__MODULE__{
           loop_id: String.t(),
+          agent: String.t() | nil,
           product: product_axis(),
           product_reason: String.t(),
           harness: harness_axis(),
@@ -111,6 +112,7 @@ defmodule Kapelle.Product.RunVerdict do
   @enforce_keys [:loop_id, :product, :product_reason, :harness, :cost, :interventions]
   defstruct [
     :loop_id,
+    :agent,
     :product,
     :product_reason,
     :harness,
@@ -180,6 +182,7 @@ defmodule Kapelle.Product.RunVerdict do
 
     %__MODULE__{
       loop_id: loop_id,
+      agent: loop.agent,
       product: product,
       product_reason: product_reason,
       harness: harness_axis(findings),

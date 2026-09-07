@@ -8,6 +8,12 @@ defmodule Mix.Tasks.Kapelle.Product.Report do
 
       mix kapelle.product.report LOOP-001
 
+  The output names the run's agent address (`fixture:…` or
+  `model:<provider>@<model>`), so a fixture run and a live one are
+  distinguishable by eye without a database query, and the address a
+  reader sees is the same one the cost block's token state was decided
+  from — never two disagreeing readings of the same fact.
+
   The output never rounds the two axes into one line and never prints a
   measured-looking zero for something that was not measured. Cost keeps
   three token states apart in print, the same three the verdict computes:
@@ -78,6 +84,7 @@ defmodule Mix.Tasks.Kapelle.Product.Report do
     Enum.join(
       [
         "loop:    #{verdict.loop_id}",
+        "agent:   #{verdict.agent}",
         "product: #{verdict.product} — #{verdict.product_reason}",
         "harness: #{verdict.harness}#{findings(verdict.harness_findings)}",
         "",
