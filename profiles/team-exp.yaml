@@ -1,9 +1,13 @@
 # team-exp для behaviour-конвейера devtools.
-# Источник формы — devtools profiles/team-exp.yaml (канон 6-узлового
-# конвейера, acceptance-узел доставлен devtools#155). Узлы: charter →
-# requirements → behaviour-spec → design → acceptance → decomposition →
-# tasks. До этой правки здесь лежала урезанная 4-узловая копия смоук-эры
-# (WS-SMOKE-001) — на ней 6-узловой runner останавливался stopped_preflight.
+# Источник формы — devtools profiles/team-exp.yaml (канон конвейера:
+# 6 авторимых узлов + delegate-узел tasks; acceptance доставлен
+# devtools#155). Узлы: charter → requirements → behaviour-spec → design →
+# acceptance → decomposition → tasks (delegate). До этой правки здесь
+# лежала копия смоук-эры (WS-SMOKE-001: 3 авторимых узла + tasks) — на
+# ней полный runner останавливался stopped_preflight.
+# Бандл WS-kapelle-47 авторен под старой формой и ЗАКРЫТ (его tasks-спека
+# approved и отработана): переоценке под новым профилем не подлежит;
+# легаси-доставка таких бандлов — --legacy-bundle=3 у task_bridge.
 profile: team-exp
 solo_auto_approve: true
 artifacts:
