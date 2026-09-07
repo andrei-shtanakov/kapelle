@@ -523,13 +523,28 @@ defmodule Kapelle.Product.Workers.StageShell do
   def call_agent(%LoopRow{agent: address} = loop, role, iteration, context) do
     case Agent.resolve(address) do
       {:ok, {agent_mod, key}} ->
-        result = agent_mod.produce(role, iteration, Map.put(context, :key, key))
-        unless Agent.fixture?(address), do: record_call_attempt(loop, role, iteration, result)
+        result = produce_and_record(loop, agent_mod, role, iteration, context, key, address)
         normalize_produce(result)
 
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  # A raised exception is still "how the call ended" (moduledoc above):
+  # the row is written before the exception is let through, so a call
+  # that crashed mid-flight is never mistaken for one that was never
+  # attempted.
+  defp produce_and_record(loop, agent_mod, role, iteration, context, key, address) do
+    agent_mod.produce(role, iteration, Map.put(context, :key, key))
+  rescue
+    exception ->
+      unless Agent.fixture?(address), do: record_call_attempt(loop, role, iteration, nil)
+      reraise exception, __STACKTRACE__
+  else
+    result ->
+      unless Agent.fixture?(address), do: record_call_attempt(loop, role, iteration, result)
+      result
   end
 
   defp record_call_attempt(loop, role, iteration, {:ok, _doc, call_meta}) do
@@ -543,6 +558,13 @@ defmodule Kapelle.Product.Workers.StageShell do
   defp normalize_produce({:ok, doc}), do: {:ok, doc}
   defp normalize_produce({:ok, doc, _call_meta}), do: {:ok, doc}
   defp normalize_produce({:error, _reason} = error), do: error
+
+  # `produce/3`'s contract (`Kapelle.Product.Agent.produce/3` callback)
+  # only allows the three shapes above; anything else is an adapter
+  # contract violation. Route it through the same fail-closed
+  # `{:error, _}` path as any other reason rather than crash with an
+  # opaque FunctionClauseError.
+  defp normalize_produce(other), do: {:error, {:invalid_agent_response, other}}
 
   @doc """
   Validates `doc` against `kind`'s vendored schema, derives its identity,

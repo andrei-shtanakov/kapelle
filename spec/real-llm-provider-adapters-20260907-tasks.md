@@ -172,7 +172,7 @@ Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md
 **Traces to:** [FR-01], [FR-04], [FR-02], [FR-09], [FR-14]
 
 ### TASK-002: Шов `StageShell`, durable-носитель usage и три состояния стоимости
-P2 | 🔄 IN_PROGRESS   Est: 0.5d
+P2 | 🔍 REVIEW   Est: 0.5d
 
 Реализовать сценарии BEH-15, BEH-16, BEH-17, BEH-18, BEH-19, BEH-24 (DT-02, группа solo).
 Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md#DT-02
