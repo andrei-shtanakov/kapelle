@@ -60,7 +60,23 @@ defmodule Kapelle.Product.DefaultSuiteOfflineTest do
   ExUnit.after_suite(fn _stats ->
     attempts = :counters.get(:persistent_term.get(outgoing_attempts_key), 1)
 
-    if attempts > 0 do
+    # The invariant (BEH-25) is about the *default* run only. The
+    # `:provider_smoke` and `:live_product_run` tags are the documented
+    # opt-in (`mix test --include provider_smoke`, see test_helper.exs)
+    # for tests that legitimately make a real outgoing provider call —
+    # counting those as a violation would make the documented opt-in
+    # path permanently red for doing exactly what it says on the label.
+    # Gate on `ExUnit.configuration()[:include]` rather than skipping
+    # attach/registration above: the handler counting is harmless by
+    # itself, only the halt-on-violation decision needs to know which
+    # run this is.
+    network_tags_included? =
+      Enum.any?(
+        [:provider_smoke, :live_product_run],
+        &(&1 in ExUnit.configuration()[:include])
+      )
+
+    if attempts > 0 and not network_tags_included? do
       IO.puts(:stderr, """
       BEH-25 violated: the default `mix test` run attempted #{attempts} \
       real outgoing provider call(s) (Finch request start observed) \
@@ -76,11 +92,32 @@ defmodule Kapelle.Product.DefaultSuiteOfflineTest do
     assert :provider_smoke in ExUnit.configuration()[:exclude]
   end
 
-  test "the excluded-tag configuration does not depend on provider environment variables" do
-    System.put_env("ANTHROPIC_API_KEY", "sk-task-008-should-not-matter")
+  test "provider model resolution (AC-16) does not depend on provider environment variables" do
+    # `ExUnit.configuration()[:exclude]` is fixed once at `ExUnit.start/1`
+    # (test_helper.exs), before any test body runs — setting an env var
+    # from inside a test can never change it, so asserting against it
+    # here would be green by construction. Instead this exercises the
+    # actual path AC-16 is about: resolving a catalog id to the langchain
+    # model struct that would be used for a real call
+    # (`Kapelle.Providers.ModelFactory.build/1`, reached via
+    # `Kapelle.Product.Agent.resolve/1`'s `model:` scheme). Neither reads
+    # `ANTHROPIC_API_KEY` (or any provider env var) — the api key is only
+    # resolved lazily, at actual request time, deep in langchain's HTTP
+    # path — so the built struct is asserted identical with and without
+    # the variable set.
+    System.delete_env("ANTHROPIC_API_KEY")
     on_exit(fn -> System.delete_env("ANTHROPIC_API_KEY") end)
 
-    assert :live_product_run in ExUnit.configuration()[:exclude]
-    assert :provider_smoke in ExUnit.configuration()[:exclude]
+    catalog_id = "anthropic@claude-sonnet-5"
+
+    assert {:ok, {Kapelle.Product.LiveAgent, ^catalog_id}} =
+             Kapelle.Product.Agent.resolve("model:" <> catalog_id)
+
+    {:ok, without_env_var} = Kapelle.Providers.ModelFactory.build(catalog_id)
+
+    System.put_env("ANTHROPIC_API_KEY", "sk-task-008-should-not-matter")
+    {:ok, with_env_var} = Kapelle.Providers.ModelFactory.build(catalog_id)
+
+    assert without_env_var == with_env_var
   end
 end
