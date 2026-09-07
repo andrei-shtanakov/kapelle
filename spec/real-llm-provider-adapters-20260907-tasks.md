@@ -297,15 +297,15 @@ Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md
 **Traces to:** [FR-13], [NFR-02], [FR-08], [FR-11]
 
 ### TASK-010: Инструкция воспроизведения живого прогона
-P2 | TODO   Est: 0.5d
+P2 | ✅ DONE   Est: 0.5d
 
 Реализовать сценарии BEH-28 (DT-10, группа optin).
 Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md#DT-10
 **Depends on:** [TASK-009]
 
 **Checklist:**
-- [ ] реализовать BEH-28: Первый живой прогон воспроизводим по написанному в репозитории
-- [ ] проверка группы: docs/live-provider-run.md (kind: manual) зелёные на BEH-28
+- [x] реализовать BEH-28: Первый живой прогон воспроизводим по написанному в репозитории
+- [x] проверка группы: docs/live-provider-run.md (kind: manual) зелёные на BEH-28
 
 **Traces to:** [NFR-05], [FR-13]
 
