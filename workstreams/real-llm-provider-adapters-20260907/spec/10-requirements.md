@@ -1,11 +1,14 @@
 ---
 spec_stage: requirements
-status: draft
+status: approved
 owner_role: product
 traces_to:
-  - charter
+- charter
 upstream_hashes:
-  charter: "622dd980ffedbf46616b28344c1dfad00ea918c3"
+  charter: e629514a4b9f6a9b0695f0c5f36f046fc7028d2c
+approved_by: andrei-shtanakov
+approved_at: '2026-09-07T10:02:34Z'
+version: 2
 ---
 
 # Requirements: Реальные LLM/provider-адаптеры продуктового цикла
