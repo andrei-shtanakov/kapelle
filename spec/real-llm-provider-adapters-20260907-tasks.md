@@ -270,15 +270,15 @@ Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md
 **Traces to:** [FR-07], [FR-14], [NFR-01]
 
 ### TASK-008: Дефолтный набор офлайновый, безключевой и нечувствительный к окружению
-P2 | TODO   Est: 0.5d
+P2 | ✅ DONE   Est: 0.5d
 
 Реализовать сценарии BEH-25 (DT-08, группа solo).
 Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md#DT-08
 **Depends on:** [TASK-003]
 
 **Checklist:**
-- [ ] реализовать BEH-25: Дефолтный набор офлайновый и безключевой
-- [ ] проверка группы: test/kapelle/product/default_suite_offline_test.exs (kind: integration) зелёные на BEH-25
+- [x] реализовать BEH-25: Дефолтный набор офлайновый и безключевой
+- [x] проверка группы: test/kapelle/product/default_suite_offline_test.exs (kind: integration) зелёные на BEH-25
 
 **Traces to:** [FR-13], [NFR-01]
 
