@@ -129,17 +129,58 @@ defmodule Kapelle.Product.LiveAgent do
   defp call_model(role, iteration, %{view: view} = _context, entry, model) do
     request_text = build_request_text(role, iteration, view)
 
-    chain_result =
+    chain =
       %{llm: with_provider_req_opts(model)}
       |> LLMChain.new!()
       |> LLMChain.add_message(Message.new_user!(request_text))
-      |> LLMChain.run()
 
-    handle_chain_result(chain_result, role, entry)
+    case run_chain_within_timeout(chain) do
+      {:ok, chain_result} ->
+        handle_chain_result(chain_result, role, entry)
+
+      {:exit, exception} ->
+        {:error, {:unclassified_provider_failure, inspect(exception.__struct__)}}
+
+      {:timeout, ms} ->
+        {:error, {:infrastructure, {:timeout, ms}}}
+    end
   rescue
     exception ->
       {:error, {:unclassified_provider_failure, inspect(exception.__struct__)}}
   end
+
+  # Design doc Q-08/BEH-12: the provider call runs under an adapter-level
+  # upper wait boundary (default 120s, the same figure Q-08 names) rather
+  # than however long the transport takes. The call runs in a separate,
+  # linked task specifically so a hung/slow double can be cut off at the
+  # boundary without ever letting its eventual answer reach
+  # `handle_chain_result/3` — `Task.shutdown/2`'s `:brutal_kill` tears the
+  # task down on timeout, so a belated response is never awaited, parsed,
+  # or persisted. `safe_run_chain/1` catches any exception *inside* the
+  # task (not just the timeout path) so a crash there is reported back as
+  # a value rather than propagated through the link, keeping the
+  # classification identical to a synchronous call's own `rescue`.
+  defp run_chain_within_timeout(chain) do
+    ms = agent_timeout_ms()
+    task = Task.async(fn -> safe_run_chain(chain) end)
+
+    case Task.yield(task, ms) do
+      {:ok, result} ->
+        result
+
+      nil ->
+        Task.shutdown(task, :brutal_kill)
+        {:timeout, ms}
+    end
+  end
+
+  defp safe_run_chain(chain) do
+    {:ok, LLMChain.run(chain)}
+  rescue
+    exception -> {:exit, exception}
+  end
+
+  defp agent_timeout_ms, do: Application.get_env(:kapelle, :product_agent_timeout_ms, 120_000)
 
   defp with_provider_req_opts(model) do
     case Application.get_env(:kapelle, :product_provider_req_opts) do
