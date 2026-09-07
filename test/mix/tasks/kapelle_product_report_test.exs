@@ -10,6 +10,7 @@ defmodule Mix.Tasks.Kapelle.Product.ReportTest do
   use Oban.Testing, repo: Kapelle.Repo
 
   import Ecto.Query, only: [from: 2]
+  import Plug.Conn, only: [put_status: 2]
 
   alias Kapelle.Product.{FixtureAgent, Loop, RunVerdict, StrictParse}
   alias Kapelle.Product.Records.{AgentCallRow, ArtifactRow, LoopRow}
@@ -20,7 +21,13 @@ defmodule Mix.Tasks.Kapelle.Product.ReportTest do
 
   setup do
     Application.put_env(:kapelle, :product_clock, fn -> @now_iso end)
-    on_exit(fn -> Application.delete_env(:kapelle, :product_clock) end)
+
+    on_exit(fn ->
+      Application.delete_env(:kapelle, :product_clock)
+      Application.delete_env(:kapelle, :product_catalog_path)
+      Application.delete_env(:kapelle, :product_provider_req_opts)
+    end)
+
     :ok
   end
 
@@ -90,6 +97,50 @@ defmodule Mix.Tasks.Kapelle.Product.ReportTest do
     refute fixture_output == live_output
   end
 
+  test "a real live-scheme loop's configured address is what reaches the printed agent line, not a stand-in (BEH-22)" do
+    catalog_id = install_default_catalog!()
+
+    research_pack = %{
+      "id" => "RP-002",
+      "idea_ref" => "idea://IDEA-001",
+      "iteration" => 0,
+      "findings" => [],
+      "constraints" => [],
+      "gaps" => [],
+      "brief_for_creator" => "Ship it.",
+      "requests_to_creator" => []
+    }
+
+    success_stub!(%{
+      "role" => "assistant",
+      "type" => "message",
+      "stop_reason" => "end_turn",
+      "usage" => %{"input_tokens" => 7, "output_tokens" => 3},
+      "content" => [%{"type" => "text", "text" => Jason.encode!(research_pack)}]
+    })
+
+    loop_id = "LOOP-LIVE-#{System.unique_integer([:positive])}"
+
+    {:ok, _row} =
+      Loop.start(File.read!(Path.join(@workspace, "idea.yaml")),
+        loop_id: loop_id,
+        proposal_id: "PP-001",
+        exchange_log_id: "XL-001",
+        max_iterations: 1,
+        agent: "model:" <> catalog_id,
+        now_iso: @now_iso
+      )
+
+    Oban.drain_queue(queue: :product, with_recursion: true)
+
+    assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
+    output = Report.format(verdict)
+
+    # The line comes from `RunVerdict.build/1`'s own `loop.agent` read, not
+    # from a hand-built verdict — the same wiring a live run actually uses.
+    assert output =~ "agent:   model:#{catalog_id}"
+  end
+
   test "a printed report never contains a provider key value, whole or fragmented (BEH-23)" do
     marker = "sk-ant-SECRET-MARKER-#{System.unique_integer([:positive])}"
     previous_key = Application.get_env(:langchain, :anthropic_key)
@@ -104,6 +155,42 @@ defmodule Mix.Tasks.Kapelle.Product.ReportTest do
     end)
 
     loop_id = run_waiver_loop!()
+
+    assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
+    output = Report.format(verdict)
+
+    refute output =~ marker
+  end
+
+  test "the key never reaches the printed report through a live loop's own auth failure (BEH-23)" do
+    marker = "sk-ant-SECRET-MARKER-#{System.unique_integer([:positive])}"
+    previous_key = Application.get_env(:langchain, :anthropic_key)
+    Application.put_env(:langchain, :anthropic_key, marker)
+
+    on_exit(fn ->
+      if previous_key do
+        Application.put_env(:langchain, :anthropic_key, previous_key)
+      else
+        Application.delete_env(:langchain, :anthropic_key)
+      end
+    end)
+
+    catalog_id = install_default_catalog!()
+    put_provider_stub!(fn conn -> conn |> put_status(401) |> Req.Test.json(%{}) end)
+
+    loop_id = "LOOP-AUTHFAIL-#{System.unique_integer([:positive])}"
+
+    {:ok, _row} =
+      Loop.start(File.read!(Path.join(@workspace, "idea.yaml")),
+        loop_id: loop_id,
+        proposal_id: "PP-001",
+        exchange_log_id: "XL-001",
+        max_iterations: 1,
+        agent: "model:" <> catalog_id,
+        now_iso: @now_iso
+      )
+
+    Oban.drain_queue(queue: :product, with_recursion: true)
 
     assert {:ok, verdict} = RunVerdict.for_loop(loop_id)
     output = Report.format(verdict)
@@ -204,6 +291,44 @@ defmodule Mix.Tasks.Kapelle.Product.ReportTest do
           )
         )
     }
+  end
+
+  # Minimal live-scheme catalog + stubbed transport, mirroring
+  # `Kapelle.Product.LiveAgentTest`'s own fixtures: enough to drive a real
+  # `Loop.start` over `model:<catalog_id>` without a network call, so the
+  # agent line and the secret-leak guarantee are proven against the actual
+  # `RunVerdict.build/1` wiring rather than a hand-built struct.
+  defp install_default_catalog! do
+    path =
+      Path.join(
+        System.tmp_dir!(),
+        "product_report_test_catalog_#{System.unique_integer([:positive])}.toml"
+      )
+
+    File.write!(path, """
+    [[models]]
+    provider = "anthropic"
+    model = "test-model"
+
+    [models.params]
+    temperature = 0.7
+    max_tokens = 1000
+    """)
+
+    on_exit(fn -> File.rm(path) end)
+    Application.put_env(:kapelle, :product_catalog_path, path)
+    "anthropic@test-model"
+  end
+
+  defp put_provider_stub!(fun) do
+    name = {__MODULE__, System.unique_integer([:positive])}
+    Req.Test.stub(name, fun)
+    Application.put_env(:kapelle, :product_provider_req_opts, plug: {Req.Test, name})
+    name
+  end
+
+  defp success_stub!(response_body) do
+    put_provider_stub!(fn conn -> Req.Test.json(conn, response_body) end)
   end
 
   defp verdict_with_tokens(tokens, unavailable, agent \\ "fixture:LOOP-FMT") do

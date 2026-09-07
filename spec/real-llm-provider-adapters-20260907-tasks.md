@@ -225,7 +225,7 @@ Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md
 **Traces to:** [FR-02], [FR-06], [FR-05], [NFR-02], [FR-12], [NFR-01], [NFR-03]
 
 ### TASK-005: Отчёт называет агента и остаётся read-only
-P2 | 🔄 IN_PROGRESS   Est: 0.5d
+P2 | 🔍 REVIEW   Est: 0.5d
 
 Реализовать сценарии BEH-22, BEH-23 (DT-05, группа surface).
 Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md#DT-05
