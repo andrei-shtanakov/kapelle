@@ -309,7 +309,13 @@ golden-parity
 **And** живой ответ не становится оракулом ни для одной проверки совместимости.
 
 `traces: [FR-07, FR-14]`
-- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/kapelle/product/fixture_parity_test.exs`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/kapelle/product/parity_happy_test.exs`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/kapelle/product/parity_crash_test.exs`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/kapelle/product/parity_invalid_artifact_test.exs`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/kapelle/product/parity_resume_test.exs`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/kapelle/product/parity_human_waiver_test.exs`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/golden/provenance_integrity_test.exs`
+- **checked_by**: `status: planned` `kind: contract` `owner: qa` `target: test/kapelle/product/fixture_parity_test.exs`
 
 ## Feature: Измеренная стоимость доезжает до вердикта
 
@@ -351,7 +357,12 @@ golden-parity
 **Then** прогон получает объявленное на стадии дизайна состояние стоимости
 (частичная сумма либо `:not_instrumented` на весь прогон), одно и то же при
 повторном построении, а не произвольное
-**And** молчаливого превращения неизвестного слагаемого в ноль не происходит.
+**And** вызов, который был совершён, но величины не сообщил — в том числе
+вызов, чей ответ отклонён валидацией, и вызов, оборвавшийся отказом, — считается
+вызовом без величины, а не отсутствующим вызовом
+**And** молчаливого превращения неизвестного слагаемого в ноль не происходит:
+прогон из удачного и отказавшего вызовов не печатает стоимость удачного как
+стоимость прогона.
 
 `traces: [FR-08, FR-09]`
 - **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/kapelle/product/run_verdict_test.exs`
@@ -571,10 +582,13 @@ golden-parity
 **And** ни одна существующая проверка не переведена с fixture-адреса на живой
 **And** `fixture:<key>` продолжает разрешаться и вызываться как прежде
 **And** детерминированность fixture-прогонов не пострадала: повторный прогон даёт
-тот же артефакт байт в байт.
+тот же артефакт байт в байт
+**And** повтор предъявляется прогоном цикла в песочнице БД, а не загрузкой
+фикстур: файл без sandbox эту часть примера доказать не может.
 
 `traces: [FR-14, NFR-01]`
-- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/kapelle/product/fixture_parity_test.exs`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/kapelle/product/parity_happy_test.exs`
+- **checked_by**: `status: planned` `kind: integration` `owner: qa` `target: test/kapelle/product/parity_crash_test.exs`
 
 #### BEH-31: Изменения удерживаются в границах вехи
 
