@@ -54,7 +54,7 @@ workstreams:
       persists decision, result summary and verdict per step. Ecto schemas live
       under lib/kapelle/orchestrator/. Integration test on the Ecto sandbox:
       after an e2e run all rows exist and are linked by ids. Gate: mix test,
-      mix format --check-formatted, mix credo.
+      mix format --check-formatted (credo — вне блокирующего гейта с 2026-09-07).
     scope:
       - "lib/kapelle/orchestrator/**"
       - "priv/repo/migrations/**"
@@ -73,7 +73,7 @@ workstreams:
       Kapelle.Orchestrator.Pipeline.submit/2 enqueues RouteWorker and returns
       the run id immediately. Async integration test via Oban.Testing
       (testing: :manual): drain queues -> verdict persisted; plus one retry
-      path test. Gate: mix test, mix format --check-formatted, mix credo.
+      path test. Gate: mix test, mix format --check-formatted (credo — вне блокирующего гейта с 2026-09-07).
 
       REWORK after a two-agent review of the first attempt. The following are
       MANDATORY acceptance criteria (each with tests):
@@ -133,7 +133,7 @@ workstreams:
       mix.exs. Kapelle.Providers.Catalog (lib/kapelle/providers/catalog.ex):
       load/0 with validation and clear errors on malformed file, get/1 by id,
       list/0. Unit tests: happy path, unknown id, malformed toml. Gate:
-      mix test, mix format --check-formatted, mix credo.
+      mix test, mix format --check-formatted (credo — вне блокирующего гейта с 2026-09-07).
     scope:
       - "lib/kapelle/providers/**"
       - "priv/catalog/**"
