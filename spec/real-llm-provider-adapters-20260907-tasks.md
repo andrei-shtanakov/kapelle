@@ -209,7 +209,7 @@ Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md
 **Traces to:** [FR-03], [FR-04], [FR-05], [FR-12], [FR-06], [FR-07], [FR-10], [NFR-02]
 
 ### TASK-004: Матрица отказов — терминальность, читаемая причина, маршрут, таймаут
-P2 | 🔍 REVIEW   Est: 0.5d
+P2 | 🔄 IN_PROGRESS   Est: 0.5d
 
 Реализовать сценарии BEH-04, BEH-10, BEH-11, BEH-12 (DT-04, группа live).
 Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md#DT-04
