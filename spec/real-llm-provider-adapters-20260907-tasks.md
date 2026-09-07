@@ -270,7 +270,7 @@ Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md
 **Traces to:** [FR-07], [FR-14], [NFR-01]
 
 ### TASK-008: Дефолтный набор офлайновый, безключевой и нечувствительный к окружению
-P2 | 🔄 IN_PROGRESS   Est: 0.5d
+P2 | 🔍 REVIEW   Est: 0.5d
 
 Реализовать сценарии BEH-25 (DT-08, группа solo).
 Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md#DT-08

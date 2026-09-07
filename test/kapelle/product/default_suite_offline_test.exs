@@ -39,14 +39,23 @@ defmodule Kapelle.Product.DefaultSuiteOfflineTest do
   outgoing_attempts_key = {__MODULE__, :outgoing_attempts}
   :persistent_term.put(outgoing_attempts_key, :counters.new(1, []))
 
-  :telemetry.attach(
-    "kapelle-beh-25-default-suite-offline-guard",
-    [:finch, :request, :start],
-    fn _event, _measurements, _metadata, _config ->
-      :counters.add(:persistent_term.get(outgoing_attempts_key), 1, 1)
-    end,
-    nil
-  )
+  # Detach any handler left over from a previous compile of this module in
+  # the same VM (e.g. `mix test.watch`, `recompile()` under `iex -S mix
+  # test`) before attaching: the handler id is fixed, so a bare `attach`
+  # on a stale id silently fails with `{:error, :already_exists}` and
+  # keeps the pre-edit handler running instead of this one.
+  handler_id = "kapelle-beh-25-default-suite-offline-guard"
+  :telemetry.detach(handler_id)
+
+  :ok =
+    :telemetry.attach(
+      handler_id,
+      [:finch, :request, :start],
+      fn _event, _measurements, _metadata, _config ->
+        :counters.add(:persistent_term.get(outgoing_attempts_key), 1, 1)
+      end,
+      nil
+    )
 
   ExUnit.after_suite(fn _stats ->
     attempts = :counters.get(:persistent_term.get(outgoing_attempts_key), 1)
