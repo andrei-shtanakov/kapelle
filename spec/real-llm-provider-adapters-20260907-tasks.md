@@ -254,18 +254,18 @@ Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md
 **Traces to:** [FR-01], [FR-14], [FR-04], [NFR-04]
 
 ### TASK-007: Fixture-мир и golden-parity остаются зелёными без правки ожиданий
-P2 | ✅ DONE   Est: 0.5d
+P2 | 🔍 REVIEW   Est: 0.5d
 
 Проверить сценарии BEH-14, BEH-30 (DT-07, группа guards).
 Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md#DT-07
 **Mode:** verify_first
-**Verifies:** test/kapelle/product/fixture_parity_test.exs:9, test/kapelle/product/fixture_parity_test.exs:26, test/kapelle/product/fixture_parity_test.exs:40, test/kapelle/product/fixture_parity_test.exs:44, test/kapelle/product/parity_crash_test.exs:43, test/kapelle/product/parity_crash_test.exs:117, test/kapelle/product/parity_crash_test.exs:178, test/kapelle/product/parity_crash_test.exs:217, test/kapelle/product/parity_crash_test.exs:271, test/kapelle/product/parity_crash_test.exs:339, test/kapelle/product/parity_crash_test.exs:390, test/kapelle/product/parity_crash_test.exs:451
+**Verifies:** test/kapelle/product/parity_happy_test.exs:22, test/kapelle/product/parity_happy_test.exs:32, test/kapelle/product/parity_happy_test.exs:63, test/kapelle/product/parity_happy_test.exs:100, test/kapelle/product/parity_crash_test.exs:43, test/kapelle/product/parity_crash_test.exs:117, test/kapelle/product/parity_crash_test.exs:178, test/kapelle/product/parity_crash_test.exs:217, test/kapelle/product/parity_crash_test.exs:271, test/kapelle/product/parity_crash_test.exs:339, test/kapelle/product/parity_crash_test.exs:390, test/kapelle/product/parity_crash_test.exs:451, test/golden/provenance_integrity_test.exs:92, test/golden/provenance_integrity_test.exs:113, test/golden/provenance_integrity_test.exs:131, test/kapelle/product/fixture_parity_test.exs:9, test/kapelle/product/fixture_parity_test.exs:26, test/kapelle/product/fixture_parity_test.exs:40, test/kapelle/product/fixture_parity_test.exs:44
 **Depends on:** [TASK-004], [TASK-005]
 
 **Checklist:**
-- [x] проверить BEH-14: Контракт артефактов, нормализатор и golden-набор не менялись — `git log 4db7884..HEAD -- lib/kapelle/product/contracts.ex lib/kapelle/product/oracle/normalizer.ex test/golden test/support/fixtures/golden` пуст с момента бандла вехи
+- [x] проверить BEH-14: Контракт артефактов, нормализатор и golden-набор не менялись — по DT-07 это утверждение не строится diff'ом путей, а следует из зелёных parity- и provenance-проверок: `parity_happy_test.exs` (сверка stored-артефактов с `normalized.json` и кросс-языковыми хешами) и `provenance_integrity_test.exs` (целостность состава golden-набора) зелёные без правки ожиданий
 - [x] проверить BEH-30: Fixture-мир остаётся первоклассным путём — полный parity/golden-набор (happy, crash, invalid_artifact, resume, human_waiver, provenance_integrity, fixture loading) зелёный без правки ожиданий
-- [x] проверка группы: все test-определения fixture_parity_test.exs (kind: contract) и parity_crash_test.exs (kind: integration) зелёные на BEH-14, BEH-30 — селекторы path:line по контракту exunit-адаптера verify_first: `mix test test/kapelle/product/fixture_parity_test.exs test/kapelle/product/parity_crash_test.exs` → 26 tests, 0 failures; полный `mix test` → 615 tests, 0 failures
+- [x] проверка группы: настоящие оракулы BEH-14/BEH-30 — `parity_happy_test.exs` и `parity_crash_test.exs` (parity с reference runner'ом impresario) и `provenance_integrity_test.exs` (целостность golden-набора); `fixture_parity_test.exs` покрывает только загрузку вендоренных фикстур через `Loader.load/2` и сам по себе критерий не закрывает — селекторы path:line по контракту exunit-адаптера verify_first: `mix test test/kapelle/product/fixture_parity_test.exs test/kapelle/product/parity_happy_test.exs test/kapelle/product/parity_crash_test.exs test/golden/provenance_integrity_test.exs` → 33 tests, 0 failures; полный `mix test` → 615 tests, 0 failures
 
 **Traces to:** [FR-07], [FR-14], [NFR-01]
 
