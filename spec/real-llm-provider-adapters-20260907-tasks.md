@@ -259,13 +259,13 @@ P2 | TODO   Est: 0.5d
 Проверить сценарии BEH-14, BEH-30 (DT-07, группа guards).
 Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md#DT-07
 **Mode:** verify_first
-**Verifies:** test/kapelle/product/fixture_parity_test.exs, test/kapelle/product/parity_crash_test.exs
+**Verifies:** test/kapelle/product/fixture_parity_test.exs:9, test/kapelle/product/fixture_parity_test.exs:26, test/kapelle/product/fixture_parity_test.exs:40, test/kapelle/product/fixture_parity_test.exs:44, test/kapelle/product/parity_crash_test.exs:43, test/kapelle/product/parity_crash_test.exs:117, test/kapelle/product/parity_crash_test.exs:178, test/kapelle/product/parity_crash_test.exs:217, test/kapelle/product/parity_crash_test.exs:271, test/kapelle/product/parity_crash_test.exs:339, test/kapelle/product/parity_crash_test.exs:390, test/kapelle/product/parity_crash_test.exs:451
 **Depends on:** [TASK-004], [TASK-005]
 
 **Checklist:**
 - [ ] проверить BEH-14: Контракт артефактов, нормализатор и golden-набор не менялись
 - [ ] проверить BEH-30: Fixture-мир остаётся первоклассным путём
-- [ ] проверка группы: test/kapelle/product/fixture_parity_test.exs (kind: contract), test/kapelle/product/parity_crash_test.exs (kind: integration) зелёные на BEH-14, BEH-30
+- [ ] проверка группы: все test-определения fixture_parity_test.exs (kind: contract) и parity_crash_test.exs (kind: integration) зелёные на BEH-14, BEH-30 — селекторы path:line по контракту exunit-адаптера verify_first
 
 **Traces to:** [FR-07], [FR-14], [NFR-01]
 
