@@ -254,7 +254,7 @@ Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md
 **Traces to:** [FR-01], [FR-14], [FR-04], [NFR-04]
 
 ### TASK-007: Fixture-мир и golden-parity остаются зелёными без правки ожиданий
-P2 | TODO   Est: 0.5d
+P2 | 🔄 IN_PROGRESS   Est: 0.5d
 
 Проверить сценарии BEH-14, BEH-30 (DT-07, группа guards).
 Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md#DT-07
