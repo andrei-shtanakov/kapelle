@@ -254,7 +254,7 @@ Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md
 **Traces to:** [FR-01], [FR-14], [FR-04], [NFR-04]
 
 ### TASK-007: Fixture-мир и golden-parity остаются зелёными без правки ожиданий
-P2 | TODO   Est: 0.5d
+P2 | ✅ DONE   Est: 0.5d
 
 Проверить сценарии BEH-14, BEH-30 (DT-07, группа guards).
 Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md#DT-07
@@ -263,9 +263,9 @@ Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md
 **Depends on:** [TASK-004], [TASK-005]
 
 **Checklist:**
-- [ ] проверить BEH-14: Контракт артефактов, нормализатор и golden-набор не менялись
-- [ ] проверить BEH-30: Fixture-мир остаётся первоклассным путём
-- [ ] проверка группы: все test-определения fixture_parity_test.exs (kind: contract) и parity_crash_test.exs (kind: integration) зелёные на BEH-14, BEH-30 — селекторы path:line по контракту exunit-адаптера verify_first
+- [x] проверить BEH-14: Контракт артефактов, нормализатор и golden-набор не менялись — `git log 4db7884..HEAD -- lib/kapelle/product/contracts.ex lib/kapelle/product/oracle/normalizer.ex test/golden test/support/fixtures/golden` пуст с момента бандла вехи
+- [x] проверить BEH-30: Fixture-мир остаётся первоклассным путём — полный parity/golden-набор (happy, crash, invalid_artifact, resume, human_waiver, provenance_integrity, fixture loading) зелёный без правки ожиданий
+- [x] проверка группы: все test-определения fixture_parity_test.exs (kind: contract) и parity_crash_test.exs (kind: integration) зелёные на BEH-14, BEH-30 — селекторы path:line по контракту exunit-адаптера verify_first: `mix test test/kapelle/product/fixture_parity_test.exs test/kapelle/product/parity_crash_test.exs` → 26 tests, 0 failures; полный `mix test` → 615 tests, 0 failures
 
 **Traces to:** [FR-07], [FR-14], [NFR-01]
 
