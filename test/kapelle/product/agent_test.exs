@@ -22,6 +22,11 @@ defmodule Kapelle.Product.AgentTest do
                Agent.resolve("model:anthropic@claude-sonnet-5")
     end
 
+    test "a catalog id with more than one '@' is passed through verbatim as the key" do
+      assert {:ok, {Kapelle.Product.LiveAgent, "anthropic@claude@sonnet-5"}} =
+               Agent.resolve("model:anthropic@claude@sonnet-5")
+    end
+
     test "resolution reads the live module from config at call time, same {module, key} contract as fixture:" do
       previous = Application.get_env(:kapelle, :product_live_agent)
       Application.put_env(:kapelle, :product_live_agent, Kapelle.Test.ProductLiveAgentDouble)
@@ -96,6 +101,12 @@ defmodule Kapelle.Product.AgentTest do
     test "resolve!/1 still returns the {module, key} pair for a well-formed address" do
       assert {FixtureAgent, "abc"} = Agent.resolve!("fixture:abc")
     end
+
+    test "resolve!/1 raises a readable AddressError for a non-string address" do
+      assert_raise AddressError, ~r/malformed agent address/, fn ->
+        Agent.resolve!(nil)
+      end
+    end
   end
 
   describe "Agent.fixture?/1 — BEH-20: the predicate does not widen onto the live scheme" do
@@ -105,6 +116,18 @@ defmodule Kapelle.Product.AgentTest do
 
     test "a well-formed fixture address is still true, exactly as before" do
       assert Agent.fixture?("fixture:abc")
+    end
+
+    test "a malformed fixture: address (same string resolve/1 rejects) is not a fixture address" do
+      refute Agent.fixture?("fixture:")
+    end
+
+    test "an unknown-scheme address is not a fixture address" do
+      refute Agent.fixture?("provider:gpt-5")
+    end
+
+    test "a non-string address is not a fixture address" do
+      refute Agent.fixture?(nil)
     end
   end
 end

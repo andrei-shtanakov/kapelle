@@ -158,7 +158,7 @@ mix-задачи не заводится. Отдельный тег, а не п�
 - **AC-23** (manual): Первый живой прогон воспроизводим по написанному в репозитории
 
 ### TASK-001: Адресный контракт порта и тотальный `resolve/1`
-P2 | 🔄 IN_PROGRESS   Est: 0.5d
+P2 | 🔍 REVIEW   Est: 0.5d
 
 Реализовать сценарии BEH-01, BEH-03, BEH-20 (DT-01, группа solo).
 Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md#DT-01
