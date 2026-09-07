@@ -1,11 +1,14 @@
 ---
 spec_stage: behaviour-spec
-status: draft
+status: approved
 owner_role: product
 traces_to:
-  - requirements
+- requirements
 upstream_hashes:
-  requirements: "b81320dcf07e7d2b4aaf838347e1e218806bc252"
+  requirements: 5b101de9d646abae1b19f3c9770e0c5f389e8e2f
+approved_by: andrei-shtanakov
+approved_at: '2026-09-07T10:02:34Z'
+version: 2
 ---
 
 # Behaviour spec: Реальные LLM/provider-адаптеры продуктового цикла

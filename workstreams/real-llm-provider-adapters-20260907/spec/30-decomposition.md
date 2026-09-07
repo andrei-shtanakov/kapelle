@@ -1,13 +1,16 @@
 ---
 spec_stage: decomposition
-status: draft
+status: approved
 owner_role: tech-lead
 traces_to:
-  - design
-  - acceptance
+- design
+- acceptance
 upstream_hashes:
-  design: "6d68218efbcaf5f72cd2c5e10259602a4e670d85"
-  acceptance: "496fb3f219b10d7a33420b1f2dd335a5f55aa6c6"
+  design: d2ed9baf20d914740692e1be89c47e2b975416a3
+  acceptance: f26d7f6292a180242d445a409e3f2d8d464edc9b
+approved_by: andrei-shtanakov
+approved_at: '2026-09-07T10:02:34Z'
+version: 2
 ---
 
 # Decomposition: Реальные LLM/provider-адаптеры продуктового цикла
