@@ -45,12 +45,16 @@ ANTHROPIC_API_KEY=sk-ant-... mix test --include live_product_run test/kapelle/pr
 (`assert`), что `cost.tokens` измерено и положительно, а отчёт называет
 живого агента. `loop_id` при успешном прогоне нигде отдельно не печатается
 и не логируется — искать его в успешном выводе `mix test` не нужно и
-бесполезно; если же один из этих `assert` упадёт, ExUnit напечатает
-провалившееся значение `report` целиком, а первая строка `Report.format/1`
-всегда — `loop:    <loop_id>` (см. `lib/mix/tasks/kapelle.product.report.ex`),
-так что при падении `loop_id` в выводе всё-таки виден — хотя строки цикла и
-вызовов агента к этому моменту уже откачены sandbox'ом (см. ниже) и
-дальнейшего смотрения через `mix kapelle.product.report` не переживают.
+бесполезно. При падении печать `loop_id` зависит от того, какой именно
+`assert` не прошёл: `assert is_integer(verdict.cost.tokens) and …` стоит
+до вычисления `report`, так что его провал выводит только собственное
+сообщение — без `loop_id`; а вот если падает один из двух последующих
+`assert report =~ …`, ExUnit печатает провалившееся значение `report`
+целиком, и первая строка `Report.format/1` — всегда `loop:    <loop_id>`
+(см. `lib/mix/tasks/kapelle.product.report.ex`), так что в этом случае
+`loop_id` в выводе виден — хотя строки цикла и вызовов агента к этому
+моменту уже откачены sandbox'ом (см. ниже) и дальнейшего смотрения через
+`mix kapelle.product.report` не переживают.
 
 Чтобы увидеть тот же отчёт глазами, а не только пройденный тест,
 `mix kapelle.product.report <loop_id>` нужно направить не на прогон
@@ -74,18 +78,31 @@ ANTHROPIC_API_KEY=sk-ant-... iex -S mix
 (`test/support/fixtures/golden/happy/workspace/idea.yaml`), и всеми пятью
 опциями, которые требует `Loop.start/2` (`lib/kapelle/product/loop.ex`) —
 `loop_id`, `proposal_id`, `exchange_log_id`, `max_iterations` и `agent`
-обязательны, без умолчаний:
+обязательны, без умолчаний. `proposal_id` и `exchange_log_id` обязаны
+пройти вендоренную схему product-proposal
+(`priv/contracts/impresario/product-proposal/v1/schema.json`) —
+`^PP-[0-9]{3,}$` и `^exchange-log://XL-[0-9]{3,}$` соответственно, т.е.
+только цифры после префикса, как в остальных вызовах `Loop.start/2` по
+репозиторию (`PP-001`, `XL-001`):
 
 ```elixir
 Kapelle.Product.Loop.start(
   File.read!("test/support/fixtures/golden/happy/workspace/idea.yaml"),
-  loop_id: "LOOP-1",
-  proposal_id: "PP-1",
-  exchange_log_id: "XL-1",
+  loop_id: "LOOP-001",
+  proposal_id: "PP-001",
+  exchange_log_id: "XL-001",
   max_iterations: 1,
   agent: "model:anthropic@claude-haiku-4-5"
 )
 ```
+
+Каждая новая попытка требует свежего `loop_id`: `Loop.start/2` вставляет
+строку цикла (`Loops.create/1`) раньше, чем проверяет `proposal_id`/
+`exchange_log_id` по схеме, так что неудачная попытка (например, из-за
+опечатки в идентификаторах или сетевого сбоя) оставляет строку `LOOP-001`
+уже занятой — повтор с тем же `loop_id` упадёт `{:error,
+:already_initialized}`, а не повторит попытку. Возьмите `LOOP-002` и т. д.
+для каждого следующего вызова в сессии.
 
 Очередь `:product` в dev реально запущена
 (`config/config.exs`), поэтому Oban доработает джобы сам — дождитесь, пока
