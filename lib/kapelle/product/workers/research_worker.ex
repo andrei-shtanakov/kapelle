@@ -9,7 +9,6 @@ defmodule Kapelle.Product.Workers.ResearchWorker do
 
   use Oban.Worker, queue: :product
 
-  alias Kapelle.Product.Agent
   alias Kapelle.Product.Workers.StageShell
 
   @impl Oban.Worker
@@ -26,9 +25,7 @@ defmodule Kapelle.Product.Workers.ResearchWorker do
   defp output_exists?(view, iteration), do: Map.has_key?(view.research_packs, iteration)
 
   defp execute(view, iteration, loop) do
-    {agent_mod, key} = Agent.resolve!(loop.agent)
-
-    with {:ok, doc} <- agent_mod.produce(:researcher, iteration, %{key: key, view: view}),
+    with {:ok, doc} <- StageShell.call_agent(loop, :researcher, iteration, %{view: view}),
          :ok <- StageShell.persist_document(:research_pack, doc, loop.loop_id) do
       StageShell.append_exchange_entry(loop, view, %{
         "iteration" => iteration,
