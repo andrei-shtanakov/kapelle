@@ -297,7 +297,7 @@ Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md
 **Traces to:** [FR-13], [NFR-02], [FR-08], [FR-11]
 
 ### TASK-010: Инструкция воспроизведения живого прогона
-P2 | 🔄 IN_PROGRESS   Est: 0.5d
+P2 | 🔍 REVIEW   Est: 0.5d
 
 Реализовать сценарии BEH-28 (DT-10, группа optin).
 Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md#DT-10
