@@ -138,8 +138,14 @@ defmodule Kapelle.Product.LiveAgent do
       {:ok, chain_result} ->
         handle_chain_result(chain_result, role, entry)
 
-      {:exit, exception} ->
+      {:raised, exception} ->
         {:error, {:unclassified_provider_failure, inspect(exception.__struct__)}}
+
+      {:caught, kind, reason} ->
+        {:error, {:unclassified_provider_failure, inspect({kind, reason})}}
+
+      {:crashed, reason} ->
+        {:error, {:unclassified_provider_failure, inspect(reason)}}
 
       {:timeout, ms} ->
         {:error, {:infrastructure, {:timeout, ms}}}
@@ -156,28 +162,31 @@ defmodule Kapelle.Product.LiveAgent do
   # boundary without ever letting its eventual answer reach
   # `handle_chain_result/3` — `Task.shutdown/2`'s `:brutal_kill` tears the
   # task down on timeout, so a belated response is never awaited, parsed,
-  # or persisted. `safe_run_chain/1` catches any exception *inside* the
-  # task (not just the timeout path) so a crash there is reported back as
-  # a value rather than propagated through the link, keeping the
-  # classification identical to a synchronous call's own `rescue`.
+  # or persisted. `safe_run_chain/1` catches both raised exceptions and
+  # `:exit`/`:throw` (e.g. Finch re-exiting a pool-checkout failure) so a
+  # crash there is reported back as a value rather than propagated through
+  # the link, keeping the classification identical to a synchronous call's
+  # own `rescue`. The `{:exit, reason}` clause below is a last-resort net
+  # for a task that still dies some other way (untrappable kill signal) —
+  # `Task.yield/2`'s own documented return shape, distinct from
+  # `safe_run_chain/1`'s `{:raised, _}` / `{:caught, _, _}` result values.
   defp run_chain_within_timeout(chain) do
     ms = agent_timeout_ms()
     task = Task.async(fn -> safe_run_chain(chain) end)
 
-    case Task.yield(task, ms) do
-      {:ok, result} ->
-        result
-
-      nil ->
-        Task.shutdown(task, :brutal_kill)
-        {:timeout, ms}
+    case Task.yield(task, ms) || Task.shutdown(task, :brutal_kill) do
+      {:ok, result} -> result
+      {:exit, reason} -> {:crashed, reason}
+      nil -> {:timeout, ms}
     end
   end
 
   defp safe_run_chain(chain) do
     {:ok, LLMChain.run(chain)}
   rescue
-    exception -> {:exit, exception}
+    exception -> {:raised, exception}
+  catch
+    kind, reason -> {:caught, kind, reason}
   end
 
   defp agent_timeout_ms, do: Application.get_env(:kapelle, :product_agent_timeout_ms, 120_000)
