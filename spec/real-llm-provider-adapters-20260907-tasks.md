@@ -283,16 +283,16 @@ Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md
 **Traces to:** [FR-13], [NFR-01]
 
 ### TASK-009: Opt-in живого прогона — отказ без ключа и end-to-end с ключом
-P2 | 🔍 REVIEW   Est: 0.5d
+P2 | ✅ DONE   Est: 0.5d
 
 Реализовать сценарии BEH-26, BEH-27 (DT-09, группа optin).
 Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md#DT-09
 **Depends on:** [TASK-005], [TASK-008]
 
 **Checklist:**
-- [ ] реализовать BEH-26: Opt-in без ключа отказывает сразу и называет недостающее
-- [ ] реализовать BEH-27: Живой прогон end-to-end даёт вердикт с измеренной стоимостью
-- [ ] проверка группы: test/kapelle/product/live_run_smoke_test.exs (kind: manual), test/kapelle/product/live_run_smoke_test.exs (kind: e2e) зелёные на BEH-26, BEH-27
+- [x] реализовать BEH-26: Opt-in без ключа отказывает сразу и называет недостающее
+- [x] реализовать BEH-27: Живой прогон end-to-end даёт вердикт с измеренной стоимостью
+- [x] проверка группы: test/kapelle/product/live_run_smoke_test.exs (kind: manual), test/kapelle/product/live_run_smoke_test.exs (kind: e2e) зелёные на BEH-26, BEH-27
 
 **Traces to:** [FR-13], [NFR-02], [FR-08], [FR-11]
 
