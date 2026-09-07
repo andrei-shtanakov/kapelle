@@ -225,16 +225,16 @@ Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md
 **Traces to:** [FR-02], [FR-06], [FR-05], [NFR-02], [FR-12], [NFR-01], [NFR-03]
 
 ### TASK-005: Отчёт называет агента и остаётся read-only
-P2 | 🔍 REVIEW   Est: 0.5d
+P2 | ✅ DONE   Est: 0.5d
 
 Реализовать сценарии BEH-22, BEH-23 (DT-05, группа surface).
 Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md#DT-05
 **Depends on:** [TASK-002]
 
 **Checklist:**
-- [ ] реализовать BEH-22: Отчёт называет агента прогона
-- [ ] реализовать BEH-23: Отчёт остаётся read-only и не печатает секретов
-- [ ] проверка группы: test/mix/tasks/kapelle_product_report_test.exs (kind: integration) зелёные на BEH-22, BEH-23
+- [x] реализовать BEH-22: Отчёт называет агента прогона
+- [x] реализовать BEH-23: Отчёт остаётся read-only и не печатает секретов
+- [x] проверка группы: test/mix/tasks/kapelle_product_report_test.exs (kind: integration) зелёные на BEH-22, BEH-23
 
 **Traces to:** [FR-11], [FR-09], [NFR-02]
 
