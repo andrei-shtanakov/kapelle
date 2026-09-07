@@ -239,17 +239,17 @@ Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md
 **Traces to:** [FR-11], [FR-09], [NFR-02]
 
 ### TASK-006: Инварианты границ — порт единственный, каталог единственный, m1 не тронут
-P2 | 🔍 REVIEW   Est: 0.5d
+P2 | ✅ DONE   Est: 0.5d
 
 Реализовать сценарии BEH-02, BEH-07, BEH-31 (DT-06, группа guards).
 Source: workstreams/real-llm-provider-adapters-20260907/spec/30-decomposition.md#DT-06
 **Depends on:** [TASK-004], [TASK-005]
 
 **Checklist:**
-- [ ] реализовать BEH-02: Воркеры не знают, живой перед ними агент или fixture
-- [ ] реализовать BEH-07: Второго механизма адресации моделей не появляется
-- [ ] реализовать BEH-31: Изменения удерживаются в границах вехи
-- [ ] проверка группы: test/kapelle/product/boundary_guard_test.exs (kind: contract) зелёные на BEH-02, BEH-07, BEH-31
+- [x] реализовать BEH-02: Воркеры не знают, живой перед ними агент или fixture
+- [x] реализовать BEH-07: Второго механизма адресации моделей не появляется
+- [x] реализовать BEH-31: Изменения удерживаются в границах вехи
+- [x] проверка группы: test/kapelle/product/boundary_guard_test.exs (kind: contract) зелёные на BEH-02, BEH-07, BEH-31
 
 **Traces to:** [FR-01], [FR-14], [FR-04], [NFR-04]
 
