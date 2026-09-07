@@ -80,8 +80,8 @@ defmodule Kapelle.Product.LiveRunSmokeTest do
     {:ok, _loop_row} =
       Loop.start(idea_yaml(),
         loop_id: loop_id,
-        proposal_id: "PP-LIVE-001",
-        exchange_log_id: "XL-LIVE-001",
+        proposal_id: "PP-001",
+        exchange_log_id: "XL-001",
         max_iterations: max_iterations,
         agent: agent
       )
