@@ -86,6 +86,8 @@ defmodule Kapelle.Product.Workers.StageShell do
   """
 
   alias Kapelle.Product.{
+    Agent,
+    AgentCalls,
     CanonicalHash,
     Identity,
     Loops,
@@ -490,6 +492,57 @@ defmodule Kapelle.Product.Workers.StageShell do
 
   defp stop_verdict(:ready), do: "ready_for_business"
   defp stop_verdict(:needs_human), do: "needs_human"
+
+  @doc """
+  The shared agent-call seam (design doc Q-02/Q-03): resolves the loop's
+  own address (`Kapelle.Product.Agent.resolve/1` — total, never raises),
+  invokes `produce/3`, and — for any non-`fixture:` address that
+  actually resolved — durably records the attempt (`AgentCalls.record!/4`)
+  before this function ever returns, *before* the caller persists
+  anything or routes a failure, and regardless of how the call ended.
+  Both stage workers call this instead of resolving the address or
+  calling `produce/3` themselves, so the address is interpreted in
+  exactly one place and the durable write happens exactly once per
+  attempt, never once per stage.
+
+  An address that fails to resolve never reaches `produce/3` at all —
+  no call was made, so no row is written — and its `{:error, reason}`
+  passes straight through to the caller, landing on `perform_stage/3`'s
+  existing catch-all route (fail-closed, terminal, product axis stays
+  `:unknown`) exactly like any other reason that is not
+  `:infrastructure`/`:domain`/`:invalid_artifact`.
+
+  Always returns the two-element success shape (`{:ok, doc}`) even when
+  the underlying adapter reported a third `call_meta` element — that
+  element is durably captured here, not carried further — so a caller's
+  own `with` chain keeps matching exactly what it matched when it called
+  `produce/3` directly.
+  """
+  @spec call_agent(LoopRow.t(), Kapelle.Product.Agent.role(), non_neg_integer(), map()) ::
+          {:ok, map()} | {:error, term()}
+  def call_agent(%LoopRow{agent: address} = loop, role, iteration, context) do
+    case Agent.resolve(address) do
+      {:ok, {agent_mod, key}} ->
+        result = agent_mod.produce(role, iteration, Map.put(context, :key, key))
+        unless Agent.fixture?(address), do: record_call_attempt(loop, role, iteration, result)
+        normalize_produce(result)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp record_call_attempt(loop, role, iteration, {:ok, _doc, call_meta}) do
+    AgentCalls.record!(loop.loop_id, iteration, role, call_meta)
+  end
+
+  defp record_call_attempt(loop, role, iteration, _result) do
+    AgentCalls.record!(loop.loop_id, iteration, role, nil)
+  end
+
+  defp normalize_produce({:ok, doc}), do: {:ok, doc}
+  defp normalize_produce({:ok, doc, _call_meta}), do: {:ok, doc}
+  defp normalize_produce({:error, _reason} = error), do: error
 
   @doc """
   Validates `doc` against `kind`'s vendored schema, derives its identity,

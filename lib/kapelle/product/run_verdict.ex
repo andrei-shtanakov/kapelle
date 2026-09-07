@@ -39,11 +39,16 @@ defmodule Kapelle.Product.RunVerdict do
 
   The first state is decided by `Agent.fixture?/1` on the loop's own
   address, never by the absence of a figure, and that direction is
-  load-bearing: a live scheme added by #50 without instrumentation lands
-  in the third state and turns the axis red, instead of claiming the
-  provider was never called. `token_usage/1` is the single seam a real
-  adapter fills; M3 only ever reaches the first state, because
-  `fixture:<key>` is the only address `Agent.resolve!/1` knows.
+  load-bearing: a live scheme without instrumentation lands in the third
+  state and turns the axis red, instead of claiming the provider was
+  never called. `Kapelle.Product.AgentCalls` is the durable read this
+  module relies on — one row per attempted live call
+  (`Kapelle.Product.Workers.StageShell.call_agent/4` writes it) — and
+  `token_state/1` applies design doc Q-04's aggregation rule over its
+  rows: no rows and a fixture address is the first state, no rows and
+  anything else is the third, rows with every `tokens_total` numeric sum
+  to the second (zero included), and rows with even one `nil`
+  `tokens_total` fall back to the third rather than print a partial sum.
 
   The state is computed once (`token_state/1`) and shared by the finding
   and the cost block: reading the same fact twice is two chances to
@@ -84,7 +89,7 @@ defmodule Kapelle.Product.RunVerdict do
 
   import Ecto.Query, only: [from: 2]
 
-  alias Kapelle.Product.{Agent, Loops, NextStage, Store, View}
+  alias Kapelle.Product.{Agent, AgentCalls, Loops, NextStage, Store, View}
   alias Kapelle.Product.Records.LoopRow
   alias Kapelle.Repo
 
@@ -370,11 +375,6 @@ defmodule Kapelle.Product.RunVerdict do
     end
   end
 
-  # The seam a real provider adapter fills (design §9: real adapters are
-  # out of M3). Until one reports usage there is nothing to read, and
-  # saying so is the whole point — see the moduledoc.
-  defp token_usage(_loop_id), do: nil
-
   # --- cost per run ---
 
   defp cost(loop, jobs, rows, view_result, token_state) do
@@ -396,19 +396,28 @@ defmodule Kapelle.Product.RunVerdict do
   end
 
   # The one reading of the token fact, shared by the finding and the cost
-  # block. Fail closed on the address: only a recognised fixture agent
-  # proves that no provider was reached. Anything else — a live scheme,
-  # a typo, an address this slice never knew — means the usage was owed
-  # and never arrived, which is a real observability gap.
+  # block (design doc Q-04). Fail closed on the address when there are no
+  # rows at all: only a recognised fixture agent proves that no provider
+  # was reached. Anything else — a live scheme, a typo, an address this
+  # slice never knew — means the usage was owed and never arrived, which
+  # is a real observability gap. Once rows exist (a live-scheme attempt
+  # always leaves one, win or lose — `StageShell.call_agent/4`), the
+  # figure is a plain sum, and a single `nil` `tokens_total` sinks the
+  # whole run to `:not_instrumented` rather than print a partial total as
+  # if it were complete.
   defp token_state(%LoopRow{} = loop) do
-    case token_usage(loop.loop_id) do
-      nil ->
+    case AgentCalls.for_loop(loop.loop_id) do
+      [] ->
         if Agent.fixture?(loop.agent),
           do: {:unavailable, :not_applicable},
           else: {:unavailable, :not_instrumented}
 
-      usage ->
-        {:measured, usage}
+      rows ->
+        if Enum.all?(rows, & &1.tokens_total) do
+          {:measured, Enum.sum(Enum.map(rows, & &1.tokens_total))}
+        else
+          {:unavailable, :not_instrumented}
+        end
     end
   end
 
