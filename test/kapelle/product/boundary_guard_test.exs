@@ -56,15 +56,18 @@ defmodule Kapelle.Product.BoundaryGuardTest do
   # on ":" and matching the head against a scheme allow-list (not
   # concatenation/bitstring/starts_with?) — the most natural idiom to
   # copy-paste into a second module, and the concrete patterns above don't
-  # cover it. Flagged only when a file both colon-splits *and* names both
-  # scheme literals, so a file that merely mentions "model" or "fixture"
-  # in prose doesn't trip it.
+  # cover it. Flagged when a file both colon-splits *and* names at least one
+  # scheme literal — a second parse site only needs to recognize a single
+  # scheme (e.g. branching on `"fixture"` alone) to violate BEH-02, so this
+  # is a disjunction, not a conjunction, of the two literals. A file that
+  # merely mentions "model" or "fixture" in bare prose still doesn't trip
+  # it: both literals are matched in their quoted form, not as a substring
+  # anywhere in the file.
   @scheme_split_pattern ~r/String\.split\([^,]+,\s*":"/
 
   defp scheme_split_offender?(source) do
     Regex.match?(@scheme_split_pattern, source) and
-      String.contains?(source, "\"fixture\"") and
-      String.contains?(source, "\"model\"")
+      (String.contains?(source, "\"fixture\"") or String.contains?(source, "\"model\""))
   end
 
   test "only Kapelle.Product.Agent parses an agent address prefix (BEH-02)" do
@@ -89,18 +92,51 @@ defmodule Kapelle.Product.BoundaryGuardTest do
   # literals are read live from the real catalog (not hardcoded in this
   # test), so the check keeps working as the catalog grows. The chat-model
   # construction check catches a second module reaching straight for a
-  # langchain chat model instead of going through ModelFactory.
-  #
-  # The spec's "Then" clause also names params-*value* duplication (e.g. a
-  # hardcoded `temperature: 0.7` mirroring the catalog), deliberately left
-  # unchecked here: entry.params values are generic numbers/strings with no
-  # signature distinct from ordinary code (timeouts, retry counts, ...), so
-  # a literal scan for them would false-positive far more than it would
-  # catch. Needs a narrower signal (e.g. a params-shaped literal keyed by
-  # the same field names) before it can be added safely. ---
+  # langchain chat model instead of going through ModelFactory. The
+  # params-value check catches a hardcoded number mirroring a catalog
+  # param, and the fallback-chain check catches a second chain-resolver
+  # (Q-06 forbids walking the catalog's own fallback chain from the
+  # product port — that's FallbackResolver's job in the executor, m1). ---
 
   @product_context_glob "lib/kapelle/product/**/*.{ex,exs}"
   @model_addressing_adapter "lib/kapelle/providers/model_factory.ex"
+
+  # A model-name literal only counts as a duplicate when it appears as an
+  # actual code literal (a quoted string or a quoted atom), not as a
+  # substring anywhere in the file — a moduledoc example address like
+  # `model:anthropic@claude-sonnet-5` (backtick-quoted prose, not an Elixir
+  # string) must not trip this (DT-06). The quoted-span match is
+  # necessarily single-line: doc content is a multi-line heredoc, and a
+  # model name landing there is never itself wrapped in `"..."` on the same
+  # line, while a genuine code literal always is.
+  defp model_literal_offender?(source, model) do
+    Regex.match?(~r/"[^"\n]*#{Regex.escape(model)}[^"\n]*"/, source)
+  end
+
+  # A hardcoded number mirroring a catalog invocation param — the same
+  # signal DT-06 asks for params *values*, not just names. Scoped to the
+  # two numeric params the catalog actually carries (`temperature`,
+  # `max_tokens`); matches only the keyword/map-literal shape
+  # `key: <number>`, so reading the value back out (`entry.params.max_tokens`,
+  # `Map.get(entry.params, :max_tokens, ...)`) never trips it — no colon
+  # immediately followed by a digit is produced by either read form.
+  @param_value_literal_pattern ~r/\b(temperature|max_tokens)\s*:\s*-?\d/
+
+  defp param_value_literal_offender?(source) do
+    Regex.match?(@param_value_literal_pattern, source)
+  end
+
+  # A second chain-resolver: the product context reaching into
+  # `entry.fallback` (or any `.fallback` field access) to walk a chain
+  # itself instead of calling exactly one entry and letting a failure stay
+  # a failure. Matched as a dotted field access (`.fallback`), not the bare
+  # word — `live_agent.ex`'s own moduledoc says "No fallback chain" in
+  # prose, which has no leading dot and must not trip this.
+  @fallback_chain_pattern ~r/\.fallback\b/
+
+  defp fallback_chain_offender?(source) do
+    Regex.match?(@fallback_chain_pattern, source)
+  end
 
   test "model addressing goes only through Catalog and ModelFactory (BEH-07)" do
     {:ok, entries} = Catalog.load()
@@ -111,13 +147,35 @@ defmodule Kapelle.Product.BoundaryGuardTest do
     literal_offenders =
       Enum.filter(scanned, fn path ->
         source = File.read!(path)
-        Enum.any?(model_literals, &String.contains?(source, &1))
+        Enum.any?(model_literals, &model_literal_offender?(source, &1))
       end)
 
     assert literal_offenders == [],
            "catalog model-name literal duplicated outside the catalog (BEH-07): " <>
              "#{inspect(literal_offenders)} — the product context must carry no " <>
              "model list of its own"
+
+    product_context_files = Path.wildcard(@product_context_glob)
+
+    param_value_offenders =
+      Enum.filter(product_context_files, fn path ->
+        param_value_literal_offender?(File.read!(path))
+      end)
+
+    assert param_value_offenders == [],
+           "catalog param-value literal duplicated outside the catalog (BEH-07): " <>
+             "#{inspect(param_value_offenders)} — read invocation params from " <>
+             "entry.params, not a hardcoded number"
+
+    fallback_chain_offenders =
+      Enum.filter(product_context_files, fn path ->
+        fallback_chain_offender?(File.read!(path))
+      end)
+
+    assert fallback_chain_offenders == [],
+           "a second chain-resolver was found in the product context (BEH-07): " <>
+             "#{inspect(fallback_chain_offenders)} — Q-06 forbids walking the " <>
+             "catalog's fallback chain from the product port"
 
     chat_model_builders =
       "lib/**/*.{ex,exs}"
@@ -147,7 +205,12 @@ defmodule Kapelle.Product.BoundaryGuardTest do
   #   3. no monetary cost introduced              -> next test
   # Pinned per-file SHA-256 (not a git diff, per the design doc's explicit
   # MUST — this check must not depend on the state of the branch): any edit
-  # to these files, however small, flips the hash and fails the test. ---
+  # to these files, however small, flips the hash and fails the test.
+  # `execution.ex` is pinned alongside the other three named in the spec's
+  # "Then" clause: it's the seam both execution paths call into (sync and
+  # the Oban worker) and the one that actually builds `[target | fallback]`
+  # and drives `FallbackResolver.resolve/2` — the m1 plane isn't just the
+  # resolver itself but everything that walks it. ---
 
   @m1_execution_plane %{
     "lib/kapelle/executor/adapter.ex" =>
@@ -156,6 +219,8 @@ defmodule Kapelle.Product.BoundaryGuardTest do
       "7def70a02a4cc9a4691ebef545157cc9bc3b021f77c080cabef0a1eae21147af",
     "lib/kapelle/executor/fallback_resolver.ex" =>
       "a89835564377eeb97ccf120b317a06cfb10d2d5ad8c4655818c8aa12d61d8d50",
+    "lib/kapelle/executor/execution.ex" =>
+      "26adb5a6f2ad5088ba2de617510c94786c2c1939cc84da18570a1c13f313261e",
     "lib/kapelle/product/contracts.ex" =>
       "94fd9dd8a04cb60368a5ae31d5d50a5f61c5e2bcf15e2f8b69c41452e5dad5c5",
     "lib/kapelle/product/oracle/normalizer.ex" =>
@@ -175,8 +240,8 @@ defmodule Kapelle.Product.BoundaryGuardTest do
     assert offenders == [],
            "m1 execution plane changed within this milestone (BEH-31): " <>
              "#{inspect(Enum.map(offenders, &elem(&1, 0)))} — Executor.Adapter, " <>
-             "Executor.ChainAdapter, FallbackResolver and the artifact " <>
-             "contract/normalizer must stay byte-identical until m1 reopens"
+             "Executor.ChainAdapter, FallbackResolver, Executor.Execution and the " <>
+             "artifact contract/normalizer must stay byte-identical until m1 reopens"
   end
 
   # --- BEH-31 continued: catalog not augmented, no monetary cost
@@ -189,12 +254,22 @@ defmodule Kapelle.Product.BoundaryGuardTest do
   # already denote token/iteration accounting elsewhere in this codebase
   # (e.g. Kapelle.Product.RunVerdict's cost block), so scanning for them
   # would false-positive immediately; ISO 4217 codes are a narrower, real
-  # signal for money actually showing up. ---
+  # signal for money actually showing up. Matched case-insensitively (an
+  # idiomatic Elixir field/atom is lowercase, e.g. `currency: :usd`) and
+  # scanned over the same file set as the impresario guard above
+  # (lib .ex/.exs/.heex + config/*.exs), plus priv's text-shaped sources —
+  # a currency code could just as well land in a fixture or the catalog
+  # file itself, not only in lib/. ---
 
   @catalog_path "priv/catalog/models.toml"
   @catalog_baseline_sha256 "0746219058463bc44459c214d58fb65835eb93c295cf6d2c41d15b850df61ed1"
   @forbidden_param_keys ~w(api_key key token secret)
-  @currency_code_pattern ~r/\b(USD|EUR|GBP|RUB|JPY)\b/
+  @currency_code_pattern ~r/\b(USD|EUR|GBP|RUB|JPY)\b/i
+  @currency_scan_globs [
+    "lib/**/*.{ex,exs,heex}",
+    "config/*.exs",
+    "priv/**/*.{toml,exs,yaml,yml,json,md}"
+  ]
 
   test "the catalog is not augmented and carries no monetary or credential-shaped fields (BEH-31)" do
     assert sha256_hex(@catalog_path) == @catalog_baseline_sha256,
@@ -214,8 +289,8 @@ defmodule Kapelle.Product.BoundaryGuardTest do
              "#{inspect(credential_offenders)} — provider secrets must not live in the catalog"
 
     currency_offenders =
-      "lib/**/*.{ex,exs}"
-      |> Path.wildcard()
+      @currency_scan_globs
+      |> Enum.flat_map(&Path.wildcard/1)
       |> Enum.filter(&Regex.match?(@currency_code_pattern, File.read!(&1)))
 
     assert currency_offenders == [],
